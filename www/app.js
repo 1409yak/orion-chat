@@ -2043,7 +2043,7 @@ async function applyUpdateAndReload() {
     if (isDownloadingUpdate || !activeOtaManifest) return;
     isDownloadingUpdate = true;
     const targetVer = activeOtaManifest.version || '1.0.2';
-    const bundleUrl = activeOtaManifest.url || `https://github.com/1409yak/orion-chat/releases/download/v${targetVer}/bundle.zip`;
+    const bundleUrl = activeOtaManifest.url || `https://orion-fcm-worker.gaim.workers.dev/download-ota?version=v${targetVer}`;
     try {
         await downloadAndApplyUpdate(targetVer, bundleUrl);
     } finally {
@@ -2229,7 +2229,7 @@ window.triggerOtaUpdate = async function(targetVersion = '1.0.2', directUrl = nu
     isInstallingFromChannel = true;
 
     try {
-        let bundleUrl = directUrl || `https://orion-fcm-worker.pale-fascinator.workers.dev/download-ota?version=v${targetVersion}`;
+        let bundleUrl = directUrl || `https://orion-fcm-worker.gaim.workers.dev/download-ota?version=v${targetVersion}`;
 
         if (!directUrl) {
             try {
