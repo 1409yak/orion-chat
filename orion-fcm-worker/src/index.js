@@ -154,8 +154,15 @@ export default {
   async fetch(request, env, ctx) {
     const url = new URL(request.url);
 
-    if (request.method === "OPTIONS") {
-      return new Response(null, { headers: corsHeaders });
+    if (request.method === 'OPTIONS') {
+      return new Response(null, {
+        status: 204,
+        headers: {
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+          'Access-Control-Allow-Headers': '*'
+        }
+      });
     }
 
     if (url.pathname === '/download-ota') {
@@ -165,7 +172,7 @@ export default {
 
       try {
         const ghRes = await fetch(githubUrl, {
-          method: request.method === 'HEAD' ? 'HEAD' : 'GET',
+          method: 'GET',
           redirect: 'follow',
           headers: {
             'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OrionUpdater/1.0',
@@ -180,26 +187,29 @@ export default {
           });
         }
 
+        // Buffer the binary array so we can compute the exact byte length for Android
+        const arrayBuffer = await ghRes.arrayBuffer();
+
+        const responseHeaders = {
+          'Content-Type': 'application/zip',
+          'Content-Length': arrayBuffer.byteLength.toString(),
+          'Content-Disposition': 'attachment; filename="bundle.zip"',
+          'Access-Control-Allow-Origin': '*',
+          'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
+          'Access-Control-Expose-Headers': 'Content-Length',
+          'Cache-Control': 'no-cache'
+        };
+
         if (request.method === 'HEAD') {
           return new Response(null, {
             status: 200,
-            headers: {
-              'Content-Type': 'application/zip',
-              'Content-Disposition': 'attachment; filename="bundle.zip"',
-              'Access-Control-Allow-Origin': '*',
-              'Cache-Control': 'no-cache'
-            }
+            headers: responseHeaders
           });
         }
 
-        return new Response(ghRes.body, {
+        return new Response(arrayBuffer, {
           status: 200,
-          headers: {
-            'Content-Type': 'application/zip',
-            'Content-Disposition': 'attachment; filename="bundle.zip"',
-            'Access-Control-Allow-Origin': '*',
-            'Cache-Control': 'no-cache'
-          }
+          headers: responseHeaders
         });
       } catch (err) {
         return new Response(`Proxy Error: ${err.message}`, {
