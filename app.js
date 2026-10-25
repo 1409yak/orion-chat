@@ -2042,60 +2042,11 @@ function dismissOtaUpdateBanner() {
 async function applyUpdateAndReload() {
     if (isDownloadingUpdate || !activeOtaManifest) return;
     isDownloadingUpdate = true;
-
-    const applyBtn = document.getElementById('btn-apply-update');
-    const dismissBtn = document.getElementById('btn-dismiss-update');
-    if (applyBtn) {
-        applyBtn.disabled = true;
-        applyBtn.textContent = 'Downloading update...';
-    }
-    if (dismissBtn) {
-        dismissBtn.style.display = 'none';
-    }
-
+    const targetVer = activeOtaManifest.version || '1.0.2';
+    const bundleUrl = activeOtaManifest.url || `https://github.com/1409yak/orion-chat/releases/download/v${targetVer}/bundle.zip`;
     try {
-        const updater = await getCapacitorUpdater();
-        if (!updater) {
-            console.log('[OTA] Non-Capacitor environment. Simulating update refresh.');
-            showNotification('Update applied! Reloading webview...', 'success');
-            setTimeout(() => window.location.reload(), 1200);
-            return;
-        }
-
-        let downloadUrl = activeOtaManifest.url;
-        if (!downloadUrl.startsWith('http://') && !downloadUrl.startsWith('https://')) {
-            try {
-                downloadUrl = new URL(downloadUrl, window.location.href).href;
-            } catch (_) {}
-        }
-
-        console.log(`[OTA] Downloading update from ${downloadUrl} (v${activeOtaManifest.version})...`);
-        const bundle = await updater.download({
-            url: downloadUrl,
-            version: activeOtaManifest.version
-        });
-
-        if (applyBtn) applyBtn.textContent = 'Restarting...';
-
-        console.log('[OTA] Download complete. Setting bundle:', bundle);
-        await updater.set(bundle);
-
-        console.log('[OTA] Reloading WebView via CapacitorUpdater.reload()...');
-        if (typeof updater.reload === 'function') {
-            await updater.reload();
-        } else {
-            window.location.reload();
-        }
-    } catch (err) {
-        console.error('[OTA] Download / set failed:', err);
-        showNotification('Update download failed: ' + (err.message || 'Network error'), 'error');
-        if (applyBtn) {
-            applyBtn.disabled = false;
-            applyBtn.textContent = 'Retry Update';
-        }
-        if (dismissBtn) {
-            dismissBtn.style.display = 'inline-flex';
-        }
+        await downloadAndApplyUpdate(targetVer, bundleUrl);
+    } finally {
         isDownloadingUpdate = false;
     }
 }
@@ -2197,15 +2148,12 @@ window.openSettingsAndCheckUpdate = openSettingsAndCheckUpdate;
 
 let isInstallingFromChannel = false;
 
-window.triggerOtaUpdate = async function(targetVersion = '1.0.2') {
-    if (isInstallingFromChannel) return;
-    isInstallingFromChannel = true;
-
-    // Find and update buttons
-    const buttons = document.querySelectorAll('.channel-install-btn');
-    buttons.forEach(btn => {
+async function downloadAndApplyUpdate(targetVersion, bundleUrl) {
+    console.log("Starting download for version:", targetVersion, "from:", bundleUrl);
+    const btns = document.querySelectorAll('.channel-install-btn, #btn-apply-update');
+    btns.forEach(btn => {
         btn.disabled = true;
-        btn.textContent = 'Downloading...';
+        btn.textContent = "Connecting...";
     });
 
     const isNative = window.Capacitor && (typeof window.Capacitor.isNativePlatform === 'function' ? window.Capacitor.isNativePlatform() : (window.Capacitor.getPlatform() !== 'web'));
@@ -2218,57 +2166,86 @@ window.triggerOtaUpdate = async function(targetVersion = '1.0.2') {
     }
 
     try {
-        let bundleUrl = `https://github.com/1409yak/orion-chat/releases/download/v${targetVersion}/bundle.zip`;
-
+        // Resolve 302 redirect to ensure the native downloader gets the direct Amazon S3 endpoint
+        let downloadUrl = bundleUrl;
         try {
-            const manifestResp = await fetch(UPDATE_CHECK_URL, { cache: 'no-store' });
-            if (manifestResp.ok) {
-                const manifest = await manifestResp.json();
-                if (manifest && manifest.url) {
-                    bundleUrl = manifest.url;
-                }
+            const headRes = await fetch(bundleUrl, { method: 'HEAD', redirect: 'follow' });
+            if (headRes.url && headRes.url !== bundleUrl) {
+                console.log("Resolved redirected URL:", headRes.url);
+                downloadUrl = headRes.url;
             }
-        } catch (mErr) {
-            console.warn('[OTA] Could not fetch manifest for bundleUrl, using direct mapping:', mErr);
+        } catch (fetchErr) {
+            console.warn("Could not pre-resolve redirect, using direct URL:", fetchErr);
         }
 
-        console.log(`[OTA] triggerOtaUpdate downloading version ${targetVersion} from ${bundleUrl}`);
-        const updater = await getCapacitorUpdater();
+        btns.forEach(btn => {
+            btn.textContent = "Downloading (please wait)...";
+        });
+
+        const updater = (await getCapacitorUpdater()) || window.Capacitor?.Plugins?.CapacitorUpdater;
         if (!updater) {
-            throw new Error('CapacitorUpdater plugin not found');
+            throw new Error("CapacitorUpdater plugin not found");
         }
 
+        console.log(`[OTA] CapacitorUpdater.download starting from: ${downloadUrl}`);
         const bundle = await updater.download({
-            url: bundleUrl,
+            url: downloadUrl,
             version: targetVersion
         });
 
-        buttons.forEach(btn => {
-            btn.textContent = 'Applying...';
+        btns.forEach(btn => {
+            btn.textContent = "Applying update...";
         });
 
-        console.log('[OTA] Bundle downloaded:', bundle);
+        console.log('[OTA] Bundle downloaded successfully:', bundle);
         await updater.set(bundle);
 
-        console.log('[OTA] Reloading via CapacitorUpdater.reload()...');
+        console.log('[OTA] Reloading app via CapacitorUpdater.reload()...');
         if (typeof updater.reload === 'function') {
             await updater.reload();
         } else {
             window.location.reload();
         }
     } catch (err) {
-        console.error('[OTA] triggerOtaUpdate failed:', err);
-        showNotification('Update installation failed: ' + (err.message || 'Network error'), 'error');
-        buttons.forEach(btn => {
+        console.error("Full update failure details:", err);
+        btns.forEach(btn => {
             btn.disabled = false;
-            btn.textContent = '⚡ Retry Install & Reload';
+            btn.textContent = "⚠️ Failed (Tap to retry)";
         });
+        alert("Download failed: " + (err.message || JSON.stringify(err)));
+    }
+}
+window.downloadAndApplyUpdate = downloadAndApplyUpdate;
+
+window.triggerOtaUpdate = async function(targetVersion = '1.0.2', directUrl = null) {
+    if (isInstallingFromChannel) return;
+    isInstallingFromChannel = true;
+
+    try {
+        let bundleUrl = directUrl || `https://github.com/1409yak/orion-chat/releases/download/v${targetVersion}/bundle.zip`;
+
+        if (!directUrl) {
+            try {
+                const manifestResp = await fetch(UPDATE_CHECK_URL, { cache: 'no-store' });
+                if (manifestResp.ok) {
+                    const manifest = await manifestResp.json();
+                    if (manifest && manifest.url) {
+                        bundleUrl = manifest.url;
+                    }
+                }
+            } catch (mErr) {
+                console.warn('[OTA] Could not fetch manifest for bundleUrl, using direct mapping:', mErr);
+            }
+        }
+
+        await downloadAndApplyUpdate(targetVersion, bundleUrl);
+    } finally {
         isInstallingFromChannel = false;
     }
 };
 
 async function installUpdateFromChannel(version, bundleUrl, buttonElem) {
-    return window.triggerOtaUpdate(version);
+    return window.triggerOtaUpdate(version, bundleUrl);
 }
 window.installUpdateFromChannel = installUpdateFromChannel;
 
