@@ -1975,6 +1975,11 @@ async function getCapacitorUpdater() {
 // Call notifyAppReady immediately so current bundle is marked valid and rollback is avoided
 async function initCapacitorUpdater() {
     try {
+        if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
+            await window.Capacitor.Plugins.CapacitorUpdater.notifyAppReady();
+            console.log('[OTA] notifyAppReady() called successfully.');
+            return;
+        }
         const updater = await getCapacitorUpdater();
         if (updater && typeof updater.notifyAppReady === 'function') {
             await updater.notifyAppReady();
@@ -2189,30 +2194,20 @@ async function downloadAndApplyUpdate(targetVersion, bundleUrl) {
             btn.textContent = "Downloading (please wait)...";
         });
 
-        const updater = (await getCapacitorUpdater()) || window.Capacitor?.Plugins?.CapacitorUpdater;
-        if (!updater) {
-            throw new Error("CapacitorUpdater plugin not found");
-        }
+        bundleUrl = downloadUrl;
 
-        console.log(`[OTA] CapacitorUpdater.download starting from: ${downloadUrl}`);
-        const bundle = await updater.download({
-            url: downloadUrl,
+        console.log(`[OTA] CapacitorUpdater.download starting from: ${bundleUrl}`);
+        const bundle = await window.Capacitor.Plugins.CapacitorUpdater.download({
+            url: bundleUrl,
             version: targetVersion
         });
-
         btns.forEach(btn => {
             btn.textContent = "Applying update...";
         });
-
         console.log('[OTA] Bundle downloaded successfully:', bundle);
-        await updater.set(bundle);
-
+        await window.Capacitor.Plugins.CapacitorUpdater.set(bundle);
         console.log('[OTA] Reloading app via CapacitorUpdater.reload()...');
-        if (typeof updater.reload === 'function') {
-            await updater.reload();
-        } else {
-            window.location.reload();
-        }
+        window.Capacitor.Plugins.CapacitorUpdater.reload();
     } catch (err) {
         console.error("Full update failure details:", err);
         btns.forEach(btn => {
@@ -2267,13 +2262,22 @@ document.addEventListener('click', (e) => {
 });
 
 // Run notifyAppReady immediately on startup
+if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
+    window.Capacitor.Plugins.CapacitorUpdater.notifyAppReady();
+}
 initCapacitorUpdater();
 
 // Automatic update check once on startup after 2-second delay
 if (document.readyState === 'complete' || document.readyState === 'interactive') {
+    if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
+        window.Capacitor.Plugins.CapacitorUpdater.notifyAppReady();
+    }
     setTimeout(() => checkForUpdates(false), 2000);
 } else {
     window.addEventListener('DOMContentLoaded', () => {
+        if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
+            window.Capacitor.Plugins.CapacitorUpdater.notifyAppReady();
+        }
         setTimeout(() => checkForUpdates(false), 2000);
     });
 }
@@ -2552,6 +2556,9 @@ onMessage(messaging, (payload) => {
 /* ---------------- AUTH STATE ---------------- */
 
 onAuthStateChanged(auth, (user) => {
+    if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
+        window.Capacitor.Plugins.CapacitorUpdater.notifyAppReady();
+    }
     if (user) {
         document.getElementById('auth-container').style.display = 'none';
         document.getElementById('app-container').style.display = 'flex';
@@ -7455,6 +7462,9 @@ async function openStickerRequestModal(stickerId, ownerId, stickerName) {
 
 // Listener for incoming sticker requests (for the owner)
 onAuthStateChanged(auth, (user) => {
+    if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
+        window.Capacitor.Plugins.CapacitorUpdater.notifyAppReady();
+    }
     if (user) {
         onChildAdded(ref(db, `sticker_requests/${user.uid}`), (snap) => {
             const request = snap.val();
