@@ -158,75 +158,58 @@ export default {
       return new Response(null, { headers: corsHeaders });
     }
 
-    if (request.method === "GET" || request.method === "HEAD") {
-      if (url.pathname === "/download-ota" || url.pathname === "/ota/download") {
-        let ver = url.searchParams.get("version") || "v1.0.2";
-        if (!ver.startsWith("v")) {
-          ver = "v" + ver;
-        }
-        const githubAssetUrl = `https://github.com/1409yak/orion-chat/releases/download/${ver}/bundle.zip`;
+    if (url.pathname === '/download-ota') {
+      const version = url.searchParams.get('version') || 'v1.0.2';
+      const targetTag = version.startsWith('v') ? version : `v${version}`;
+      const githubUrl = `https://github.com/1409yak/orion-chat/releases/download/${targetTag}/bundle.zip`;
 
-        if (request.method === "HEAD") {
-          try {
-            const ghHead = await fetch(githubAssetUrl, {
-              method: "HEAD",
-              redirect: "follow",
-              headers: { "User-Agent": "Orion-OTA-Updater/1.0" },
-            });
-            return new Response(null, {
-              status: ghHead.status,
-              headers: {
-                ...corsHeaders,
-                "Content-Type": "application/zip",
-                "Cache-Control": "no-cache",
-                "Content-Disposition": `attachment; filename="bundle-${ver}.zip"`,
-                ...(ghHead.headers.get("Content-Length") ? { "Content-Length": ghHead.headers.get("Content-Length") } : {}),
-              },
-            });
-          } catch {
-            return new Response(null, {
-              headers: {
-                ...corsHeaders,
-                "Content-Type": "application/zip",
-                "Cache-Control": "no-cache",
-              },
-            });
-          }
-        }
-
-        const ghResp = await fetch(githubAssetUrl, {
-          method: "GET",
-          redirect: "follow",
+      try {
+        const ghRes = await fetch(githubUrl, {
+          method: request.method === 'HEAD' ? 'HEAD' : 'GET',
+          redirect: 'follow',
           headers: {
-            "User-Agent": "Orion-OTA-Updater/1.0",
-            "Accept": "*/*",
-          },
+            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OrionUpdater/1.0',
+            'Accept': '*/*'
+          }
         });
 
-        if (!ghResp.ok) {
-          return new Response(`GitHub release download failed with HTTP ${ghResp.status}`, {
-            status: ghResp.status,
-            headers: {
-              ...corsHeaders,
-              "Content-Type": "text/plain",
-            },
+        if (!ghRes.ok) {
+          return new Response(`GitHub error: ${ghRes.status}`, {
+            status: ghRes.status,
+            headers: { 'Access-Control-Allow-Origin': '*' }
           });
         }
 
-        const responseHeaders = new Headers();
-        responseHeaders.set("Content-Type", "application/zip");
-        responseHeaders.set("Access-Control-Allow-Origin", "*");
-        responseHeaders.set("Cache-Control", "no-cache");
-        responseHeaders.set("Content-Disposition", `attachment; filename="bundle-${ver}.zip"`);
-        if (ghResp.headers.get("Content-Length")) {
-          responseHeaders.set("Content-Length", ghResp.headers.get("Content-Length"));
+        if (request.method === 'HEAD') {
+          return new Response(null, {
+            status: 200,
+            headers: {
+              'Content-Type': 'application/zip',
+              'Content-Disposition': 'attachment; filename="bundle.zip"',
+              'Access-Control-Allow-Origin': '*',
+              'Cache-Control': 'no-cache'
+            }
+          });
         }
 
-        return new Response(ghResp.body, {
+        return new Response(ghRes.body, {
           status: 200,
-          headers: responseHeaders,
+          headers: {
+            'Content-Type': 'application/zip',
+            'Content-Disposition': 'attachment; filename="bundle.zip"',
+            'Access-Control-Allow-Origin': '*',
+            'Cache-Control': 'no-cache'
+          }
+        });
+      } catch (err) {
+        return new Response(`Proxy Error: ${err.message}`, {
+          status: 500,
+          headers: { 'Access-Control-Allow-Origin': '*' }
         });
       }
+    }
+
+    if (request.method === "GET" || request.method === "HEAD") {
       if (url.pathname === "/version.json" || url.pathname === "/version") {
         return new Response(
           JSON.stringify({
