@@ -1,6 +1,6 @@
 {
   "version": "1.0.2",
   "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.2/bundle.zip",
-  "checksum": "2465d4ec54ad40b906042a48e80fb6ec04ed9fe1218cab1fabf741b9157f529d",
+  "checksum": "4ae248bead0ec6a661464214cf7a44127fc9da70e3de229525938d787fdae9ff",
   "notes": "Dynamic version display, fixed settings exit, and restored updates channel."
 }

@@ -2108,23 +2108,22 @@ async function checkForUpdates(isManual = false) {
     }
 
     try {
-        let manifestUrl = UPDATE_MANIFEST_URL;
-        if (!manifestUrl.startsWith('http://') && !manifestUrl.startsWith('https://')) {
-            try {
-                manifestUrl = new URL(manifestUrl, window.location.href).href;
-            } catch (_) {}
-        }
+        const manifestUrl = `https://raw.githubusercontent.com/1409yak/orion-chat/main/version.json?t=${Date.now()}`;
         console.log(`[OTA] Checking manifest from: ${manifestUrl} (Current: ${CURRENT_APP_VERSION}, Manual: ${isManual})`);
-        const response = await fetch(manifestUrl, { cache: 'no-store' });
+        const response = await fetch(manifestUrl, {
+            headers: { 'Accept': 'application/json' }
+        });
         if (!response.ok) {
-            throw new Error(`Server returned HTTP ${response.status}`);
+            throw new Error(`Failed to fetch update manifest: HTTP ${response.status}`);
         }
 
         const manifest = await response.json();
+        console.log('[OTA] Successfully retrieved manifest:', manifest);
         if (!manifest || !manifest.version || !manifest.url) {
             throw new Error('Invalid version manifest');
         }
 
+        activeOtaManifest = manifest;
         console.log(`[OTA] Remote version: ${manifest.version}, Installed: ${CURRENT_APP_VERSION}`);
 
         if (isNewerVersion(manifest.version, CURRENT_APP_VERSION)) {
@@ -2275,7 +2274,10 @@ window.triggerOtaUpdate = async function(targetVersion = '1.0.2', directUrl = nu
 
         if (!directUrl || !manifestChecksum) {
             try {
-                const manifestResp = await fetch(UPDATE_CHECK_URL, { cache: 'no-store' });
+                const manifestUrl = `https://raw.githubusercontent.com/1409yak/orion-chat/main/version.json?t=${Date.now()}`;
+                const manifestResp = await fetch(manifestUrl, {
+                    headers: { 'Accept': 'application/json' }
+                });
                 if (manifestResp.ok) {
                     const manifest = await manifestResp.json();
                     activeOtaManifest = manifest;
