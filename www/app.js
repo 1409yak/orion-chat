@@ -1954,7 +1954,7 @@ async function setupCapacitorPushNotifications(uid) {
 
 const CURRENT_APP_VERSION = '1.0.1';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
-const UPDATE_MANIFEST_URL = window.ORION_UPDATE_URL || 'https://orion-fcm-worker.charming-button.workers.dev/version.json';
+const UPDATE_MANIFEST_URL = window.ORION_UPDATE_URL || 'https://github.com/1409yak/orion-chat/releases/latest/download/version.json';
 const UPDATE_CHECK_URL = UPDATE_MANIFEST_URL;
 let activeOtaManifest = null;
 let isDownloadingUpdate = false;
@@ -2215,7 +2215,7 @@ window.triggerOtaUpdate = async function(targetVersion = '1.0.2') {
     }
 
     try {
-        let bundleUrl = `https://orion-fcm-worker.charming-button.workers.dev/bundle-${targetVersion}.zip`;
+        let bundleUrl = `https://github.com/1409yak/orion-chat/releases/download/v${targetVersion}/bundle.zip`;
 
         try {
             const manifestResp = await fetch(UPDATE_CHECK_URL, { cache: 'no-store' });
