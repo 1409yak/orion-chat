@@ -1,5 +1,5 @@
 {
   "version": "1.0.2",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota?version=v1.0.2",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.2/bundle.zip",
   "notes": "Orion Updates channel, Telegram context menus, relative dates."
 }

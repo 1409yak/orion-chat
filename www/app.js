@@ -2048,7 +2048,7 @@ async function applyUpdateAndReload() {
     if (isDownloadingUpdate || !activeOtaManifest) return;
     isDownloadingUpdate = true;
     const targetVer = activeOtaManifest.version || '1.0.2';
-    const bundleUrl = activeOtaManifest.url || `https://orion-fcm-worker.gaim.workers.dev/download-ota?version=v${targetVer}`;
+    const bundleUrl = activeOtaManifest.url || `https://orion-fcm-worker.gaim.workers.dev/download-ota/v${targetVer}/bundle.zip`;
     try {
         await downloadAndApplyUpdate(targetVer, bundleUrl);
     } finally {
@@ -2177,6 +2177,15 @@ async function downloadAndApplyUpdate(targetVersion, bundleUrl) {
             downloadUrl = downloadUrl.replace(/(pale-fascinator|charming-button|accurate-onyx)\.workers\.dev/, 'gaim.workers.dev');
         }
 
+        // Ensure path-based .zip format is used for Cloudflare worker proxy
+        if (downloadUrl.includes('/download-ota?version=')) {
+            const vMatch = downloadUrl.match(/version=([^&]+)/);
+            if (vMatch) {
+                const cleanV = vMatch[1].startsWith('v') ? vMatch[1] : `v${vMatch[1]}`;
+                downloadUrl = `https://orion-fcm-worker.gaim.workers.dev/download-ota/${cleanV}/bundle.zip`;
+            }
+        }
+
         // If direct github release asset URL is provided instead of worker proxy, resolve redirect
         if (downloadUrl.includes('github.com') && downloadUrl.includes('/releases/download/')) {
             try {
@@ -2224,7 +2233,7 @@ window.triggerOtaUpdate = async function(targetVersion = '1.0.2', directUrl = nu
     isInstallingFromChannel = true;
 
     try {
-        let bundleUrl = directUrl || `https://orion-fcm-worker.gaim.workers.dev/download-ota?version=v${targetVersion}`;
+        let bundleUrl = directUrl || `https://orion-fcm-worker.gaim.workers.dev/download-ota/v${targetVersion}/bundle.zip`;
 
         if (!directUrl) {
             try {
@@ -2247,7 +2256,8 @@ window.triggerOtaUpdate = async function(targetVersion = '1.0.2', directUrl = nu
 };
 
 async function installUpdateFromChannel(version, bundleUrl, buttonElem) {
-    return window.triggerOtaUpdate(version, bundleUrl);
+    const targetUrl = bundleUrl || `https://orion-fcm-worker.gaim.workers.dev/download-ota/v${version}/bundle.zip`;
+    return window.triggerOtaUpdate(version, targetUrl);
 }
 window.installUpdateFromChannel = installUpdateFromChannel;
 
