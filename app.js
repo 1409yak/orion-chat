@@ -1126,19 +1126,27 @@ async function ensureOrionUpdatesChannel(myUid) {
                 description: "Official system updates and announcements",
                 last_message: "🚀 Welcome to Orion Updates! All official announcements and patch notes will be posted here.",
                 timestamp: serverTimestamp()
-            });
+            }).catch(() => {});
         }
         // Auto-subscribe current user
         const userChatRef = ref(db, `user_chats/${myUid}/${channelId}`);
-        const userChatSnap = await get(userChatRef);
-        if (!userChatSnap.exists() || !userChatSnap.val()) {
-            await set(userChatRef, true);
-        }
+        await set(userChatRef, true).catch(() => {});
         // Ensure user membership
         const memberRef = ref(db, `members/${channelId}/${myUid}`);
-        const memberSnap = await get(memberRef);
-        if (!memberSnap.exists()) {
-            await set(memberRef, { role: 'member' });
+        await set(memberRef, { role: 'member' }).catch(() => {});
+
+        // Ensure initial welcome announcement exists if channel messages are empty
+        const msgQuery = query(ref(db, `messages/${channelId}`), limitToLast(1));
+        const msgSnap = await get(msgQuery);
+        if (!msgSnap.exists() || msgSnap.size === 0) {
+            const welcomeKey = push(ref(db, `messages/${channelId}`)).key;
+            await set(ref(db, `messages/${channelId}/${welcomeKey}`), {
+                sender_id: "system",
+                sender_name: "Orion System",
+                text: "🚀 Welcome to Orion Updates! All official announcements, feature updates, and patch notes will be posted here.",
+                timestamp: serverTimestamp(),
+                createdAt: Date.now()
+            }).catch(() => {});
         }
     } catch (err) {
         console.warn("[Orion Updates] Error subscribing to channel:", err);
@@ -1952,8 +1960,32 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.0.1';
+const CURRENT_APP_VERSION = '1.0.2';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
+
+async function updateSettingsVersionDisplay() {
+    const versionEl = document.getElementById('settings-app-version') || document.querySelector('.app-version-label') || document.getElementById('app-current-version');
+    const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
+    let versionStr = 'v1.0.2';
+    try {
+        if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
+            const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
+            if (current?.bundle?.version) {
+                const rawVer = String(current.bundle.version);
+                versionStr = rawVer.startsWith('v') ? rawVer : `v${rawVer}`;
+            }
+        }
+    } catch (e) {
+        console.warn('Could not read dynamic bundle version:', e);
+    }
+    allVersionEls.forEach(el => {
+        if (el) el.textContent = versionStr;
+    });
+    if (versionEl) {
+        versionEl.textContent = versionStr;
+    }
+}
+window.updateSettingsVersionDisplay = updateSettingsVersionDisplay;
 const UPDATE_MANIFEST_URL = window.ORION_UPDATE_URL || 'https://raw.githubusercontent.com/1409yak/orion-chat/main/version.json';
 const UPDATE_CHECK_URL = UPDATE_MANIFEST_URL;
 let activeOtaManifest = null;
@@ -2295,12 +2327,14 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
     if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
         window.Capacitor.Plugins.CapacitorUpdater.notifyAppReady();
     }
+    updateSettingsVersionDisplay();
     setTimeout(() => checkForUpdates(false), 2000);
 } else {
     window.addEventListener('DOMContentLoaded', () => {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
             window.Capacitor.Plugins.CapacitorUpdater.notifyAppReady();
         }
+        updateSettingsVersionDisplay();
         setTimeout(() => checkForUpdates(false), 2000);
     });
 }
@@ -3465,7 +3499,7 @@ async function renderChatLink(chatId, data, myUid) {
     let chatPic = data.profilePic;
     const isSubChannel = !!data.groupId;
 
-    if (!data.isGroup && chatId.includes('_')) {
+    if (!data.isGroup && !data.isChannel && data.type !== 'channel' && chatId !== 'channel_orion_updates' && chatId.includes('_')) {
         const partnerId = chatId.split('_').find(id => id !== myUid);
         const partnerSnap = await get(ref(db, `users/${partnerId}`));
         const pData = partnerSnap.val();
@@ -3900,11 +3934,15 @@ async function openChat(chatId, title) {
     const chatSnap = await get(chatRef);
     currentChatCreatorId = chatSnap.val()?.creatorId;
 
-    activeMembersOff = onValue(membersRef, (msnap) => {
-        currentChatMemberData = msnap.val() || {};
-        renderMembersList(msnap, currentChatCreatorId);
-        checkMuteStatus();
-    });
+    if (chatId === 'channel_orion_updates') {
+        currentChatMemberData = {};
+    } else {
+        activeMembersOff = onValue(membersRef, (msnap) => {
+            currentChatMemberData = msnap.val() || {};
+            renderMembersList(msnap, currentChatCreatorId);
+            checkMuteStatus();
+        });
+    }
 
     const cont = document.getElementById('messages-container');
     cont.innerHTML = ''; // Clear once when opening the chat
@@ -3994,8 +4032,8 @@ async function openChat(chatId, title) {
         topObserver.observe(topSentinel);
     }
 
-    // Fetch initial newest 15 messages (limitToLast(15))
-    const initialQuery = query(ref(db, `messages/${chatId}`), orderByKey(), limitToLast(15));
+    // Fetch initial newest 30 messages (limitToLast(30))
+    const initialQuery = query(ref(db, `messages/${chatId}`), orderByKey(), limitToLast(30));
     const initialSnap = await get(initialQuery);
     if (currentChatId !== chatId) return;
 
@@ -4004,7 +4042,7 @@ async function openChat(chatId, title) {
         initialMessages.push({ key: child.key, val: child.val() });
     });
 
-    if (initialMessages.length < 15) {
+    if (initialMessages.length < 30) {
         hasMoreOlderMessages = false;
     }
 
@@ -4014,11 +4052,11 @@ async function openChat(chatId, title) {
 
         for (const item of initialMessages) {
             const msg = item.val;
-            if (msg.sender_id !== auth.currentUser.uid && !viewedMessagesInSession.has(item.key)) {
+            if (chatId !== 'channel_orion_updates' && msg.sender_id !== auth.currentUser.uid && !viewedMessagesInSession.has(item.key)) {
                 viewedMessagesInSession.add(item.key);
                 update(ref(db, `messages/${chatId}/${item.key}`), { 
                     [`viewedBy/${auth.currentUser.uid}`]: true
-                });
+                }).catch(() => {});
             }
             const isConsecutive = msg.sender_id === lastSenderId;
             renderMessage(msg, isConsecutive, item.key);
@@ -4043,11 +4081,11 @@ async function openChat(chatId, title) {
         currentNewestMessageKey = data.key;
 
         const messageData = data.val();
-        if (currentChatId && messageData.sender_id !== auth.currentUser.uid && !viewedMessagesInSession.has(data.key)) {
+        if (chatId !== 'channel_orion_updates' && currentChatId && messageData.sender_id !== auth.currentUser.uid && !viewedMessagesInSession.has(data.key)) {
             viewedMessagesInSession.add(data.key);
             update(ref(db, `messages/${currentChatId}/${data.key}`), { 
                 [`viewedBy/${auth.currentUser.uid}`]: true
-            });
+            }).catch(() => {});
         }
 
         const isConsecutive = messageData.sender_id === lastSenderId;
@@ -6122,14 +6160,25 @@ if (closeAdminPanelBtn) {
     };
 }
 
+function closeSettings() {
+    const settingsModal = document.getElementById('settings-modal') || document.getElementById('premium-panel-modal') || document.querySelector('.settings-container');
+    if (settingsModal) {
+        if (typeof closeAnimatedModal === 'function') {
+            closeAnimatedModal(settingsModal);
+        } else {
+            settingsModal.classList.add('hidden');
+            settingsModal.style.display = 'none';
+        }
+    }
+    const backdrop = document.getElementById('modal-backdrop');
+    if (backdrop) backdrop.classList.add('hidden');
+}
+window.closeSettings = closeSettings;
+
 const closePremiumBtn = document.getElementById('close-premium-panel');
 if (closePremiumBtn) {
     closePremiumBtn.onclick = () => {
-        const premiumModal = document.getElementById('premium-panel-modal');
-        const profileModal = document.getElementById('profile-modal');
-        closeAnimatedModal(premiumModal, () => {
-            if (profileModal) openAnimatedModal(profileModal);
-        });
+        closeSettings();
     };
 }
 
@@ -6137,13 +6186,16 @@ const premiumPanelModal = document.getElementById('premium-panel-modal');
 if (premiumPanelModal) {
     premiumPanelModal.onclick = (e) => {
         if (e.target.id === 'premium-panel-modal') {
-            const profileModal = document.getElementById('profile-modal');
-            closeAnimatedModal(premiumPanelModal, () => {
-                if (profileModal) openAnimatedModal(profileModal);
-            });
+            closeSettings();
         }
     };
 }
+
+document.addEventListener('click', (e) => {
+    if (e.target.closest('#btn-close-settings, .settings-close-btn')) {
+        closeSettings();
+    }
+});
 
 const profileModalEl = document.getElementById('profile-modal');
 if (profileModalEl) {
@@ -6194,10 +6246,7 @@ document.addEventListener('click', (e) => {
     }
 
     function renderAppInfoTab() {
-        const verEl = document.getElementById('app-current-version');
-        if (verEl) verEl.textContent = 'v' + CURRENT_APP_VERSION;
-        const verElOld = document.getElementById('settings-app-version');
-        if (verElOld) verElOld.textContent = CURRENT_APP_VERSION;
+        updateSettingsVersionDisplay();
         const msgEl = document.getElementById('settings-update-msg');
         if (msgEl && !msgEl.textContent) {
             msgEl.textContent = `Installed build: v${CURRENT_APP_VERSION}`;
@@ -6242,6 +6291,7 @@ document.addEventListener('click', (e) => {
     }
 
     function openPremiumPanelModal(initialTab = 'account', startFoldedOnMobile = false) {
+        updateSettingsVersionDisplay();
         const profileModal = document.getElementById('profile-modal');
         if (profileModal) closeAnimatedModal(profileModal);
         
@@ -6326,6 +6376,7 @@ document.addEventListener('click', (e) => {
         if (bioMsg) bioMsg.innerText = '';
         const accVer = document.getElementById('account-tab-app-version');
         if (accVer) accVer.textContent = CURRENT_VERSION;
+        updateSettingsVersionDisplay();
     }
     function setEmailMsg(text, isError) {
         const m = document.getElementById('settings-email-msg');

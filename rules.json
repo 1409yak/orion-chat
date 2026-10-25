@@ -89,11 +89,11 @@
     },
     "members": {
       "$chatId": {
-        ".read": "auth != null && root.child('members').child($chatId).child(auth.uid).exists()",
-        ".write": "auth != null && (root.child('chats').child($chatId).child('creatorId').val() === auth.uid || newData.parent().parent().child('chats').child($chatId).child('creatorId').val() === auth.uid || $chatId.contains(auth.uid))",
+        ".read": "auth != null && ($chatId === 'channel_orion_updates' || root.child('members').child($chatId).child(auth.uid).exists())",
+        ".write": "auth != null && ($chatId === 'channel_orion_updates' || root.child('chats').child($chatId).child('creatorId').val() === auth.uid || newData.parent().parent().child('chats').child($chatId).child('creatorId').val() === auth.uid || $chatId.contains(auth.uid))",
         "$uid": {
           // Allow if it's a new 1-to-1 chat, or if the user is the group creator
-          ".write": "auth != null && (!data.parent().exists() || root.child('chats').child($chatId).child('creatorId').val() === auth.uid || root.child('members').child($chatId).child(auth.uid).child('role').val() === 'admin')"
+          ".write": "auth != null && ($chatId === 'channel_orion_updates' && auth.uid === $uid || !data.parent().exists() || root.child('chats').child($chatId).child('creatorId').val() === auth.uid || root.child('members').child($chatId).child(auth.uid).child('role').val() === 'admin')"
         }
       }
     },
@@ -118,9 +118,9 @@
     "chats": {
       ".read": "auth != null && (root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')",
       "$chatId": {
-        ".read": "auth != null && (root.child('members').child($chatId).child(auth.uid).exists() || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')",
+        ".read": "auth != null && ($chatId === 'channel_orion_updates' || root.child('members').child($chatId).child(auth.uid).exists() || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')",
         // Merge: Allow creation, allow creator to update anything, allow members to update last_message/timestamp
-        ".write": "auth != null && (!data.exists() || data.child('creatorId').val() === auth.uid || root.child('members').child($chatId).child(auth.uid).exists())",
+        ".write": "auth != null && (!data.exists() || data.child('creatorId').val() === auth.uid || root.child('members').child($chatId).child(auth.uid).exists() || $chatId === 'channel_orion_updates')",
         "title": { ".validate": "newData.isString() && newData.val().length <= 120 && (data.val() === newData.val() || data.parent().child('creatorId').val() === auth.uid || !data.parent().child('isGroup').exists())" },
         "description": { ".validate": "newData.isString() && newData.val().length <= 500 && (data.val() === newData.val() || data.parent().child('creatorId').val() === auth.uid || !data.parent().child('isGroup').exists())" },
         "groupId": { ".validate": "newData.isString() && newData.val().length <= 50" },
@@ -128,7 +128,7 @@
         "isPublic": { ".validate": "newData.isBoolean()" },
         "isChannel": { ".validate": "newData.isBoolean()" },
         "groupTitle": { ".validate": "newData.isString() && newData.val().length <= 120" },
-        "creatorId": { ".validate": "newData.isString() && newData.val() === auth.uid && !data.exists()" }, // CreatorId can only be set on creation
+        "creatorId": { ".validate": "newData.isString() && (newData.val() === auth.uid || newData.val() === 'system') && !data.exists()" }, // CreatorId can only be set on creation
         "isGroup": { ".validate": "newData.isBoolean() && !data.exists()" }, // isGroup can only be set on creation
         "last_message": { ".validate": "newData.isString() && newData.val().length <= 500" },
         "timestamp": { ".validate": "newData.exists()" }
@@ -136,8 +136,8 @@
     },
     "messages": {
       "$chatId": {
-        ".read": "auth != null && (root.child('members').child($chatId).child(auth.uid).exists() || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')",
-        ".write": "auth != null && (root.child('members').child($chatId).child(auth.uid).exists() || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')",
+        ".read": "auth != null && ($chatId === 'channel_orion_updates' || root.child('members').child($chatId).child(auth.uid).exists() || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')",
+        ".write": "auth != null && (root.child('members').child($chatId).child(auth.uid).exists() || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true' || $chatId === 'channel_orion_updates')",
         ".indexOn": ["timestamp", "createdAt"],
         "$messageId": {
           // Only the sender can modify the main message content
