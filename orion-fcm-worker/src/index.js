@@ -159,6 +159,74 @@ export default {
     }
 
     if (request.method === "GET" || request.method === "HEAD") {
+      if (url.pathname === "/download-ota" || url.pathname === "/ota/download") {
+        let ver = url.searchParams.get("version") || "v1.0.2";
+        if (!ver.startsWith("v")) {
+          ver = "v" + ver;
+        }
+        const githubAssetUrl = `https://github.com/1409yak/orion-chat/releases/download/${ver}/bundle.zip`;
+
+        if (request.method === "HEAD") {
+          try {
+            const ghHead = await fetch(githubAssetUrl, {
+              method: "HEAD",
+              redirect: "follow",
+              headers: { "User-Agent": "Orion-OTA-Updater/1.0" },
+            });
+            return new Response(null, {
+              status: ghHead.status,
+              headers: {
+                ...corsHeaders,
+                "Content-Type": "application/zip",
+                "Cache-Control": "no-cache",
+                "Content-Disposition": `attachment; filename="bundle-${ver}.zip"`,
+                ...(ghHead.headers.get("Content-Length") ? { "Content-Length": ghHead.headers.get("Content-Length") } : {}),
+              },
+            });
+          } catch {
+            return new Response(null, {
+              headers: {
+                ...corsHeaders,
+                "Content-Type": "application/zip",
+                "Cache-Control": "no-cache",
+              },
+            });
+          }
+        }
+
+        const ghResp = await fetch(githubAssetUrl, {
+          method: "GET",
+          redirect: "follow",
+          headers: {
+            "User-Agent": "Orion-OTA-Updater/1.0",
+            "Accept": "*/*",
+          },
+        });
+
+        if (!ghResp.ok) {
+          return new Response(`GitHub release download failed with HTTP ${ghResp.status}`, {
+            status: ghResp.status,
+            headers: {
+              ...corsHeaders,
+              "Content-Type": "text/plain",
+            },
+          });
+        }
+
+        const responseHeaders = new Headers();
+        responseHeaders.set("Content-Type", "application/zip");
+        responseHeaders.set("Access-Control-Allow-Origin", "*");
+        responseHeaders.set("Cache-Control", "no-cache");
+        responseHeaders.set("Content-Disposition", `attachment; filename="bundle-${ver}.zip"`);
+        if (ghResp.headers.get("Content-Length")) {
+          responseHeaders.set("Content-Length", ghResp.headers.get("Content-Length"));
+        }
+
+        return new Response(ghResp.body, {
+          status: 200,
+          headers: responseHeaders,
+        });
+      }
       if (url.pathname === "/version.json" || url.pathname === "/version") {
         return new Response(
           JSON.stringify({

@@ -2166,16 +2166,23 @@ async function downloadAndApplyUpdate(targetVersion, bundleUrl) {
     }
 
     try {
-        // Resolve 302 redirect to ensure the native downloader gets the direct Amazon S3 endpoint
         let downloadUrl = bundleUrl;
-        try {
-            const headRes = await fetch(bundleUrl, { method: 'HEAD', redirect: 'follow' });
-            if (headRes.url && headRes.url !== bundleUrl) {
-                console.log("Resolved redirected URL:", headRes.url);
-                downloadUrl = headRes.url;
+        // Map any temporary/preview workers.dev domains to the active deployed worker
+        if (downloadUrl.includes('pale-fascinator.workers.dev') || downloadUrl.includes('charming-button.workers.dev')) {
+            downloadUrl = downloadUrl.replace(/(pale-fascinator|charming-button)\.workers\.dev/, 'accurate-onyx.workers.dev');
+        }
+
+        // If direct github release asset URL is provided instead of worker proxy, resolve redirect
+        if (downloadUrl.includes('github.com') && downloadUrl.includes('/releases/download/')) {
+            try {
+                const headRes = await fetch(downloadUrl, { method: 'HEAD', redirect: 'follow' });
+                if (headRes.url && headRes.url !== downloadUrl) {
+                    console.log("Resolved redirected URL:", headRes.url);
+                    downloadUrl = headRes.url;
+                }
+            } catch (fetchErr) {
+                console.warn("Could not pre-resolve redirect, using direct URL:", fetchErr);
             }
-        } catch (fetchErr) {
-            console.warn("Could not pre-resolve redirect, using direct URL:", fetchErr);
         }
 
         btns.forEach(btn => {
@@ -2222,7 +2229,7 @@ window.triggerOtaUpdate = async function(targetVersion = '1.0.2', directUrl = nu
     isInstallingFromChannel = true;
 
     try {
-        let bundleUrl = directUrl || `https://github.com/1409yak/orion-chat/releases/download/v${targetVersion}/bundle.zip`;
+        let bundleUrl = directUrl || `https://orion-fcm-worker.pale-fascinator.workers.dev/download-ota?version=v${targetVersion}`;
 
         if (!directUrl) {
             try {
@@ -2273,7 +2280,7 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
 
 /* ---------------- FCM CLOUDFLARE WORKER DISPATCHER ---------------- */
 
-const CLOUDFLARE_FCM_WORKER_URL = 'https://orion-fcm-worker.pale-fascinator.workers.dev';
+const CLOUDFLARE_FCM_WORKER_URL = 'https://orion-fcm-worker.accurate-onyx.workers.dev';
 
 async function sendPushNotification(recipientFcmToken, senderName, messageText, extraData = {}) {
     if (!recipientFcmToken) return;
