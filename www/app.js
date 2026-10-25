@@ -2049,8 +2049,9 @@ async function applyUpdateAndReload() {
     isDownloadingUpdate = true;
     const targetVer = activeOtaManifest.version || '1.0.2';
     const bundleUrl = activeOtaManifest.url || `https://orion-fcm-worker.gaim.workers.dev/download-ota/v${targetVer}/bundle.zip`;
+    const checksum = activeOtaManifest.checksum || '25cb5c41e94305a32b7d743ac33df4eb05fe0c595b6a49abc00b26cd99f63cd0';
     try {
-        await downloadAndApplyUpdate(targetVer, bundleUrl);
+        await downloadAndApplyUpdate(targetVer, bundleUrl, checksum);
     } finally {
         isDownloadingUpdate = false;
     }
@@ -2153,7 +2154,7 @@ window.openSettingsAndCheckUpdate = openSettingsAndCheckUpdate;
 
 let isInstallingFromChannel = false;
 
-async function downloadAndApplyUpdate(targetVersion, bundleUrl) {
+async function downloadAndApplyUpdate(targetVersion, bundleUrl, checksum = null) {
     console.log("Starting download for version:", targetVersion, "from:", bundleUrl);
     const btns = document.querySelectorAll('.channel-install-btn, #btn-apply-update');
     btns.forEach(btn => {
@@ -2204,12 +2205,16 @@ async function downloadAndApplyUpdate(targetVersion, bundleUrl) {
         });
 
         bundleUrl = downloadUrl;
+        const manifestChecksum = checksum || (activeOtaManifest && activeOtaManifest.checksum);
 
-        console.log(`[OTA] CapacitorUpdater.download starting from: ${bundleUrl}`);
-        const bundle = await window.Capacitor.Plugins.CapacitorUpdater.download({
+        const downloadOptions = {
             url: bundleUrl,
-            version: targetVersion
-        });
+            version: String(targetVersion),
+            checksum: manifestChecksum || '25cb5c41e94305a32b7d743ac33df4eb05fe0c595b6a49abc00b26cd99f63cd0'
+        };
+
+        console.log('[OTA] Downloading bundle with checksum:', downloadOptions);
+        const bundle = await window.Capacitor.Plugins.CapacitorUpdater.download(downloadOptions);
         btns.forEach(btn => {
             btn.textContent = "Applying update...";
         });
@@ -2228,20 +2233,25 @@ async function downloadAndApplyUpdate(targetVersion, bundleUrl) {
 }
 window.downloadAndApplyUpdate = downloadAndApplyUpdate;
 
-window.triggerOtaUpdate = async function(targetVersion = '1.0.2', directUrl = null) {
+window.triggerOtaUpdate = async function(targetVersion = '1.0.2', directUrl = null, directChecksum = null) {
     if (isInstallingFromChannel) return;
     isInstallingFromChannel = true;
 
     try {
         let bundleUrl = directUrl || `https://orion-fcm-worker.gaim.workers.dev/download-ota/v${targetVersion}/bundle.zip`;
+        let manifestChecksum = directChecksum || (activeOtaManifest ? activeOtaManifest.checksum : null);
 
-        if (!directUrl) {
+        if (!directUrl || !manifestChecksum) {
             try {
                 const manifestResp = await fetch(UPDATE_CHECK_URL, { cache: 'no-store' });
                 if (manifestResp.ok) {
                     const manifest = await manifestResp.json();
-                    if (manifest && manifest.url) {
+                    activeOtaManifest = manifest;
+                    if (manifest && manifest.url && !directUrl) {
                         bundleUrl = manifest.url;
+                    }
+                    if (manifest && manifest.checksum && !manifestChecksum) {
+                        manifestChecksum = manifest.checksum;
                     }
                 }
             } catch (mErr) {
@@ -2249,7 +2259,7 @@ window.triggerOtaUpdate = async function(targetVersion = '1.0.2', directUrl = nu
             }
         }
 
-        await downloadAndApplyUpdate(targetVersion, bundleUrl);
+        await downloadAndApplyUpdate(targetVersion, bundleUrl, manifestChecksum);
     } finally {
         isInstallingFromChannel = false;
     }
@@ -2257,7 +2267,8 @@ window.triggerOtaUpdate = async function(targetVersion = '1.0.2', directUrl = nu
 
 async function installUpdateFromChannel(version, bundleUrl, buttonElem) {
     const targetUrl = bundleUrl || `https://orion-fcm-worker.gaim.workers.dev/download-ota/v${version}/bundle.zip`;
-    return window.triggerOtaUpdate(version, targetUrl);
+    const checksum = (buttonElem && buttonElem.dataset && buttonElem.dataset.checksum) || (activeOtaManifest && activeOtaManifest.checksum) || null;
+    return window.triggerOtaUpdate(version, targetUrl, checksum);
 }
 window.installUpdateFromChannel = installUpdateFromChannel;
 
@@ -2267,7 +2278,9 @@ document.addEventListener('click', (e) => {
     if (btn) {
         e.stopPropagation();
         const ver = btn.dataset.version || '1.0.2';
-        window.triggerOtaUpdate(ver);
+        const url = btn.dataset.url || null;
+        const checksum = btn.dataset.checksum || null;
+        window.triggerOtaUpdate(ver, url, checksum);
     }
 });
 
