@@ -1954,7 +1954,7 @@ async function setupCapacitorPushNotifications(uid) {
 
 const CURRENT_APP_VERSION = '1.0.1';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
-const UPDATE_MANIFEST_URL = window.ORION_UPDATE_URL || 'https://github.com/1409yak/orion-chat/releases/latest/download/version.json';
+const UPDATE_MANIFEST_URL = window.ORION_UPDATE_URL || 'https://raw.githubusercontent.com/1409yak/orion-chat/main/version.json';
 const UPDATE_CHECK_URL = UPDATE_MANIFEST_URL;
 let activeOtaManifest = null;
 let isDownloadingUpdate = false;
@@ -2128,7 +2128,7 @@ async function checkForUpdates(isManual = false) {
         console.log(`[OTA] Checking manifest from: ${manifestUrl} (Current: ${CURRENT_APP_VERSION}, Manual: ${isManual})`);
         const response = await fetch(manifestUrl, { cache: 'no-store' });
         if (!response.ok) {
-            throw new Error(`HTTP ${response.status}`);
+            throw new Error(`Server returned HTTP ${response.status}`);
         }
 
         const manifest = await response.json();
@@ -2154,13 +2154,16 @@ async function checkForUpdates(isManual = false) {
             }
         }
     } catch (err) {
-        console.warn('[OTA] checkForUpdates error:', err);
+        console.error('Update check failed:', err.message, err);
+        const errMsg = err.message && err.message.startsWith('Server returned HTTP')
+            ? err.message
+            : (err.message ? `Error: ${err.message}` : 'Check connection.');
         if (statusMsg) {
-            statusMsg.textContent = 'Could not check for updates.';
+            statusMsg.textContent = `Could not check for updates (${errMsg}).`;
             statusMsg.style.color = '#ff6b6b';
         }
         if (isManual) {
-            showNotification('Could not check for updates. Check connection.', 'error');
+            showNotification(`Could not check for updates. ${errMsg}`, 'error');
         }
     } finally {
         if (isManual) {
