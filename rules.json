@@ -1,0 +1,234 @@
+{
+  "rules": {
+    "groups": {
+      "$groupId": {
+        ".read": "auth != null",
+        ".write": "auth != null"
+      }
+    },
+    "friend_requests": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$senderUid": {
+          ".read": "auth != null && auth.uid === $senderUid",
+          ".write": "auth != null && (auth.uid === $senderUid || auth.uid === $uid)",
+          ".validate": "newData.hasChildren(['fromName', 'timestamp']) || !newData.exists()"
+        }
+      }
+    },
+    "users": {
+      // Required to allow searching for users by email
+      ".read": "auth != null",
+      ".indexOn": ["friendId"],
+      "$uid": {
+        ".write": "auth != null && auth.uid === $uid",
+        "uid": { ".validate": "newData.val() === $uid" },
+        "displayName": { ".validate": "newData.isString() && newData.val().length <= 80" },
+        "description": { ".validate": "newData.isString() && newData.val().length <= 500" },
+        "profilePic": { ".validate": "newData.isString() && newData.val().length <= 300000" },
+        "friendId": { ".validate": "newData.isString() && newData.val().length <= 10" },
+        "fcmToken": { ".validate": "!newData.exists() || newData.isString()" },
+        "type": {
+          // User can set their own type, or admin can change any type
+          ".validate": "newData.isString() && (newData.val() === 'Basic' || newData.val() === 'Premium' || newData.val() === 'Admin')",
+          ".write": "auth != null && (auth.uid === $uid || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')"
+        },
+        "isAdmin": {
+          ".validate": "newData.isBoolean()",
+          ".write": "auth != null && (root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')" // Only admins can change isAdmin status
+        },
+        "nameplate": { // New rule for nameplate
+          ".validate": "newData.isString() && newData.val().length <= 50", // Adjust max length as needed
+          ".write": "auth != null && auth.uid === $uid && (root.child('users').child(auth.uid).child('type').val() === 'Premium' || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')" // Only premium/admin can set
+        },
+        "customBadge": {
+          ".validate": "newData.isString() && newData.val().length <= 30",
+          ".write": "auth != null && auth.uid === $uid && (root.child('users').child(auth.uid).child('type').val() === 'Premium' || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')"
+        },
+        "notificationSettings": {
+          ".validate": "newData.hasChildren()",
+          ".write": "auth != null && auth.uid === $uid"
+        }
+      } 
+    },
+    "typing": {
+      "$chatId": {
+        ".read": "auth != null && root.child('members').child($chatId).child(auth.uid).exists()",
+        ".write": "auth != null && (root.child('chats').child($chatId).child('creatorId').val() === auth.uid || root.child('members').child($chatId).child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')",
+        "$uid": {
+          ".write": "auth != null && auth.uid === $uid && root.child('members').child($chatId).child($uid).exists() && (!root.child('members').child($chatId).child($uid).child('mutedUntil').exists() || root.child('members').child($chatId).child($uid).child('mutedUntil').val() < now)",
+          ".validate": "newData.val() === true || !newData.exists()"
+        }
+      }
+    },
+    "friend_codes": {
+      ".read": "auth != null",
+      "$code": {
+        ".write": "auth != null && (!data.exists() || data.child('uid').val() === auth.uid)",
+        ".validate": "newData.hasChildren(['uid', 'expires'])"
+      }
+    },
+    "friends": {
+      "$uid": {
+        // Move .read here so you can load the list of friends
+        ".read": "auth != null && auth.uid === $uid",
+        "$otherUid": {
+          ".write": "auth != null && (auth.uid === $uid || auth.uid === $otherUid)"
+        }
+      }
+    },
+    "user_chats": {
+      "$uid": {
+        // Move .read here so you can load your list of chats
+        ".read": "auth != null && auth.uid === $uid",
+        "$chatId": {
+          // User can manage their own list, or creator of a new group can add them
+          ".write": "auth != null && (auth.uid === $uid || $chatId.contains(auth.uid) || root.child('chats').child($chatId).child('creatorId').val() === auth.uid || newData.parent().parent().parent().child('chats').child($chatId).child('creatorId').val() === auth.uid)"
+        }
+      }
+    },
+    "members": {
+      "$chatId": {
+        ".read": "auth != null && root.child('members').child($chatId).child(auth.uid).exists()",
+        ".write": "auth != null && (root.child('chats').child($chatId).child('creatorId').val() === auth.uid || newData.parent().parent().child('chats').child($chatId).child('creatorId').val() === auth.uid || $chatId.contains(auth.uid))",
+        "$uid": {
+          // Allow if it's a new 1-to-1 chat, or if the user is the group creator
+          ".write": "auth != null && (!data.parent().exists() || root.child('chats').child($chatId).child('creatorId').val() === auth.uid || root.child('members').child($chatId).child(auth.uid).child('role').val() === 'admin')"
+        }
+      }
+    },
+    "mentions": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        "$chatId": {
+          ".write": "auth != null && (auth.uid === $uid || root.child('members').child($chatId).child(auth.uid).exists())"
+        }
+      }
+    },
+    "unread": {
+      "$uid": {
+        // Required for renderChatLink logic
+        ".read": "auth != null && auth.uid === $uid",
+        "$chatId": {
+          // Owner can clear, and chat members can set it to true (notified)
+          ".write": "auth != null && (auth.uid === $uid || root.child('members').child($chatId).child(auth.uid).exists())"
+        }
+      }
+    },
+    "chats": {
+      ".read": "auth != null && (root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')",
+      "$chatId": {
+        ".read": "auth != null && (root.child('members').child($chatId).child(auth.uid).exists() || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')",
+        // Merge: Allow creation, allow creator to update anything, allow members to update last_message/timestamp
+        ".write": "auth != null && (!data.exists() || data.child('creatorId').val() === auth.uid || root.child('members').child($chatId).child(auth.uid).exists())",
+        "title": { ".validate": "newData.isString() && newData.val().length <= 120 && (data.val() === newData.val() || data.parent().child('creatorId').val() === auth.uid || !data.parent().child('isGroup').exists())" },
+        "description": { ".validate": "newData.isString() && newData.val().length <= 500 && (data.val() === newData.val() || data.parent().child('creatorId').val() === auth.uid || !data.parent().child('isGroup').exists())" },
+        "groupId": { ".validate": "newData.isString() && newData.val().length <= 50" },
+        "profilePic": { ".validate": "newData.isString() && newData.val().length <= 300000" },
+        "isPublic": { ".validate": "newData.isBoolean()" },
+        "isChannel": { ".validate": "newData.isBoolean()" },
+        "groupTitle": { ".validate": "newData.isString() && newData.val().length <= 120" },
+        "creatorId": { ".validate": "newData.isString() && newData.val() === auth.uid && !data.exists()" }, // CreatorId can only be set on creation
+        "isGroup": { ".validate": "newData.isBoolean() && !data.exists()" }, // isGroup can only be set on creation
+        "last_message": { ".validate": "newData.isString() && newData.val().length <= 500" },
+        "timestamp": { ".validate": "newData.exists()" }
+      }
+    },
+    "messages": {
+      "$chatId": {
+        ".read": "auth != null && (root.child('members').child($chatId).child(auth.uid).exists() || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')",
+        ".write": "auth != null && (root.child('members').child($chatId).child(auth.uid).exists() || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')",
+        ".indexOn": ["timestamp", "createdAt"],
+        "$messageId": {
+          // Only the sender can modify the main message content
+          ".write": "auth != null && (root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true' || (root.child('members').child($chatId).child(auth.uid).exists() && ((!data.exists() && newData.child('sender_id').val() === auth.uid) || (data.exists() && data.child('sender_id').val() === auth.uid)) && (!root.child('members').child($chatId).child(auth.uid).child('mutedUntil').exists() || root.child('members').child($chatId).child(auth.uid).child('mutedUntil').val() < now) && (root.child('chats').child($chatId).child('isChannel').val() != true || root.child('members').child($chatId).child(auth.uid).child('role').val() === 'admin' || root.child('chats').child($chatId).child('creatorId').val() === auth.uid)))",
+          // Validation: Ensure all fields are present and sender name hasn't been spoofed/changed. Supports both createdAt and timestamp
+          ".validate": "!newData.exists() || (newData.hasChildren(['sender_id', 'sender_name', 'text']) && (newData.hasChild('timestamp') || newData.hasChild('createdAt')) && (newData.child('sender_name').val() === data.child('sender_name').val() || !data.exists()))",
+          "reactions": {
+            "$emoji": {
+              "$uid": {
+                ".write": "auth != null && auth.uid === $uid && root.child('members').child($chatId).child(auth.uid).exists()"
+              }
+            }
+          },
+          "views": {
+            ".write": "auth != null && root.child('members').child($chatId).child(auth.uid).exists()"
+          },
+          "poll": {
+            "options": {
+              "$index": {
+                "votes": {
+                  "$uid": {
+                    ".write": "auth != null && auth.uid === $uid && root.child('members').child($chatId).child(auth.uid).exists()"
+                  }
+                }
+              }
+            }
+          },
+          "stickerId": {
+            ".validate": "newData.isString() && root.child('user_stickers').child(auth.uid).child(newData.val()).exists()",
+            ".write": "auth != null && auth.uid === data.child('sender_id').val() && root.child('user_stickers').child(auth.uid).child(newData.val()).exists()"
+          }
+        }
+      }
+    },
+    "sticker_metadata": {
+      ".read": "auth != null", // Anyone can read metadata if they know the ID
+      "$stickerId": {
+        ".write": "auth != null && (data.exists() ? data.child('ownerId').val() === auth.uid : newData.child('ownerId').val() === auth.uid)", // Only owner can write, update, or delete
+        ".validate": "newData.hasChildren(['ownerId', 'originalFileName', 'storagePath', 'thumbnailStoragePath', 'createdAt', 'fileSize', 'mimeType'])",
+        "ownerId": { ".validate": "newData.val() === auth.uid" },
+        "fileSize": { ".validate": "newData.isNumber() && newData.val() <= 1048576" }, // 1MB limit
+        "mimeType": { ".validate": "newData.isString() && (newData.val() === 'image/png' || newData.val() === 'image/webp' || newData.val() === 'image/gif')" }
+      }
+    },
+    "sticker_packs": {
+      ".read": "auth != null",
+      ".indexOn": ["ownerId"],
+      "$packId": {
+        // owner writes their own pack; anyone may create the shared default pack once
+        ".write": "auth != null && (data.exists() ? (data.child('ownerId').val() === auth.uid) : (newData.child('ownerId').val() === auth.uid || ($packId === 'default_pack' && newData.child('ownerId').val() === 'system')))"
+      }
+    },
+    "user_sticker_packs": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
+      }
+    },
+    "user_stickers": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".indexOn": ["type"],
+        "$stickerId": {
+          ".write": "auth != null && (auth.uid === $uid || root.child('sticker_metadata').child($stickerId).child('ownerId').val() === auth.uid)",
+          ".validate": "newData.hasChildren(['type', 'metadataRef']) && (newData.child('type').val() === 'owned' || newData.child('type').val() === 'allowed')",
+          "metadataRef": {
+            ".validate": "newData.isString() && (root.child('sticker_metadata').child(newData.val()).exists() || newData.parent().parent().parent().parent().child('sticker_metadata').child(newData.val()).exists())"
+          }
+        }
+      }
+    },
+    "sticker_requests": {
+      "$ownerId": {
+        ".read": "auth != null && auth.uid === $ownerId", // Only owner can read their requests
+        "$requestId": {
+          ".write": "auth != null && (auth.uid === $ownerId || auth.uid === newData.child('requesterId').val())", // Owner can approve/deny, requester can create
+          ".validate": "newData.hasChildren(['stickerId', 'requesterId', 'requesterName', 'status', 'createdAt'])",
+          "stickerId": {
+            ".validate": "newData.isString() && root.child('sticker_metadata').child(newData.val()).exists()"
+          },
+          "status": {
+            ".validate": "newData.isString() && (newData.val() === 'pending' || newData.val() === 'approved' || newData.val() === 'denied')"
+          }
+        }
+      }
+    },
+    "games": {
+      "$chatId": {
+        ".read": "auth != null && root.child('members').child($chatId).child(auth.uid).exists()",
+        ".write": "auth != null && root.child('members').child($chatId).child(auth.uid).exists()"
+      }
+    }
+  }
+}

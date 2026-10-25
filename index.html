@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Orion Messenger</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    <link rel="icon" type="image/png" href="orion.png">
+    <link rel="stylesheet" href="style.css">
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
+</head>
+<body>
+    <div id="notification-container"></div>
+    <div id="theme-overlay"></div>
+    <div id="lg-orbs" aria-hidden="true"><i class="lg-orb o1"></i><i class="lg-orb o2"></i><i class="lg-orb o3"></i></div>
+    <div id="lg-cursor-light" aria-hidden="true"></div>
+    <div class="bg-blobs">
+        <div class="blob circle-1"></div>
+        <div class="blob circle-2"></div>
+    </div>
+
+    <div id="premium-promo-banner" class="premium-promo-banner">
+        <span class="banner-text">✨ Get Orion Premium or Invest in Shares!</span>
+        <div class="banner-actions">
+            <button id="open-payment-modal-btn" class="banner-btn">Support Us</button>
+            <button id="close-premium-banner" class="banner-close">✕</button>
+        </div>
+    </div>
+
+    <div id="auth-container">
+        <div class="glass-card auth-box">
+            <img src="orion.png" alt="Orion Logo" class="auth-logo">
+            <h2>Orion</h2>
+            <p>Welcome to the future of chat</p>
+            <div class="auth-fields">
+                <input type="email" id="email" placeholder="Email">
+                <input type="password" id="password" placeholder="Password">
+            </div>
+            <div class="auth-buttons">
+                <button id="login-btn">Login</button>
+                <button id="register-btn" class="glass-btn-secondary">Register</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="app-container" style="display: none;">
+        <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+        <div class="glass-sidebar" id="glass-sidebar">
+            <div class="sidebar-top-bar">
+                <div class="user-profile-btn" id="open-profile-modal">
+                    <div class="profile-brief">
+                        <div class="avatar-sm">👤</div>
+                        <div style="display: flex; flex-direction: column;">
+                            <div style="display: flex; align-items: center; gap: 6px;">
+                                <span id="current-user-name">Loading...</span>
+                                <span id="my-profile-badge" class="custom-user-badge" style="display: none;"></span>
+                            </div>
+                            <div style="display: flex; align-items: center; gap: 4px; margin-top: 2px;">
+                                <span id="my-status-dot" class="status-dot" style="width: 6px; height: 6px; margin: 0;"></span>
+                                <small id="my-status-text" style="font-size: 10px; opacity: 0.5;">Offline</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="chevron">›</div>
+                </div>
+                <button id="close-sidebar-btn" class="close-sidebar-btn" aria-label="Close sidebar drawer">✕</button>
+            </div>
+            
+            <div class="sidebar-action">
+                <button id="open-add-friend-modal" class="glass-btn-primary"><span class="btn-ico">＋</span> Add Friend</button>
+                <button id="open-creation-modal" class="glass-btn-secondary"><span class="btn-ico">✦</span> New Group / Channel</button>
+            </div>
+            <div class="sidebar-search">
+                <input type="search" id="sidebar-search-input" placeholder="Search friends &amp; chats" autocomplete="off" aria-label="Search friends and chats">
+            </div>
+
+            <div class="sidebar-scroll">
+                <div class="section-header collapsible" id="friends-header">
+                    <span>FRIENDS <span id="friend-requests-badge" class="request-badge">0</span></span>
+                    <span class="header-arrow">▾</span>
+                </div>
+                <div id="friends-list"></div>
+
+                <div class="section-header collapsible" id="chats-header">
+                    <span>CONVERSATIONS</span>
+                    <span class="header-arrow">▾</span>
+                </div>
+                <div id="conversations-collapsible-container" class="conversations-collapsible-wrapper">
+                    <div class="glider-container">
+                        <div class="glider-track">
+                            <button class="glider-tab active" data-filter="dms">DMs</button>
+                            <button class="glider-tab" data-filter="groups">Groups</button>
+                            <button class="glider-tab" data-filter="channels">Channels</button>
+                            <div class="glider-thumb"></div>
+                        </div>
+                    </div>
+                    <div id="chats-list" class="filter-dms"></div>
+                </div>
+            </div>
+        </div>
+
+        <div class="glass-main chat-container">
+            <div id="chat-header" class="chat-header-glass chat-header">
+                <button id="hamburger-btn" class="hamburger-btn" aria-label="Open sidebar menu" title="Open menu">
+                    <span class="hamburger-bar"></span>
+                    <span class="hamburger-bar"></span>
+                    <span class="hamburger-bar"></span>
+                </button>
+                <div id="chat-header-info" class="chat-header-info" title="View details">
+                    <div id="chat-header-avatar" class="avatar-sm" style="display: none; margin-right: 10px; width: 34px; height: 34px; flex-shrink: 0;"></div>
+                    <div id="chat-title-container">
+                        <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                            <h3 id="chat-title-text" style="margin: 0;">Orion</h3>
+                            <span id="chat-retention-badge" class="chat-retention-badge" title="Messages in Orion auto-delete after 5 days">
+                                <span>⏱️</span>
+                                <span class="retention-text-desktop">Messages disappear after 5 days</span>
+                                <span class="retention-text-mobile">5d</span>
+                            </span>
+                        </div>
+                        <p id="chat-description-text"></p>
+                    </div>
+                </div>
+                <button id="chat-header-menu-btn" class="chat-header-menu-btn" aria-label="Chat options" title="Chat details" style="display: none;">⋮</button>
+                <button id="edit-group-btn" class="members-btn" style="display: none;">Edit Group</button>
+                <button id="open-members-panel" class="members-btn" aria-label="Show members" style="display: none;">Members</button>
+            </div>
+            
+            <div class="chat-body-wrapper">
+                <div id="messages-container" class="messages-container"></div>
+                <div id="chat-members-sidebar" class="glass-members-sidebar">
+                    <div class="section-header">MEMBERS</div>
+                    <div id="members-list-content"></div>
+                    <button id="open-subchannel-modal-btn" class="glass-btn-secondary" style="margin: 10px; display: none; font-size: 11px;">+ New Chat/Channel</button>
+                </div>
+            </div>
+
+            <div id="edit-preview-bar" class="edit-preview-bar" style="display: none;">
+                <div class="edit-info">
+                    <small>Editing message</small>
+                    <div id="edit-preview-text"></div>
+                </div>
+                <button id="cancel-edit-btn" class="cancel-edit-btn">✕</button>
+            </div>
+            <div id="reply-preview-bar" class="edit-preview-bar" style="display: none;">
+                <div class="edit-info">
+                    <small id="reply-info-title" style="color: #00d4ff;">Replying to User</small>
+                    <div id="reply-preview-text"></div>
+                </div>
+                <button id="cancel-reply-btn" class="cancel-edit-btn">✕</button>
+            </div>
+
+            <div class="glass-input-area chat-input-bar">
+                <div id="mention-dropdown" class="mention-dropdown" style="display: none;"></div>
+                <div id="emoji-picker" class="emoji-picker-panel" style="display: none;">
+                    <div class="picker-glider-container">
+                        <div class="glider-track">
+                            <button class="glider-tab active" id="picker-tab-emojis" data-tab="emojis">Emojis</button>
+                            <button class="glider-tab" id="picker-tab-stickers" data-tab="stickers">Stickers</button>
+                            <div class="glider-thumb picker-glider-thumb"></div>
+                        </div>
+                    </div>
+                    <div id="picker-tab-content-emojis" class="picker-tab-content active"></div>
+                    <div id="picker-tab-content-stickers" class="picker-tab-content" style="display: none;"></div>
+                </div>
+                <div id="plus-menu" class="msg-action-menu" style="display: none; bottom: 85px; top: auto; width: 160px;">
+                    <button id="upload-image-option">Upload File</button>
+                    <button id="create-poll-option">Create a Poll</button>
+                    <button id="open-games-option">Games</button>
+                </div>
+                <button id="sticker-btn" class="sticker-trigger-btn" title="Add Sticker" style="display: none;">🖼️</button>
+                <div class="input-wrapper">
+                    <button id="emoji-btn" class="emoji-trigger-btn" title="Add Emoji">😊</button>
+                    <button id="plus-btn" class="emoji-trigger-btn" title="Actions">+</button>
+                    <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+                    <input type="file" id="file-upload-input" accept="image/*" style="display: none;">
+                    <input type="file" id="camera-input" accept="image/*" capture="environment" style="display: none;">
+                    <button id="camera-btn" class="camera-icon-btn" title="Take Photo" style="display: none;">📷</button>
+                    <button id="send-btn" class="send-icon-btn" style="display: none;">
+                        <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="profile-modal" class="modal">
+        <div class="glass-card modal-content profile-card">
+            <div class="profile-header">
+                <div class="avatar-lg" title="Click to change profile picture">👤</div>
+                <input type="file" id="profile-pic-input" accept="image/*" style="display: none;">
+                <h3>Your Profile</h3>
+            </div>
+            <div class="profile-fields">
+                <div class="field-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <label style="margin: 0;">Display Name</label>
+                        <button type="button" id="profile-to-settings-btn" class="profile-link-btn" title="Change your display name in User Settings">Change in Settings ›</button>
+                    </div>
+                    <div id="profile-display-name-view" class="bio-box read-only-field" style="min-height: auto; font-weight: 600; display: flex; align-items: center; justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 6px;">
+                            <span id="profile-display-name-text">Loading...</span>
+                            <span id="profile-modal-badge" class="custom-user-badge" style="display: none;"></span>
+                        </div>
+                        <span style="opacity: 0.45; font-size: 11px;">Settings exclusive</span>
+                    </div>
+                    <input type="hidden" id="profile-display-name">
+                </div>
+                <div class="field-group">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                        <label style="margin: 0;">About Me</label>
+                        <button type="button" id="bio-to-settings-btn" class="profile-link-btn" title="Edit your bio in User Settings">Edit in Settings ›</button>
+                    </div>
+                    <div id="profile-description-view" class="bio-box read-only-field" style="min-height: 48px; color: var(--text);">
+                        <span id="profile-description-text" style="opacity: 0.85;">No bio yet.</span>
+                    </div>
+                </div>
+                <div class="field-group">
+                    <label>Account Type <span id="my-type-info" class="info-icon">(?)</span></label>
+                    <div id="my-user-type" class="bio-box" style="min-height: auto; font-weight: 600;">Basic</div>
+                </div>
+            </div>
+            <div class="modal-actions-vertical">
+                <button id="open-premium-panel-btn" class="glass-btn-secondary" style="display: none;">Settings</button>
+                <button id="open-admin-panel-btn" class="glass-btn-secondary" style="display: none; border-color: var(--accent);">Admin Panel</button>
+                <button id="close-profile-modal" class="glass-btn-secondary">Close</button>
+                <button id="logout-btn" class="logout-link">Log Out</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="add-friend-modal" class="modal">
+        <div class="glass-card modal-content">
+            <h3>Add Friend</h3>
+            <div class="field-group">
+                <label>Add by User ID</label>
+                <div style="display: flex; gap: 10px;">
+                    <input type="text" id="friend-code-input" placeholder="Enter ID (e.g. A1B2C3D4)" maxlength="10">
+                    <button id="submit-code-btn" class="glass-btn-primary" style="width: 80px;">Add</button>
+                </div>
+            </div>
+            <hr style="opacity: 0.1; margin: 20px 0;">
+            <div class="field-group">
+                <label>My User ID & QR</label>
+                <div id="my-code-display">LOADING...</div>
+                <div class="qr-wrapper">
+                    <img id="my-qr-code" src="" alt="My QR">
+                </div>
+            </div>
+            <hr style="opacity: 0.1; margin: 20px 0;">
+            <div class="field-group">
+                <label>Scan QR Code</label>
+                <div id="qr-reader-container" style="overflow: hidden; border-radius: 12px; background: rgba(0,0,0,0.3);">
+                    <div id="reader"></div>
+                </div>
+                <button id="toggle-scanner-btn" class="glass-btn-secondary" style="margin-top: 10px; width: 100%;">Open Camera</button>
+            </div>
+            <div class="modal-actions-vertical">
+                <button id="close-add-friend-modal" class="glass-btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Unified Creation Modal -->
+    <div id="creation-modal" class="modal">
+        <div class="glass-card modal-content">
+            <h3 id="creation-modal-title">Create New</h3>
+            
+            <div class="field-group">
+                <label>Type</label>
+                <div class="duration-grid" style="margin-bottom: 15px;">
+                    <div class="duration-chip active" id="type-select-group" onclick="setCreationType('group')">Group</div>
+                    <div class="duration-chip" id="type-select-channel" onclick="setCreationType('channel')">Blog Channel</div>
+                </div>
+                <input type="hidden" id="creation-type" value="group">
+            </div>
+
+            <div class="field-group">
+                <label id="creation-name-label">Group Name</label>
+                <input type="text" id="creation-name-input" placeholder="e.g. Design Team" autocomplete="off">
+            </div>
+            <div class="field-group">
+                <label>Add Friends</label>
+                <div id="modal-users-selection" class="selection-scroll" style="max-height: 150px; overflow-y: auto; background: rgba(255,255,255,0.05); border-radius: 8px;">
+                    </div>
+            </div>
+            <div class="field-group">
+                <label>Selected Members</label>
+                <div id="modal-selected-list" style="display: flex; flex-wrap: wrap; gap: 8px; min-height: 30px;">
+                    </div>
+            </div>
+            <div class="modal-actions-vertical">
+                <button id="confirm-creation-btn" class="glass-btn-primary">Create</button>
+                <button id="close-creation-modal" class="glass-btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sub-Channel Modal (Inside a Group) -->
+    <div id="subchannel-modal" class="modal">
+        <div class="glass-card modal-content">
+            <h3>New Group Chat/Channel</h3>
+            <div class="field-group">
+                <label>Name</label>
+                <input type="text" id="subchannel-name-input" placeholder="e.g. announcements" autocomplete="off">
+            </div>
+            <p style="font-size: 11px; opacity: 0.6;">This will be visible to all members of the current group.</p>
+            
+            <div class="modal-actions-vertical">
+                <button id="confirm-subchannel-btn" class="glass-btn-primary">Create</button>
+                <button id="close-subchannel-modal" class="glass-btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Custom Confirmation Modal -->
+    <div id="confirm-modal" class="modal">
+        <div class="glass-card modal-content">
+            <h3 id="confirm-title">Confirm Action</h3>
+            <p id="confirm-message">Are you sure you want to proceed?</p>
+            <div id="confirm-input-container" class="field-group" style="display: none; margin-top: 15px;">
+                <input type="text" id="confirm-input" autocomplete="off">
+            </div>
+            <div class="confirm-actions">
+                <button id="confirm-cancel-btn" class="glass-btn-secondary" style="flex: 1;">Cancel</button>
+                <button id="confirm-yes-btn" class="glass-btn-primary" style="flex: 1;">Yes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="user-view-modal" class="modal">
+        <div class="uv-card">
+            <button class="uv-x-close" onclick="closeAnimatedModal(document.getElementById('user-view-modal'))" aria-label="Close">&times;</button>
+            <div class="uv-banner"></div>
+            <div class="uv-body">
+                <div class="uv-avatar-wrap" id="uv-avatar-wrap">
+                    <div class="uv-avatar" id="view-user-avatar-lg">👤</div>
+                    <span class="uv-status-indicator" id="view-user-status-dot"></span>
+                </div>
+                <h3 class="uv-name" id="view-user-name">User Name</h3>
+                <div class="uv-status-row" id="view-user-status-row">
+                    <span class="uv-status-dot-inline"></span>
+                    <span id="view-user-status-text">Offline</span>
+                </div>
+                <div class="uv-type-badge" id="view-user-type">Basic</div>
+                <p class="uv-bio" id="view-user-desc">No bio yet.</p>
+                <div class="uv-actions" id="user-view-actions"></div>
+                <div class="uv-dismiss-footer">
+                    <button class="uv-dismiss-btn" onclick="document.getElementById('user-view-modal').style.display='none'">Dismiss</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="group-info-modal" class="modal">
+        <div class="glass-card modal-content group-info-card" style="position: relative; max-height: 85vh; display: flex; flex-direction: column;">
+            <button id="close-group-info-modal" class="cancel-edit-btn" style="position: absolute; top: 16px; right: 16px; margin: 0; z-index: 10;">✕</button>
+            <div class="group-info-header" style="text-align: center; margin-bottom: 12px; flex-shrink: 0;">
+                <div id="group-info-avatar" class="avatar-lg" style="margin: 0 auto 10px; cursor: default;">👥</div>
+                <h3 id="group-info-title" style="margin: 0 0 4px; font-size: 20px; font-weight: 700;">Group Name</h3>
+                <p id="group-info-description" style="margin: 0; font-size: 13px; opacity: 0.7; max-height: 60px; overflow-y: auto;"></p>
+                <div id="group-info-stats" style="margin-top: 6px; font-size: 12px; opacity: 0.5;"></div>
+            </div>
+
+            <div class="group-info-actions">
+                <button id="group-info-add-members-btn" class="glass-btn-secondary group-action-btn">+ Add Members</button>
+                <button id="group-info-copy-invite-btn" class="glass-btn-secondary group-action-btn">🔗 Share Invite</button>
+                <button id="group-info-edit-btn" class="glass-btn-secondary group-action-btn" style="display: none;">⚙️ Edit</button>
+            </div>
+
+            <div class="section-header" style="flex-shrink: 0; margin-bottom: 6px;">MEMBERS (<span id="group-info-members-count">0</span>)</div>
+            <div id="group-info-members-list" class="selection-scroll" style="flex: 1 1 auto; max-height: 300px; overflow-y: auto; margin-bottom: 12px;"></div>
+
+            <div class="modal-actions-vertical" style="flex-shrink: 0; margin-top: 0;">
+                <button id="close-group-info-btn" class="glass-btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="edit-group-modal" class="modal">
+        <div class="glass-card modal-content" style="position: relative;">
+            <button id="close-edit-group-modal" class="cancel-edit-btn" style="position: absolute; top: 20px; right: 20px; margin: 0;">✕</button>
+            <h3 class="profile-header">Edit Group</h3>
+            <div class="profile-header">
+                <div class="avatar-lg" id="edit-chat-avatar" title="Click to change chat picture">👤</div>
+                <input type="file" id="chat-pic-input" accept="image/*" style="display: none;">
+            </div>
+            <div class="profile-fields">
+                <div class="field-group">
+                    <label for="edit-group-name">Group Name</label>
+                    <input type="text" id="edit-group-name" maxlength="120">
+                </div>
+                <div class="field-group">
+                    <label for="edit-group-description">Description</label>
+                    <textarea id="edit-group-description" rows="3" maxlength="500"></textarea>
+                </div>
+                <div class="field-group">
+                    <label>Visibility</label>
+                    <div class="duration-grid">
+                        <div class="duration-chip" id="visibility-private" onclick="setChatVisibility(false)">Private</div>
+                        <div class="duration-chip" id="visibility-public" onclick="setChatVisibility(true)">Public</div>
+                    </div>
+                </div>
+                <div class="field-group" id="invite-link-group">
+                    <label>Invite Link</label>
+                    <div style="display: flex; gap: 8px;">
+                        <input type="text" id="chat-invite-link" readonly style="font-size: 11px; opacity: 0.7;">
+                        <button id="copy-invite-link-btn" class="glass-btn-primary" style="width: auto; padding: 0 12px;">Copy</button>
+                    </div>
+                </div>
+            </div>
+            <div class="modal-actions-vertical">
+                <button id="add-members-to-group-btn" class="glass-btn-secondary">Add Members</button>
+                <div id="delete-group-area" style="border-top: 1px solid rgba(255,75,43,0.2); padding-top: 10px; margin-top: 5px;">
+                    <label style="color: #ff4b2b; font-size: 11px; font-weight: 700; display: block; text-align: center; margin-bottom: 8px; text-transform: uppercase;">Danger Zone</label>
+                    <button id="delete-group-btn" class="glass-btn-secondary" style="color: #ff4b2b; border-color: #ff4b2b; width: 100%;">Delete Group</button>
+                </div>
+                <button id="save-group-details-btn" class="glass-btn-primary">Save Changes</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="add-members-to-group-modal" class="modal">
+        <div class="glass-card modal-content">
+            <h3 class="profile-header">Add Members</h3>
+            <div class="field-group">
+                <label>Selected Members</label>
+                <div id="add-members-selected-list" class="selected-tags-box"></div>
+            </div>
+            <div class="field-group">
+                <label>Friends</label>
+                <div id="add-members-selection" class="selection-scroll"></div>
+            </div>
+            <div class="modal-actions-vertical">
+                <button id="confirm-add-members-btn" class="glass-btn-primary">Add Selected</button>
+                <button id="close-add-members-modal" class="glass-btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="admin-panel-modal" class="modal">
+        <div class="glass-card modal-content" style="width: 850px; max-width: 95vw; padding: 0; overflow: hidden;">
+            <div class="premium-layout" id="admin-layout">
+                <div class="premium-sidebar">
+                    <h3 style="padding: 20px; margin: 0; font-size: 16px; color: var(--accent);">Admin Panel</h3>
+                    <div class="admin-nav-item active" data-tab="users">User Management</div>
+                    <div class="admin-nav-item" data-tab="stats">Statistics</div>
+                </div>
+                <div class="premium-main">
+                    <div id="admin-tab-users" class="admin-tab-content">
+                        <h4 style="margin-top: 0;">Manage user permissions</h4>
+                        <div id="admin-users-list" class="selection-scroll" style="max-height: 400px;">
+                            <!-- User items will be loaded here by JS -->
+                        </div>
+                    </div>
+
+                    <div id="admin-tab-stats" class="admin-tab-content" style="display: none;">
+                        <h4 style="margin-top: 0;">App Statistics</h4>
+                        <div class="theme-grid" style="grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));">
+                            <div class="theme-card active" style="aspect-ratio: auto; padding: 20px; flex-direction: column;">
+                                <div style="font-size: 24px;">👥</div>
+                                <div style="font-size: 20px; margin: 10px 0;" id="stat-total-users">0</div>
+                                <div>Total Accounts</div>
+                            </div>
+                            <div class="theme-card active" style="aspect-ratio: auto; padding: 20px; flex-direction: column; border-color: #ffd700;">
+                                <div style="font-size: 24px;">✨</div>
+                                <div style="font-size: 20px; margin: 10px 0; color: #ffd700;" id="stat-premium-users">0</div>
+                                <div>Premium Users</div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button id="close-admin-panel-modal" class="glass-btn-secondary" style="margin-top: 20px; width: 100%;">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="premium-panel-modal" class="modal">
+        <div class="glass-card modal-content" style="width: 850px; max-width: 95vw; padding: 0; overflow: hidden;">
+            <div class="premium-layout" id="settings-layout">
+                <div class="premium-sidebar">
+                    <h3 class="settings-title">Settings</h3>
+                    <div class="premium-nav-item active" data-tab="account">Account & Identity</div>
+                    <div class="premium-nav-item" data-tab="notifications">Notifications</div>
+                    <div class="premium-nav-item" data-tab="optimisation">Optimisation</div>
+                    <div class="premium-nav-item" data-tab="appinfo">App Info</div>
+                    <div class="settings-nav-label">✨ Premium</div>
+                    <div class="premium-nav-item" data-tab="themes">Background Themes</div>
+                    <div class="premium-nav-item" data-tab="nameplates">Nameplates</div>
+                    <div class="premium-nav-item" data-tab="stickers">Stickers</div>
+                    <div class="premium-nav-item" data-tab="liquidglass">Liquid Glass</div>
+                </div>
+                <div class="premium-main">
+                    <button id="toggle-premium-sidebar" class="premium-sidebar-toggle">☰ Menu</button>
+                    <div id="premium-tab-account" class="premium-tab-content">
+                        <h4 style="margin-top: 0;">Account & Identity</h4>
+                        <div class="setting-card">
+                            <h5>Display Name</h5>
+                            <small>Change your public display name. Updates automatically.</small>
+                            <input type="text" id="settings-display-name" maxlength="80" placeholder="Your name" autocomplete="nickname">
+                            <small id="settings-name-msg" class="settings-msg" style="display: block; margin-top: 4px;"></small>
+                        </div>
+                        <div class="setting-card">
+                            <h5>About Me</h5>
+                            <small>Write a bio or description to share on your profile. Updates automatically.</small>
+                            <textarea id="settings-profile-description" rows="3" placeholder="Tell people about yourself..." style="width: 100%; box-sizing: border-box; background: rgba(0, 0, 0, 0.25); border: 1px solid var(--glass-border); border-radius: 10px; color: var(--text); padding: 10px; font-family: inherit; font-size: 16px; resize: vertical;"></textarea>
+                            <small id="settings-bio-msg" class="settings-msg" style="display: block; margin-top: 4px;"></small>
+                        </div>
+                        <div class="setting-card">
+                            <h5>Email address</h5>
+                            <small>Current: <span id="settings-current-email">—</span></small>
+                            <input type="email" id="settings-new-email" placeholder="New email address" autocomplete="email">
+                            <input type="password" id="settings-email-password" placeholder="Current password (to confirm)" autocomplete="current-password">
+                            <button id="settings-change-email" class="glass-btn-primary">Change email</button>
+                            <small id="settings-email-msg" class="settings-msg"></small>
+                        </div>
+                        <div class="setting-card" style="margin-top: 14px;">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
+                                <h5 style="margin: 0;">App Info</h5>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);">v<span id="account-tab-app-version">1.0.0</span></span>
+                            </div>
+                            <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
+                            <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>
+                        </div>
+                    </div>
+
+                    <!-- Dedicated Notifications Tab -->
+                    <div id="premium-tab-notifications" class="premium-tab-content" style="display: none;">
+                        <h4 style="margin-top: 0;">Notification Preferences</h4>
+                        <div class="setting-row">
+                            <div class="setting-text">
+                                <strong>In-App Sounds</strong>
+                                <p>Play a gentle audio chime when new messages, mentions, or friend requests arrive while the app is active.</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="toggle-inapp-sounds" aria-label="In-App Sounds" checked>
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+
+                        <div class="setting-card" style="margin-top: 14px;">
+                            <h5>Direct Message Desktop / Push Notifications</h5>
+                            <small>Choose when to receive desktop and push notifications for direct 1-to-1 conversations.</small>
+                            <div class="segmented-control" id="dm-notification-options" style="margin-top: 8px;">
+                                <button type="button" class="seg-btn active" data-val="all">All</button>
+                                <button type="button" class="seg-btn" data-val="mentions">Mentions Only</button>
+                                <button type="button" class="seg-btn" data-val="none">None</button>
+                            </div>
+                        </div>
+
+                        <div class="setting-card">
+                            <h5>Group Notifications</h5>
+                            <small>Configure notification alerts for group conversations and sub-channels.</small>
+                            <div class="segmented-control" id="group-notification-options" style="margin-top: 8px;">
+                                <button type="button" class="seg-btn active" data-val="all">All</button>
+                                <button type="button" class="seg-btn" data-val="mentions">Mentions Only</button>
+                                <button type="button" class="seg-btn" data-val="mute">Mute</button>
+                            </div>
+                        </div>
+
+                        <div class="setting-row">
+                            <div class="setting-text">
+                                <strong>Unread Badge Indicators</strong>
+                                <p>Display visual unread dots and count badges on conversations and pending requests in the sidebar.</p>
+                            </div>
+                            <label class="switch">
+                                <input type="checkbox" id="toggle-unread-badges" aria-label="Unread Badge Indicators" checked>
+                                <span class="switch-slider"></span>
+                            </label>
+                        </div>
+                        <small style="opacity: .55; display: block; margin-top: 10px;">Notification preferences are stored per-device and synced to your profile.</small>
+                    </div>
+
+                    <div id="premium-tab-themes" class="premium-tab-content" style="display: none;">
+                        <h4 style="margin-top: 0;">Select a Theme</h4>
+                        <div class="theme-grid" id="theme-selection-grid">
+                            <!-- Themes injected by JS -->
+                        </div>
+                    </div>
+                    <!-- New Nameplates Tab Content -->
+                    <div id="premium-tab-nameplates" class="premium-tab-content" style="display: none;">
+                        <h4 style="margin-top: 0;">Select a Nameplate</h4>
+                        <div class="theme-grid" id="nameplate-selection-grid"> <!-- Reusing theme-grid for layout -->
+                            <!-- Nameplates injected by JS -->
+                        </div>
+                    </div>
+                    <!-- Stickers Tab Content -->
+                    <div id="premium-tab-stickers" class="premium-tab-content" style="display: none;">
+                        <h4 style="margin-top: 0;">Your Sticker Collection</h4>
+                        <div class="theme-grid sticker-grid" id="my-stickers-grid">
+                            <!-- Stickers injected by JS -->
+                        </div>
+                    </div>
+                    <!-- Liquid Glass (Premium) -->
+                    <div id="premium-tab-liquidglass" class="premium-tab-content" style="display: none;">
+                        <h4 style="margin-top: 0;">Liquid Glass</h4>
+                        <div class="setting-row" id="liquid-glass-row">
+                            <div class="setting-text">
+                                <strong>Turn on liquid glass</strong> <span class="setting-note">(has impact on performance)</span>
+                                <p>Glossy, light-catching glass panels with bright rims. Turn off to switch to the sleek, flat Minimalist Modern theme.</p>
+                            </div>
+                            <label class="switch"><input type="checkbox" id="toggle-liquid-glass" aria-label="Turn on liquid glass"><span class="switch-slider"></span></label>
+                        </div>
+                        <div class="setting-row" id="liquid-glass-anim-row">
+                            <div class="setting-text">
+                                <strong>Liquid glass animations</strong>
+                                <p>Drifting light behind the glass, a soft glow that follows your cursor, springy buttons and a fluid pop-in for windows. Turn off to keep the glass look but make it still.</p>
+                            </div>
+                            <label class="switch"><input type="checkbox" id="toggle-lg-anim" aria-label="Liquid glass animations" checked><span class="switch-slider"></span></label>
+                        </div>
+                    </div>
+                    <!-- Optimisation (everyone) -->
+                    <div id="premium-tab-optimisation" class="premium-tab-content" style="display: none;">
+                        <h4 style="margin-top: 0;">Optimisation</h4>
+                        <div class="setting-row">
+                            <div class="setting-text">
+                                <strong>Performance mode</strong>
+                                <p>Removes all animations and transitions, and hides animated backgrounds. Best for older phones and low battery. Turns liquid glass off while active.</p>
+                            </div>
+                            <label class="switch"><input type="checkbox" id="toggle-perf-mode" aria-label="Performance mode"><span class="switch-slider"></span></label>
+                        </div>
+                        <div class="setting-row">
+                            <div class="setting-text">
+                                <strong>Disable blur effects</strong>
+                                <p>Turns off the frosted-glass blur behind panels — the single biggest GPU cost. Panels get a slightly darker tint instead.</p>
+                            </div>
+                            <label class="switch"><input type="checkbox" id="toggle-no-blur" aria-label="Disable blur effects"><span class="switch-slider"></span></label>
+                        </div>
+                        <small style="opacity:.55;">These settings are saved on this device.</small>
+                    </div>
+
+                    <!-- App Info Tab (OTA Updates) -->
+                    <div id="premium-tab-appinfo" class="premium-tab-content" style="display: none;">
+                        <h4 style="margin-top: 0;">App Info</h4>
+                        <div class="setting-card">
+                            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+                                <h5 style="margin: 0; font-size: 16px;">Orion Chat</h5>
+                                <span id="app-current-version" class="app-version-badge" style="font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 12px; background: rgba(112, 0, 255, 0.15); border: 1px solid rgba(112, 0, 255, 0.35); color: #c499ff;">v1.0.1</span>
+                            </div>
+                            <small style="display: block; margin-bottom: 14px; opacity: 0.75; line-height: 1.45;">
+                                Keep Orion Chat updated with the latest performance enhancements, security fixes, and features over the air.
+                            </small>
+                            <button type="button" id="btn-check-updates" class="settings-action-btn glass-btn-primary" style="display: inline-flex; align-items: center; gap: 8px; width: auto; padding: 10px 20px;">
+                                🔄 Check for Updates
+                            </button>
+                            <small id="settings-update-msg" class="settings-msg" style="display: block; margin-top: 10px;"></small>
+                        </div>
+                    </div>
+                    <button id="close-premium-panel" class="glass-btn-secondary" style="margin-top: 20px; width: 100%;">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="mute-modal" class="modal">
+        <div class="glass-card modal-content">
+            <h3>Mute <span id="mute-user-name">User</span></h3>
+            <div class="field-group">
+                <label>Duration</label>
+                <div class="duration-grid" id="mute-duration-chips">
+                    <div class="duration-chip" data-value="15">15m</div>
+                    <div class="duration-chip" data-value="30">30m</div>
+                    <div class="duration-chip active" data-value="60">1h</div>
+                    <div class="duration-chip" data-value="180">3h</div>
+                    <div class="duration-chip" data-value="1440">1d</div>
+                    <div class="duration-chip" data-value="10080">7d</div>
+                </div>
+                <input type="hidden" id="mute-duration" value="60">
+            </div>
+            <div class="field-group">
+                <label>Reason</label>
+                <input type="text" id="mute-reason" placeholder="Spamming, offensive language, etc.">
+            </div>
+            <div class="modal-actions-vertical">
+                <button id="confirm-mute-btn" class="glass-btn-primary">Mute User</button>
+                <button id="cancel-mute-btn" class="glass-btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="friend-requests-modal" class="modal">
+        <div class="glass-card modal-content">
+            <h3>Friend Requests</h3>
+            <div id="modal-requests-list"></div>
+            <div class="modal-actions-vertical">
+                <button id="close-requests-modal" class="glass-btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment/Support Modal -->
+    <div id="payment-modal" class="modal">
+        <div class="glass-card modal-content">
+            <h3 style="text-align: center;">Support Orion</h3>
+            <div class="field-group" style="text-align: center; margin-top: 15px;">
+                <p style="font-size: 13px; line-height: 1.6; opacity: 0.9;">
+                    If you want to buy <strong>Premium</strong>(1€) write <em>premium</em> and your nickname, if you want to buy <strong>shares</strong> (at a price of 0.01euros per share) you should write <em>shares</em> and your nickname.
+                </p>
+                <div class="qr-wrapper" style="background: white; padding: 12px; border-radius: 24px; margin: 20px auto; width: 220px; height: 220px; box-shadow: 0 0 20px rgba(0,0,0,0.2);">
+                    <img src="payqr.png" alt="Revolut QR" style="width: 100%; height: 100%; object-fit: contain; display: block;">
+                </div>
+            </div>
+            <div class="modal-actions-vertical">
+                <button id="close-payment-modal" class="glass-btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="image-lightbox" class="modal" onclick="closeAnimatedModal(this)">
+        <img id="lightbox-img" src="" alt="Zoomed View">
+    </div>
+
+    <!-- Sticker Picker Modal -->
+    <div id="sticker-picker-modal" class="modal">
+        <div class="glass-card modal-content" style="width: 450px;">
+            <h3>Select a Sticker</h3>
+            <div class="field-group">
+                <label>Your Stickers</label>
+                <div id="my-stickers-picker-grid" class="theme-grid sticker-grid"></div>
+            </div>
+            <div class="field-group">
+                <label>Received Stickers</label>
+                <div id="allowed-stickers-grid" class="theme-grid sticker-grid"></div>
+            </div>
+            <div class="modal-actions-vertical">
+                <button id="close-sticker-picker" class="glass-btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+    <!-- Sticker Pack Preview Modal -->
+    <div id="sticker-pack-preview-modal" class="modal">
+        <div class="glass-card modal-content" style="width: 480px; max-width: 92vw;">
+            <h3 id="pack-preview-title" style="margin-bottom: 4px; font-size: 18px; text-align: center;">Pack Name</h3>
+            <p id="pack-preview-author" style="margin-top: 0; margin-bottom: 20px; font-size: 13px; opacity: 0.7; text-align: center;">Author</p>
+            
+            <div class="field-group">
+                <div id="pack-preview-stickers-grid" class="theme-grid sticker-grid" style="max-height: 280px; overflow-y: auto; padding: 4px;"></div>
+            </div>
+            <div class="modal-actions-vertical" style="margin-top: 15px;">
+                <button id="toggle-pack-collection-btn" class="glass-btn-primary">+ Add to Collection</button>
+                <button id="close-pack-preview-modal" class="glass-btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Sticker Pack Modal -->
+    <div id="create-pack-modal" class="modal">
+        <div class="glass-card modal-content">
+            <h3>Create Sticker Pack</h3>
+            <div class="field-group">
+                <label>Pack Name</label>
+                <input type="text" id="new-pack-name-input" placeholder="e.g. Space Memes" autocomplete="off">
+            </div>
+            <div class="modal-actions-vertical">
+                <button id="confirm-create-pack-btn" class="glass-btn-primary">Create Pack</button>
+                <button id="close-create-pack-modal" class="glass-btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Sticker Request Notification Modal -->
+    <div id="sticker-request-notification-modal" class="modal">
+        <div class="glass-card modal-content">
+            <h3>Sticker Request</h3>
+            <p id="sticker-request-message">A user wants to use your sticker.</p>
+            <div class="modal-actions-vertical">
+                <button id="approve-sticker-request-btn" class="glass-btn-primary">Approve</button>
+                <button id="deny-sticker-request-btn" class="glass-btn-secondary" style="color: #ff4b2b;">Deny</button>
+                <button id="close-sticker-request-notification-modal" class="glass-btn-secondary">Decide Later</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Poll Creation Modal -->
+    <div id="poll-modal" class="modal">
+        <div class="glass-card modal-content">
+            <h3>Create a Poll</h3>
+            <div class="field-group">
+                <label>Question</label>
+                <input type="text" id="poll-question" placeholder="What is on your mind?">
+            </div>
+            <div id="poll-options-container" class="field-group">
+                <label>Options</label>
+                <input type="text" class="poll-option-input" placeholder="Option 1">
+                <input type="text" class="poll-option-input" placeholder="Option 2">
+            </div>
+            <button id="add-poll-option-btn" class="glass-btn-secondary" style="margin-bottom: 15px; width: 100%;">+ Add Option</button>
+            <div class="modal-actions-vertical">
+                <button id="confirm-poll-btn" class="glass-btn-primary">Create Poll</button>
+                <button id="close-poll-modal" class="glass-btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Poll Results Modal -->
+    <div id="poll-results-modal" class="modal">
+        <div class="glass-card modal-content">
+            <h3>Poll Results</h3>
+            <h4 id="poll-results-question" style="margin-top: 15px; margin-bottom: 20px; text-align: center;"></h4>
+            <div id="poll-results-options-container" class="selection-scroll" style="max-height: 300px;">
+                <!-- Poll options and voters will be injected here -->
+            </div>
+            <div class="modal-actions-vertical">
+                <button id="close-poll-results-modal" class="glass-btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Games Library Modal -->
+    <div id="games-library-modal" class="modal">
+        <div class="glass-card modal-content">
+            <h3>Games Library</h3>
+            <div class="theme-grid" style="grid-template-columns: 1fr; gap: 15px; margin-top: 20px;">
+                <div class="theme-card" id="select-flag-game" style="aspect-ratio: auto; padding: 20px; flex-direction: column; gap: 10px;">
+                    <div style="font-size: 40px;">🚩</div>
+                    <strong>World Flags</strong>
+                    <small style="opacity: 0.7;">Guess flags and collect gold!</small>
+                </div>
+            </div>
+            <div class="modal-actions-vertical">
+                <button onclick="document.getElementById('games-library-modal').style.display='none'" class="glass-btn-secondary">Close</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Flag Game Lobby/Settings -->
+    <div id="flag-game-lobby-modal" class="modal">
+        <div class="glass-card modal-content">
+            <h3>Game Settings: World Flags</h3>
+            <div class="field-group" style="margin-top: 20px;">
+                <label>Duration (Minutes)</label>
+                <input type="range" id="game-duration-slider" min="1" max="10" value="5" oninput="document.getElementById('duration-val').innerText = this.value">
+                <div style="text-align: center; font-weight: 700; color: var(--accent);"><span id="duration-val">5</span> mins</div>
+            </div>
+            <div class="field-group">
+                <label>Players Waiting</label>
+                <div id="lobby-players-list" class="selection-scroll" style="min-height: 80px;"></div>
+            </div>
+            <div class="modal-actions-vertical">
+                <button id="start-game-btn" class="glass-btn-primary" disabled>Start Game</button>
+                <button id="cancel-game-btn" class="glass-btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Active Flag Game Screen -->
+    <div id="flag-game-screen" class="modal">
+        <div class="game-ui-container" style="width: 100%; max-width: 800px; padding: 20px; text-align: center;">
+            <div id="game-timer" style="font-size: 32px; font-weight: 800; color: #ffd700; margin-bottom: 20px;">00:00</div>
+            
+            <div id="question-area">
+                <img id="flag-display" src="" style="height: 150px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 30px;">
+                <div id="flag-options" class="duration-grid" style="grid-template-columns: 1fr 1fr; gap: 15px;"></div>
+            </div>
+
+            <div id="chest-area" style="display: none;">
+                <h2 style="color: #ffd700;">CORRECT! Pick a chest:</h2>
+                <div id="chests-container" class="duration-grid" style="grid-template-columns: 1fr 1fr 1fr; gap: 15px; margin-top: 40px;">
+                    <div class="chest-box" onclick="pickChest(0, event)">🎁</div>
+                    <div class="chest-box" onclick="pickChest(1, event)">🎁</div>
+                    <div class="chest-box" onclick="pickChest(2, event)">🎁</div>
+                </div>
+                <div id="prize-display" style="display: none; font-size: 32px; font-weight: 800; color: #00ff88; margin-top: 30px; animation: zoom-in 0.3s ease;"></div>
+            </div>
+
+            <!-- Podium Summary -->
+            <div id="podium-area" style="display: none; flex-direction: column; align-items: center; justify-content: center; gap: 20px;">
+                <h2 style="color: #ffd700; font-size: 42px; margin: 0; text-shadow: 0 0 20px rgba(255, 215, 0, 0.4);">🏆 FINAL STANDINGS 🏆</h2>
+                <div id="podium-list" style="width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 12px;"></div>
+            </div>
+
+            <div id="game-leaderboard" style="margin-top: 40px; background: var(--glass); padding: 20px; border-radius: 20px;">
+                <h4 style="margin: 0 0 10px 0;">Standings</h4>
+                <div id="leaderboard-content"></div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Wrong Notification Popup -->
+    <div id="wrong-notification">
+        <h2 style="color: white; font-size: 60px; text-shadow: 0 0 30px rgba(0,0,0,0.5); font-weight: 900;">WRONG!</h2>
+    </div>
+
+    <!-- Steal Notification Popup -->
+    <div id="steal-notification" class="steal-overlay" style="display: none;">
+        <h2 style="color: white; text-align: center; text-shadow: 0 4px 10px rgba(0,0,0,0.5);"><span id="stealer-name">Someone</span> stole money from you!</h2>
+    </div>
+
+    <!-- Group Role Assignment Modal (Discord-like Group Roles) -->
+    <div id="group-role-modal" class="modal" style="display: none;">
+        <div class="glass-card modal-content" style="max-width: 440px; width: 90%;">
+            <h3 style="margin-top: 0;">Manage Group Role</h3>
+            <p style="font-size: 13px; opacity: 0.7; margin-top: -6px;">Assign a role to <strong id="group-role-target-name">Member</strong> in this group.</p>
+            <div id="group-role-options-list" style="display: flex; flex-direction: column; gap: 8px; margin: 16px 0; max-height: 320px; overflow-y: auto;">
+                <!-- Roles injected by JS -->
+            </div>
+            <div style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 15px;">
+                <button type="button" id="close-group-role-modal-btn" class="glass-btn-secondary">Cancel</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- OTA Update Banner -->
+    <div id="ota-update-banner" class="ota-update-banner hidden">
+      <div class="ota-update-info">
+        <span class="ota-title">Update Available</span>
+        <span id="ota-new-version" class="ota-version"></span>
+        <p id="ota-notes" class="ota-notes"></p>
+      </div>
+      <div class="ota-actions">
+        <button id="btn-apply-update" class="ota-btn-primary">Update & Reload</button>
+        <button id="btn-dismiss-update" class="ota-btn-secondary">Later</button>
+      </div>
+    </div>
+
+    <!-- Telegram-Style Message Context Menu Sheet -->
+    <div id="message-context-backdrop" class="message-context-backdrop hidden"></div>
+    <div id="message-context-sheet" class="message-context-sheet hidden" role="menu">
+      <div class="message-context-reactions">
+        <button type="button" class="ctx-reaction-btn" data-emoji="👍" title="Thumbs Up">👍</button>
+        <button type="button" class="ctx-reaction-btn" data-emoji="❤️" title="Heart">❤️</button>
+        <button type="button" class="ctx-reaction-btn" data-emoji="🔥" title="Fire">🔥</button>
+        <button type="button" class="ctx-reaction-btn" data-emoji="😂" title="Laugh">😂</button>
+        <button type="button" class="ctx-reaction-btn" data-emoji="😮" title="Surprised">😮</button>
+        <button type="button" class="ctx-reaction-btn" data-emoji="😢" title="Sad">😢</button>
+      </div>
+      <div class="message-context-actions">
+        <button type="button" id="ctx-action-reply" class="ctx-action-item">
+          <span class="ctx-icon">↩️</span>
+          <span class="ctx-label">Reply</span>
+        </button>
+        <button type="button" id="ctx-action-copy" class="ctx-action-item">
+          <span class="ctx-icon">📋</span>
+          <span class="ctx-label">Copy Text</span>
+        </button>
+        <button type="button" id="ctx-action-edit" class="ctx-action-item">
+          <span class="ctx-icon">✏️</span>
+          <span class="ctx-label">Edit</span>
+        </button>
+        <button type="button" id="ctx-action-delete" class="ctx-action-item ctx-danger">
+          <span class="ctx-icon">🗑️</span>
+          <span class="ctx-label">Delete</span>
+        </button>
+      </div>
+    </div>
+
+    <script type="module" src="app.js"></script>
+</body>
+</html>

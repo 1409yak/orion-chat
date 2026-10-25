@@ -1,0 +1,41 @@
+# Secrets, Keys, and Service Accounts
+*-firebase-adminsdk-*.json
+**/*-firebase-adminsdk-*.json
+secrets.json
+**/secrets.json
+.dev.vars
+**/.dev.vars
+*.env
+**/*.env
+*.env.*
+**/*.env.*
+setup-worker-secrets.js
+
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Native Mobile Projects & Android/iOS Builds
+android/
+ios/
+**/android/
+**/ios/
+
+# Bundle archives and local zips
+*.zip
+**/*.zip
+bundle.zip
+www/*.zip
+
+# Cloudflare & Firebase build/temp files
+.wrangler/
+**/.wrangler/
+
+# IDE and OS
+.idea/
+**/.idea/
+.vscode/
+**/.vscode/
+.DS_Store
+**/ .DS_Store
+Thumbs.db

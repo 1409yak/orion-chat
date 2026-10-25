@@ -1,0 +1,15 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "orion-fcm-worker",
+  "main": "src/index.js",
+  "compatibility_date": "2026-10-19",
+  "observability": {
+    "enabled": true
+  },
+  "upload_source_maps": true,
+  "vars": {
+    "FIREBASE_PROJECT_ID": "orion-291b5",
+    "FIREBASE_CLIENT_EMAIL": "firebase-adminsdk-fbsvc@orion-291b5.iam.gserviceaccount.com",
+    "FIREBASE_PRIVATE_KEY": "-----BEGIN PRIVATE KEY-----\nMIIEvgIBADANBgkqhkiG9w0BAQEFAASCBKgwggSkAgEAAoIBAQDqnKrWNvMlOgd8\nr2to9KkkvuKTQKAxeBfGIbKKDFea0Zk1J+pqLYz0kh7BXFILUUEhSXkXqxRrIC/v\nGZnRZ+iY9v+y4g1lwEYZaer8OF+1U3z52RWehbYR02eTgHNTI7ySPbJtBg1xexqH\no4fdsiB//d1nFFPXvinTKwgTJnyqTU4i2F21mGEYxkaoGDvsG6mk/fzKh/d2ohv5\n4aVUKoVpx+1O1yOfKoIqZ08UkqCCjQK8PkNUDmOGFkohmkMw7TM53c5AtnoIxhiM\nUMhkJvRimLRkkrtxr8qbagR5K132yuP3aPQTixZ5h8jaK/XXwv+Y1ABmC6qeHbqS\nhzBlAG7JAgMBAAECggEAGRXVDOhNdXWn0wjBJfTiCIIqAQdsEXoHJbnY6JqS++Rt\nGqJI1d9GtuhQRknAIoJmwb/ExTd3TJCBm5HL0PiIpeFkG/0AZHirbiB1fhAriJxz\njJXt8jgXDH8jkCGQAyvbJ/JVm4NmCNQaNTZSqs1W3QSYiaLiZ5snRvNPDtgixIUg\n3P45tIpPGSx1XfXwZOi7dh4stoQA8VH7LGLA/JbEdvoj3DhoHqeSxdgMl1JglbC3\nEz7vO34sZjemtEE6/86VtTxAxCp2+kCyKZY4YRpeSpPZeVtNRIPlrouJOxUFxVpU\nAl1oWRyKh2TBYLgdhUdvDRHJKDR/l+saVGOF9WKyEQKBgQD1KU80lNtRKZ6IuZIp\nGa+RsIlhVzNrygDiBM8F9VeoM3VbUKkD9HnHVnUy9XdwB1i/FV9GtQNxF+gy6Pbz\nhHW8LkAZhw7TTpewwr5WJrRejFUJ9myjO4zM42Ymn0AglKNlZ5HAcfZMppiO5Ato\nuomU4q2SaRzl4AvWa72ezkLzeQKBgQD0+/ZEpnsDx0u1BUlIkBnoiA/WWS2vah/W\nCj8JnSrAUvANLGFI59gQkbV6B5IuOjp/RBE+Q7RosjGCaGJiBotwWSBs4a/BoDa1\n68fCGAKz1R4VzVt1yJiE/RrJF3aMwE9K/RPAdwdo77nKqQLM0oQehHP4vrmhLRYY\n3mzx7Mmx0QKBgQC/TRu8GQfGHmbRo5RUs/FXCt04crXyPy9PLpdou9hJrNW/ioJI\nTsWT8XgEapxnc6QhfwjYgLkNz6zlxPmmbc79J03nXYcJBgPB70Rcr1kBihl1a6+7\n8+Tbn/n+2zdL9RBHOXj3JTYe+8SBg5sPfreK0RLF83WUPq6eA3Z0a9i8aQKBgHm9\nJ5DPxfuHstheqx8S9Lz3uB8FK82qh+1+I/ssDc2KqV1ye1mWVGlPbwYX8w1jxCPv\n+D2fuWv5eN7b7l/V7r7Cm3lf4U3vxqA6bYbHFbi1pACjjtqF9zzG5eOd9DxXaE/U\nWVdgDt+XmRTbTdfomNztZw/p/ybX18494ZeK2mOxAoGBAOt+S/+4TvTcuT58dOKx\nVcz8fWucT2ceoqt1hPbGBGosdh70ourdO7Zdt39gqO09ez1veLjrjpsXvIF+aCh2\nRtn6GK42Sc03xHwaWKdDY3ZHN9mdY9acmwizKu4+/QPZhNlVefvq0RgasmTa6LMX\n5Yc3X8x/E4ZxxkzZYm28aroE\n-----END PRIVATE KEY-----\n"
+  }
+}
