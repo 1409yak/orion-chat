@@ -2167,9 +2167,9 @@ async function downloadAndApplyUpdate(targetVersion, bundleUrl) {
 
     try {
         let downloadUrl = bundleUrl;
-        // Map any temporary/preview workers.dev domains to the active deployed worker
-        if (downloadUrl.includes('pale-fascinator.workers.dev') || downloadUrl.includes('charming-button.workers.dev')) {
-            downloadUrl = downloadUrl.replace(/(pale-fascinator|charming-button)\.workers\.dev/, 'accurate-onyx.workers.dev');
+        // Map any temporary/preview workers.dev domains to the permanent authenticated worker
+        if (downloadUrl.includes('pale-fascinator.workers.dev') || downloadUrl.includes('charming-button.workers.dev') || downloadUrl.includes('accurate-onyx.workers.dev')) {
+            downloadUrl = downloadUrl.replace(/(pale-fascinator|charming-button|accurate-onyx)\.workers\.dev/, 'gaim.workers.dev');
         }
 
         // If direct github release asset URL is provided instead of worker proxy, resolve redirect
@@ -2280,7 +2280,7 @@ if (document.readyState === 'complete' || document.readyState === 'interactive')
 
 /* ---------------- FCM CLOUDFLARE WORKER DISPATCHER ---------------- */
 
-const CLOUDFLARE_FCM_WORKER_URL = 'https://orion-fcm-worker.accurate-onyx.workers.dev';
+const CLOUDFLARE_FCM_WORKER_URL = 'https://orion-fcm-worker.gaim.workers.dev';
 
 async function sendPushNotification(recipientFcmToken, senderName, messageText, extraData = {}) {
     if (!recipientFcmToken) return;
