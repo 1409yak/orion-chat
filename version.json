@@ -1,6 +1,6 @@
 {
-  "version": "1.0.7",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.7/bundle.zip",
-  "checksum": "0331182b28aa7fd24f42ed1b47baf45a948f2ad4030ac0393065b3cdd5529955",
-  "notes": "Bypass Cloudflare cache"
+  "version": "1.0.8",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.8/bundle.zip",
+  "checksum": "1a64442396ef75640bab302f5df3f32930cd3d986958974ac2de4dff7e6c268d",
+  "notes": "Return proper File object for compressed images."
 }

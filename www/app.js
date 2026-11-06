@@ -950,8 +950,12 @@ function compressImageAsync(file, maxWidth = 1280, quality = 0.8) {
                     
                     canvas.toBlob(blob => {
                         if (blob) {
-                            console.log(`[UPLOAD] Compressed size: ${(blob.size / 1024 / 1024).toFixed(2)} MB`);
-                            resolve(blob);
+                            const compressedFile = new File([blob], file.name, {
+                                type: file.type || 'image/jpeg',
+                                lastModified: Date.now(),
+                            });
+                            console.log(`[UPLOAD] Compressed to: ${(compressedFile.size / 1024).toFixed(2)} KB`);
+                            resolve(compressedFile);
                         } else {
                             reject(new Error('Canvas toBlob failed'));
                         }
@@ -2122,12 +2126,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.0.7';
+const CURRENT_APP_VERSION = '1.0.8';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.0.7';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.0.8';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -5825,9 +5829,11 @@ function setupInputAreaListeners() {
 
             try {
                 const compressedBlob = await compressImageAsync(file);
+                console.log(`[UPLOAD] Initiating server upload for: ${compressedBlob.name}`);
                 const confirmed = await showConfirm("Send Image", "Do you want to send this image?");
                 if (confirmed) {
                     await sendImageMessage(compressedBlob);
+                    console.log(`[UPLOAD] Server upload completed successfully.`);
                 }
             } catch (error) {
                 console.error('[UPLOAD] Image processing failed:', error);
@@ -6044,7 +6050,9 @@ messageInput.onpaste = async (e) => {
                 const confirmed = await showConfirm("Send Image", "Do you want to send the image from your clipboard?");
                 if (confirmed) {
                     const compressedBlob = await compressImageAsync(file);
+                    console.log(`[UPLOAD] Initiating server upload for: ${compressedBlob.name}`);
                     await sendImageMessage(compressedBlob);
+                    console.log(`[UPLOAD] Server upload completed successfully.`);
                 }
             } catch (error) {
                 console.error('[UPLOAD] Clipboard image processing failed:', error);
@@ -6102,7 +6110,9 @@ if (cameraBtn && cameraInput) {
 
         try {
             const compressedBlob = await compressImageAsync(file);
+            console.log(`[UPLOAD] Initiating server upload for: ${compressedBlob.name}`);
             await sendImageMessage(compressedBlob);
+            console.log(`[UPLOAD] Server upload completed successfully.`);
         } catch (error) {
             console.error('[UPLOAD] Camera image processing failed:', error);
         } finally {
