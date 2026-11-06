@@ -1,6 +1,6 @@
 {
   "version": "1.0.8",
   "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.8/bundle.zip",
-  "checksum": "1a64442396ef75640bab302f5df3f32930cd3d986958974ac2de4dff7e6c268d",
+  "checksum": "f2146b142b95c411fb47b5c65db1b88e7f7674920116b924ca57d22e490ab401",
   "notes": "Return proper File object for compressed images."
 }
