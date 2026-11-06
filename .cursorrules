@@ -1,0 +1,8 @@
+# Orion Chat - AI Workspace Rules
+
+Always adhere strictly to `AI_UPDATE_SOP.md` located at the root of the workspace.
+
+Whenever the user asks to "deploy", "release", or "publish an update", you MUST automatically execute the three phases described in `AI_UPDATE_SOP.md` in order:
+1. Phase 1: Web Version Deployment (Sync pure web assets to `OrionWeb` and push to `orion-web` GitHub repository).
+2. Phase 2: Mobile OTA Deployment (Package `bundle.zip`, calculate SHA-256 checksum, publish release on `orion-chat`, update `version.json` with worker URL, and push to `main`).
+3. Phase 3: In-App Announcement (Inject new system message into `channel_orion_updates` with version, summary, and call-to-action).
