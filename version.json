@@ -1,6 +1,6 @@
 {
-  "version": "1.0.4",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.4/bundle.zip",
-  "checksum": "b0cc3f5b0bffdd82b25d8444c19ad3d326fb8f1f45e44bfcd0ec1b681e230f1b",
-  "notes": "Fixed version display duplication and updated settings UI."
+  "version": "1.0.5",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.5/bundle.zip",
+  "checksum": "eb12afe92961ccdd358e04ab7c8ea2a86ec24881f7b6e975bb4274ea5fdc26ad",
+  "notes": "Fixed main-thread freeze during image uploads with asynchronous compression."
 }

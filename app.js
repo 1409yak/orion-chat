@@ -802,6 +802,51 @@ function downscaleImageDimensions(base64Str, maxWidth = 800, maxHeight = 800) {
     });
 }
 
+// Asynchronous canvas-based image downscaler/compressor yielding to the main thread
+function compressImageAsync(file, maxWidth = 1280, quality = 0.8) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onerror = error => reject(error);
+        reader.onload = event => {
+            const img = new Image();
+            img.onerror = error => reject(error);
+            img.onload = () => {
+                // Yield to main thread
+                setTimeout(() => {
+                    const canvas = document.createElement('canvas');
+                    let width = img.width;
+                    let height = img.height;
+                    
+                    if (width > maxWidth) {
+                        height = Math.round((height * maxWidth) / width);
+                        width = maxWidth;
+                    }
+                    if (height > maxWidth) {
+                        width = Math.round((width * maxWidth) / height);
+                        height = maxWidth;
+                    }
+                    
+                    canvas.width = width;
+                    canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    ctx.drawImage(img, 0, 0, width, height);
+                    
+                    canvas.toBlob(blob => {
+                        if (blob) {
+                            console.log(`[UPLOAD] Compressed size: ${(blob.size / 1024 / 1024).toFixed(2)} MB`);
+                            resolve(blob);
+                        } else {
+                            reject(new Error('Canvas toBlob failed'));
+                        }
+                    }, file.type || 'image/jpeg', quality);
+                }, 0);
+            };
+            img.src = event.target.result;
+        };
+        reader.readAsDataURL(file);
+    });
+}
+
 // Helper to prevent XSS by escaping HTML special characters
 function escapeHTML(str) {
     if (!str) return "";
@@ -1960,12 +2005,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.0.4';
+const CURRENT_APP_VERSION = '1.0.5';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.0.4';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.0.5';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -5129,10 +5174,19 @@ function openImageLightbox(url) {
 }
 window.openImageLightbox = openImageLightbox;
 
-// Modified sendImageMessage to always apply quality setting based on premium status
-// This ensures all images sent have the correct quality.
-async function sendImageMessage(base64Data) {
+// Modified sendImageMessage to accept either Blob or Base64 string and apply quality setting
+async function sendImageMessage(imageData) {
     if (!currentChatId) return;
+
+    let base64Data = imageData;
+    if (imageData instanceof Blob) {
+        base64Data = await new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result);
+            reader.onerror = reject;
+            reader.readAsDataURL(imageData);
+        });
+    }
 
     const mKey = push(ref(db, `messages/${currentChatId}`)).key;
     const senderName = document.getElementById('current-user-name').innerText;
@@ -5603,26 +5657,22 @@ function setupInputAreaListeners() {
             fileUploadInput.click();
         };
 
-        fileUploadInput.onchange = (e) => {
-            const file = e.target.files[0];
-            if (!file || !file.type.startsWith('image/')) return;
+        fileUploadInput.onchange = async (event) => {
+            const file = event.target.files[0];
+            if (!file) return;
+            console.log(`[UPLOAD] Selected file: ${file.name}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
 
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                let base64 = event.target.result;
-                if (base64.length > 1000000) {
-                    const wantsResize = await showConfirm("Image Too Large", "This image exceeds the size limit. Would you like to automatically resize and compress it to send?");
-                    if (wantsResize) {
-                        base64 = await downscaleImageDimensions(base64);
-                        sendImageMessage(base64);
-                    }
-                } else {
-                    const confirmed = await showConfirm("Send Image", "Do you want to send this image?");
-                    if (confirmed) sendImageMessage(base64);
+            try {
+                const compressedBlob = await compressImageAsync(file);
+                const confirmed = await showConfirm("Send Image", "Do you want to send this image?");
+                if (confirmed) {
+                    await sendImageMessage(compressedBlob);
                 }
+            } catch (error) {
+                console.error('[UPLOAD] Image processing failed:', error);
+            } finally {
                 fileUploadInput.value = '';
-            };
-            reader.readAsDataURL(file);
+            }
         };
     }
 
@@ -5821,26 +5871,23 @@ messageInput.oninput = (e) => {
     updateInputButtons();
 };
 
-messageInput.onpaste = (e) => {
-    const items = (e.clipboardData || e.originalEvent.clipboardData).items;
+messageInput.onpaste = async (e) => {
+    const items = (e.clipboardData || e.originalEvent.clipboardData)?.items;
+    if (!items) return;
     for (const item of items) {
         if (item.kind === 'file' && item.type.startsWith('image/')) {
             const file = item.getAsFile();
-            const reader = new FileReader();
-            reader.onload = async (event) => {
-                let base64 = event.target.result;
-                if (base64.length > 1000000) {
-                    const wantsResize = await showConfirm("Image Too Large", "This image exceeds the size limit. Would you like to automatically resize and compress it to send?");
-                    if (wantsResize) {
-                        base64 = await downscaleImageDimensions(base64);
-                        sendImageMessage(base64);
-                    }
-                } else {
-                    const confirmed = await showConfirm("Send Image", "Do you want to send the image from your clipboard?");
-                    if (confirmed) sendImageMessage(base64);
+            if (!file) continue;
+            console.log(`[UPLOAD] Clipboard file: ${file.name || 'image'}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+            try {
+                const confirmed = await showConfirm("Send Image", "Do you want to send the image from your clipboard?");
+                if (confirmed) {
+                    const compressedBlob = await compressImageAsync(file);
+                    await sendImageMessage(compressedBlob);
                 }
-            };
-            reader.readAsDataURL(file);
+            } catch (error) {
+                console.error('[UPLOAD] Clipboard image processing failed:', error);
+            }
         }
     }
 };
@@ -5887,21 +5934,19 @@ if (cameraBtn && cameraInput) {
     // Trigger the hidden file input when the camera button is clicked
     cameraBtn.onclick = () => cameraInput.click();
 
-    cameraInput.onchange = (e) => {
+    cameraInput.onchange = async (e) => {
         const file = e.target.files[0];
         if (!file) return;
+        console.log(`[UPLOAD] Camera capture: ${file.name}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
 
-        const reader = new FileReader();
-        reader.onload = async (event) => {
-            let base64 = event.target.result;
-            // Auto-resize if the captured photo is too large for RTDB
-            if (base64.length > 1000000) {
-                base64 = await downscaleImageDimensions(base64); // Call the new downscale function
-            }
-            sendImageMessage(base64);
+        try {
+            const compressedBlob = await compressImageAsync(file);
+            await sendImageMessage(compressedBlob);
+        } catch (error) {
+            console.error('[UPLOAD] Camera image processing failed:', error);
+        } finally {
             cameraInput.value = ''; // Reset input so the same photo can be taken again if needed
-        };
-        reader.readAsDataURL(file);
+        }
     };
 }
 
