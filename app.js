@@ -1298,8 +1298,12 @@ async function ensureOrionUpdatesChannel(myUid) {
         const userChatRef = ref(db, `user_chats/${myUid}/${channelId}`);
         await set(userChatRef, true).catch(() => {});
         // Ensure user membership
-        const memberRef = ref(db, `members/${channelId}/${myUid}`);
-        await set(memberRef, { role: 'member' }).catch(() => {});
+        if (channelId !== 'channel_orion_updates') {
+            const memberRef = ref(db, `members/${channelId}/${myUid}`);
+            await set(memberRef, { role: 'member' }).catch(() => {});
+        } else {
+            console.log('[DB] Skipping member write for read-only announcement channel.');
+        }
 
         // Ensure initial welcome announcement exists if channel messages are empty
         const msgQuery = query(ref(db, `messages/${channelId}`), limitToLast(1));
@@ -2126,12 +2130,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.0.9';
+const CURRENT_APP_VERSION = '1.0.10';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.0.9';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.0.10';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2190,9 +2194,11 @@ async function initCapacitorUpdater() {
 
 function isNewerVersion(remote, current) {
     if (!remote || !current) return false;
-    if (remote === current) return false;
-    const rParts = remote.split('.').map(n => parseInt(n, 10) || 0);
-    const cParts = current.split('.').map(n => parseInt(n, 10) || 0);
+    const rClean = String(remote).toLowerCase().replace(/^v+/, '').trim();
+    const cClean = String(current).toLowerCase().replace(/^v+/, '').trim();
+    if (rClean === cClean) return false;
+    const rParts = rClean.split('.').map(n => parseInt(n, 10) || 0);
+    const cParts = cClean.split('.').map(n => parseInt(n, 10) || 0);
     for (let i = 0; i < Math.max(rParts.length, cParts.length); i++) {
         const r = rParts[i] || 0;
         const c = cParts[i] || 0;
@@ -2290,9 +2296,26 @@ async function checkForUpdates(isManual = false) {
         }
 
         activeOtaManifest = manifest;
-        console.log(`[OTA] Remote version: ${manifest.version}, Installed: ${CURRENT_APP_VERSION}`);
 
-        if (isNewerVersion(manifest.version, CURRENT_APP_VERSION)) {
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.0.10';
+        try {
+            if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
+                const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
+                if (current?.bundle?.version) {
+                    currentVersion = String(current.bundle.version);
+                }
+            }
+        } catch (e) {
+            console.warn('[OTA] Could not read Capgo version:', e);
+        }
+
+        console.log(`[OTA] Remote version: ${manifest.version}, Installed: ${currentVersion}`);
+
+        // Now compare currentVersion to manifest.version
+        const cleanManifestVer = manifest.version.toLowerCase().replace(/^v+/, '').trim();
+        const cleanCurrentVer = currentVersion.toLowerCase().replace(/^v+/, '').trim();
+
+        if (cleanManifestVer !== cleanCurrentVer && isNewerVersion(manifest.version, currentVersion)) {
             if (statusMsg) {
                 statusMsg.textContent = `Update available: v${manifest.version}!`;
                 statusMsg.style.color = '#00ff88';
@@ -2300,11 +2323,11 @@ async function checkForUpdates(isManual = false) {
             showOtaUpdateBanner(manifest);
         } else {
             if (statusMsg) {
-                statusMsg.textContent = `You are on the latest version (v${CURRENT_APP_VERSION}).`;
+                statusMsg.textContent = `You are on the latest version (v${currentVersion}).`;
                 statusMsg.style.color = 'rgba(255, 255, 255, 0.7)';
             }
             if (isManual) {
-                showNotification(`You are on the latest version (v${CURRENT_APP_VERSION})`, 'info');
+                showNotification(`You are on the latest version (v${currentVersion})`, 'info');
             }
         }
     } catch (err) {
