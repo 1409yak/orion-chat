@@ -920,7 +920,34 @@ function downscaleImageDimensions(base64Str, maxWidth = 800, maxHeight = 800) {
 }
 
 // Asynchronous canvas-based image downscaler/compressor yielding to the main thread
-function compressImageAsync(file, maxWidth = 1280, quality = 0.8) {
+async function compressImageAsync(file, maxWidth = 1280, quality = 0.8) {
+    let sourceFile = file;
+
+    // Intercept HEIC / HEIF files and convert to JPEG blob
+    if (file && (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif')) {
+        try {
+            if (typeof heic2any === 'function') {
+                console.log(`[UPLOAD] Converting HEIC image to JPEG: ${file.name}`);
+                const convertedBlob = await heic2any({
+                    blob: file,
+                    toType: 'image/jpeg',
+                    quality: quality
+                });
+                const singleBlob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
+                const convertedName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+                sourceFile = new File([singleBlob], convertedName, {
+                    type: 'image/jpeg',
+                    lastModified: Date.now()
+                });
+                console.log(`[UPLOAD] HEIC conversion complete: ${sourceFile.name}, Size: ${(sourceFile.size / 1024).toFixed(2)} KB`);
+            } else {
+                console.warn('[UPLOAD] heic2any library not available, proceeding with raw file.');
+            }
+        } catch (heicErr) {
+            console.error('[UPLOAD] HEIC conversion error:', heicErr);
+        }
+    }
+
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onerror = error => reject(error);
@@ -950,8 +977,9 @@ function compressImageAsync(file, maxWidth = 1280, quality = 0.8) {
                     
                     canvas.toBlob(blob => {
                         if (blob) {
-                            const compressedFile = new File([blob], file.name, {
-                                type: file.type || 'image/jpeg',
+                            const outputName = sourceFile.name.replace(/\.(heic|heif)$/i, '.jpg');
+                            const compressedFile = new File([blob], outputName, {
+                                type: sourceFile.type || 'image/jpeg',
                                 lastModified: Date.now(),
                             });
                             console.log(`[UPLOAD] Compressed to: ${(compressedFile.size / 1024).toFixed(2)} KB`);
@@ -959,12 +987,12 @@ function compressImageAsync(file, maxWidth = 1280, quality = 0.8) {
                         } else {
                             reject(new Error('Canvas toBlob failed'));
                         }
-                    }, file.type || 'image/jpeg', quality);
+                    }, sourceFile.type || 'image/jpeg', quality);
                 }, 0);
             };
             img.src = event.target.result;
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(sourceFile);
     });
 }
 
@@ -2130,12 +2158,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.0.10';
+const CURRENT_APP_VERSION = '1.1.0';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.0.10';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.0';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2297,7 +2325,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.0.10';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.0';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
