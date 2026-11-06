@@ -1513,9 +1513,38 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
     font-family: inherit;
     user-select: none;
     -webkit-tap-highlight-color: transparent;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
 }
 .glider-tab.active {
     opacity: 1;
+}
+
+/* Category Slider Unread Badges */
+.category-badge,
+.unread-badge {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    background: #ff4b2b;
+    color: #ffffff;
+    font-size: 9px;
+    font-weight: 800;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border-radius: 10px;
+    line-height: 1;
+    box-shadow: 0 0 8px rgba(255, 75, 43, 0.4);
+    vertical-align: middle;
+}
+
+.category-badge.hidden,
+.unread-badge.hidden,
+.hidden {
+    display: none !important;
 }
 .glider-thumb {
     position: absolute;

@@ -1,6 +1,6 @@
 {
-  "version": "1.0.5",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.5/bundle.zip",
-  "checksum": "eb12afe92961ccdd358e04ab7c8ea2a86ec24881f7b6e975bb4274ea5fdc26ad",
-  "notes": "Fixed main-thread freeze during image uploads with asynchronous compression."
+  "version": "1.0.6",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.6/bundle.zip",
+  "checksum": "b29fd16c117b0f884f1c14e5f80ff74f46059794d1b5ff3e8ee6a4d299391c54",
+  "notes": "Added unread notification badges on category slider (DMs, Groups, Channels)."
 }

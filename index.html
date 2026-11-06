@@ -89,9 +89,9 @@
                 <div id="conversations-collapsible-container" class="conversations-collapsible-wrapper">
                     <div class="glider-container">
                         <div class="glider-track">
-                            <button class="glider-tab active" data-filter="dms">DMs</button>
-                            <button class="glider-tab" data-filter="groups">Groups</button>
-                            <button class="glider-tab" data-filter="channels">Channels</button>
+                            <button class="glider-tab active" data-filter="dms">DMs <span class="category-badge unread-badge hidden" id="badge-dms"></span></button>
+                            <button class="glider-tab" data-filter="groups">Groups <span class="category-badge unread-badge hidden" id="badge-groups"></span></button>
+                            <button class="glider-tab" data-filter="channels">Channels <span class="category-badge unread-badge hidden" id="badge-channels"></span></button>
                             <div class="glider-thumb"></div>
                         </div>
                     </div>
@@ -518,7 +518,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.0.4</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.0.6</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>

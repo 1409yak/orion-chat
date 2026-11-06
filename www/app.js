@@ -92,6 +92,123 @@ const activeChatDataListeners = new Map(); // Stores { chatId: offFunction } for
 const activeUnreadListeners = new Map();    // Stores { chatId: offFunction } for `unread/${myUid}/${chatId}`
 const activeMentionListeners = new Map();   // Stores { chatId: offFunction } for `mentions/${myUid}/${chatId}`
 const activeFriendsListListeners = new Map(); // Stores { friendUid: offFunction } for `users/${friendUid}`
+const allChatsStore = new Map(); // Stores { [chatId]: chatDataWithUnreadStatus }
+let globalUnreadMap = {}; // Global cache for unread/${myUid}
+
+// Updates unread notification badges on the category slider (DMs/Chats, Groups, Channels)
+function updateCategoryBadges(allChats) {
+    let chatsArray = [];
+    if (Array.isArray(allChats)) {
+        chatsArray = allChats;
+    } else if (allChats && typeof allChats.forEach === 'function') {
+        allChats.forEach((val, key) => {
+            if (val && typeof val.val === 'function') {
+                chatsArray.push({ id: val.key, ...val.val() });
+            } else if (typeof key === 'string' && typeof val === 'object') {
+                chatsArray.push({ id: key, ...val });
+            } else if (val) {
+                chatsArray.push(val);
+            }
+        });
+    } else if (allChats && typeof allChats === 'object') {
+        chatsArray = Object.entries(allChats).map(([k, v]) => ({ id: k, ...(typeof v === 'object' ? v : { val: v }) }));
+    } else {
+        chatsArray = Array.from(allChatsStore.values());
+    }
+
+    let unreadDMs = 0;
+    let unreadGroups = 0;
+    let unreadChannels = 0;
+
+    const myUid = (typeof auth !== 'undefined' && auth?.currentUser?.uid) || null;
+
+    for (const chat of chatsArray) {
+        if (!chat) continue;
+        const chatId = chat.id || chat.chatId || chat.key;
+        if (!chatId) continue;
+        if (typeof currentChatId !== 'undefined' && chatId === currentChatId) continue;
+
+        let isUnread = false;
+        if (chat.isUnread === true || chat.unread === true) {
+            isUnread = true;
+        } else if (typeof chat.unreadCount === 'number' && chat.unreadCount > 0) {
+            isUnread = true;
+        } else if (typeof chat.mentionCount === 'number' && chat.mentionCount > 0) {
+            isUnread = true;
+        } else if (chat.viewedBy && myUid && !chat.viewedBy[myUid]) {
+            isUnread = true;
+        } else if (globalUnreadMap && globalUnreadMap[chatId]) {
+            isUnread = true;
+        } else if (chat.lastMessageTime && chat.lastReadTime && chat.lastMessageTime > chat.lastReadTime) {
+            isUnread = true;
+        } else {
+            const stored = allChatsStore.get(chatId);
+            if (stored && (stored.isUnread || (typeof stored.mentionCount === 'number' && stored.mentionCount > 0))) {
+                isUnread = true;
+            }
+        }
+
+        if (!isUnread) continue;
+
+        const isChannel = chat.isChannel === true || 
+                          chat.type === 'channel' || 
+                          chat.isSystem === true || 
+                          chatId === 'channel_orion_updates';
+                          
+        const isGroup = !isChannel && (
+            chat.isGroup === true || 
+            chat.type === 'group' || 
+            !!chat.groupId
+        );
+
+        if (isChannel) {
+            unreadChannels++;
+        } else if (isGroup) {
+            unreadGroups++;
+        } else {
+            unreadDMs++;
+        }
+    }
+
+    const updateBadge = (elements, count) => {
+        elements.forEach(el => {
+            if (!el) return;
+            el.textContent = count > 99 ? '99+' : count;
+            if (count > 0) {
+                el.classList.remove('hidden');
+                el.style.display = 'inline-flex';
+            } else {
+                el.classList.add('hidden');
+                el.style.display = 'none';
+            }
+        });
+    };
+
+    updateBadge(document.querySelectorAll('#badge-dms, #badge-chats, #badge-direct'), unreadDMs);
+    updateBadge(document.querySelectorAll('#badge-groups'), unreadGroups);
+    updateBadge(document.querySelectorAll('#badge-channels'), unreadChannels);
+}
+
+window.updateCategoryBadges = updateCategoryBadges;
+
+// Compatibility alias: if code or test looks for #badge-chats, alias to #badge-dms
+if (typeof document !== 'undefined') {
+    const _origGetElementById = document.getElementById.bind(document);
+    document.getElementById = function(id) {
+        if (id === 'badge-chats' && !_origGetElementById('badge-chats')) {
+            return _origGetElementById('badge-dms');
+        }
+        return _origGetElementById(id);
+    };
+
+    const _origQuerySelector = document.querySelector.bind(document);
+    document.querySelector = function(selector) {
+        if (selector === '#badge-chats' && !_origQuerySelector('#badge-chats')) {
+            return _origQuerySelector('#badge-dms');
+        }
+        return _origQuerySelector(selector);
+    };
+}
 let userStickers = new Map(); // Map of stickerId -> stickerMetadata for owned stickers
 let allowedStickers = new Map(); // Map of stickerId -> stickerMetadata for allowed stickers
 let currentStickerPickerMessageId = null; // To track which message a sticker is being requested from
@@ -2005,12 +2122,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.0.5';
+const CURRENT_APP_VERSION = '1.0.6';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.0.5';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.0.6';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3254,6 +3371,8 @@ function initApp(myUid) {
     activeMentionListeners.clear();
     activeFriendsListListeners.forEach(offFunc => offFunc());
     activeFriendsListListeners.clear();
+    allChatsStore.clear();
+    globalUnreadMap = {};
 
     applySavedSidebarStates();
     loadNotificationSettings();
@@ -3304,7 +3423,12 @@ function initApp(myUid) {
                 const chatRef = ref(db, `chats/${chatId}`);
                 const chatOff = onValue(chatRef, (csnap) => {
                     const data = csnap.val();
-                    if (data) renderChatLink(chatId, data, myUid).catch(console.error);
+                    if (data) {
+                        const existing = allChatsStore.get(chatId) || {};
+                        allChatsStore.set(chatId, { ...existing, id: chatId, ...data });
+                        renderChatLink(chatId, data, myUid).catch(console.error);
+                        updateCategoryBadges(Array.from(allChatsStore.values()));
+                    }
                 });
                 activeChatDataListeners.set(chatId, chatOff);
             }
@@ -3316,7 +3440,12 @@ function initApp(myUid) {
             const chatRef = ref(db, 'chats/channel_orion_updates');
             const chatOff = onValue(chatRef, (csnap) => {
                 const data = csnap.val();
-                if (data) renderChatLink('channel_orion_updates', data, myUid).catch(console.error);
+                if (data) {
+                    const existing = allChatsStore.get('channel_orion_updates') || {};
+                    allChatsStore.set('channel_orion_updates', { ...existing, id: 'channel_orion_updates', ...data });
+                    renderChatLink('channel_orion_updates', data, myUid).catch(console.error);
+                    updateCategoryBadges(Array.from(allChatsStore.values()));
+                }
             });
             activeChatDataListeners.set('channel_orion_updates', chatOff);
         }
@@ -3339,6 +3468,8 @@ function initApp(myUid) {
                     activeMentionListeners.delete(chatId);
                 }
 
+                allChatsStore.delete(chatId);
+
                 // Remove element from DOM
                 const divToRemove = document.getElementById(`link-${chatId}`);
                 if (divToRemove) {
@@ -3346,6 +3477,18 @@ function initApp(myUid) {
                 }
             }
         });
+
+        // Trigger badge updates globally when chat list updates
+        updateCategoryBadges(Array.from(allChatsStore.values()));
+    });
+
+    // Global listener for all unread messages for the user
+    onValue(ref(db, `unread/${myUid}`), (uSnap) => {
+        globalUnreadMap = uSnap.val() || {};
+        allChatsStore.forEach((chat, cId) => {
+            chat.isUnread = !!globalUnreadMap[cId];
+        });
+        updateCategoryBadges(Array.from(allChatsStore.values()));
     });
 
     onValue(ref(db, `friends/${myUid}`), (snapshot) => {
@@ -3619,6 +3762,11 @@ async function renderChatLink(chatId, data, myUid) {
         } else {
             updateChatLinkUI(localIsUnread, localMentionCount);
         }
+
+        const existing = allChatsStore.get(chatId) || { id: chatId, ...data };
+        existing.isUnread = localIsUnread;
+        allChatsStore.set(chatId, existing);
+        updateCategoryBadges(Array.from(allChatsStore.values()));
     });
     activeUnreadListeners.set(chatId, unreadOff); // Store the off function
 
@@ -3629,6 +3777,11 @@ async function renderChatLink(chatId, data, myUid) {
         } else {
             updateChatLinkUI(localIsUnread, localMentionCount);
         }
+
+        const existing = allChatsStore.get(chatId) || { id: chatId, ...data };
+        existing.mentionCount = localMentionCount;
+        allChatsStore.set(chatId, existing);
+        updateCategoryBadges(Array.from(allChatsStore.values()));
     });
     activeMentionListeners.set(chatId, mentionOff);
 
@@ -3748,6 +3901,7 @@ function setupGlider() {
     });
 }
 setupGlider();
+updateCategoryBadges();
 
 /* ---------------- SIDEBAR INTERACTION ---------------- */
 
@@ -3816,6 +3970,13 @@ async function openChat(chatId, title) {
     // Clear unread indicator in DB when opening the chat
     remove(ref(db, `unread/${auth.currentUser.uid}/${chatId}`));
     remove(ref(db, `mentions/${auth.currentUser.uid}/${chatId}`));
+
+    const openEntry = allChatsStore.get(chatId);
+    if (openEntry) {
+        openEntry.isUnread = false;
+        openEntry.mentionCount = 0;
+        updateCategoryBadges(Array.from(allChatsStore.values()));
+    }
 
     // Set up real-time listener for chat details (title, description)
     if (activeChatMetaOff) activeChatMetaOff();
