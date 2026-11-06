@@ -1,6 +1,6 @@
 {
-  "version": "1.0.5",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.5/bundle.zip",
-  "checksum": "bdf0d6a6b4ee5daee579e5e2dba1f57773933d8e87cf0d9598dbad91123810fb",
-  "notes": "Fixed v1.0.5 checksum mismatch."
+  "version": "1.0.7",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.7/bundle.zip",
+  "checksum": "0331182b28aa7fd24f42ed1b47baf45a948f2ad4030ac0393065b3cdd5529955",
+  "notes": "Bypass Cloudflare cache"
 }
