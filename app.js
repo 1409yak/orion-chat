@@ -918,7 +918,7 @@ function sanitizeMojibakeEmoji(str) {
 
 // Helper to detect links and YouTube IDs
 function linkifyAndEmbed(rawText) {
-    const text = sanitizeMojibakeEmoji(rawText);
+    let text = sanitizeMojibakeEmoji(rawText);
     if (text && text.startsWith('data:image/')) {
         return { html: "", youtubeId: null, imageUrls: [text], joinChatIds: [] };
     }
@@ -935,7 +935,7 @@ function linkifyAndEmbed(rawText) {
     let imageUrls = [];
     let joinChatIds = [];
 
-    const html = escaped.replace(urlRegex, (url) => {
+    let html = escaped.replace(urlRegex, (url) => {
         const joinMatch = url.match(joinIdRegex);
         if (joinMatch) {
             joinChatIds.push(joinMatch[1]);
@@ -1960,30 +1960,29 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.0.2';
+const CURRENT_APP_VERSION = '1.0.3';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
-    const versionEl = document.getElementById('settings-app-version') || document.querySelector('.app-version-label') || document.getElementById('app-current-version');
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let versionStr = 'v1.0.2';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.0.3';
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
             const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
             if (current?.bundle?.version) {
-                const rawVer = String(current.bundle.version);
-                versionStr = rawVer.startsWith('v') ? rawVer : `v${rawVer}`;
+                finalVersion = String(current.bundle.version);
             }
         }
     } catch (e) {
-        console.warn('Could not read dynamic bundle version:', e);
+        console.warn('Could not read bundle version:', e);
     }
+
+    // Ensure strictly one 'v' prefix
+    const cleanVersion = 'v' + finalVersion.replace(/^v+/i, '');
+    
     allVersionEls.forEach(el => {
-        if (el) el.textContent = versionStr;
+        if (el) el.textContent = cleanVersion;
     });
-    if (versionEl) {
-        versionEl.textContent = versionStr;
-    }
 }
 window.updateSettingsVersionDisplay = updateSettingsVersionDisplay;
 const UPDATE_MANIFEST_URL = window.ORION_UPDATE_URL || `https://raw.githubusercontent.com/1409yak/orion-chat/main/version.json?t=${Date.now()}`;
@@ -2079,7 +2078,7 @@ function dismissOtaUpdateBanner() {
 async function applyUpdateAndReload() {
     if (isDownloadingUpdate || !activeOtaManifest) return;
     isDownloadingUpdate = true;
-    const targetVer = activeOtaManifest.version || '1.0.2';
+    const targetVer = activeOtaManifest.version || '1.0.3';
     const bundleUrl = activeOtaManifest.url || `https://orion-fcm-worker.gaim.workers.dev/download-ota/v${targetVer}/bundle.zip`;
     const checksum = activeOtaManifest.checksum || '25cb5c41e94305a32b7d743ac33df4eb05fe0c595b6a49abc00b26cd99f63cd0';
     try {
@@ -2264,7 +2263,7 @@ async function downloadAndApplyUpdate(targetVersion, bundleUrl, checksum = null)
 }
 window.downloadAndApplyUpdate = downloadAndApplyUpdate;
 
-window.triggerOtaUpdate = async function(targetVersion = '1.0.2', directUrl = null, directChecksum = null) {
+window.triggerOtaUpdate = async function(targetVersion = '1.0.3', directUrl = null, directChecksum = null) {
     if (isInstallingFromChannel) return;
     isInstallingFromChannel = true;
 

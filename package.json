@@ -1,6 +1,6 @@
 {
   "name": "orion",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "scripts": {
     "build": "node build.js",
     "bundle:zip": "npx @capgo/cli bundle zip --path www"
