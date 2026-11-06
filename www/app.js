@@ -1986,7 +1986,7 @@ async function updateSettingsVersionDisplay() {
     }
 }
 window.updateSettingsVersionDisplay = updateSettingsVersionDisplay;
-const UPDATE_MANIFEST_URL = window.ORION_UPDATE_URL || 'https://raw.githubusercontent.com/1409yak/orion-chat/main/version.json';
+const UPDATE_MANIFEST_URL = window.ORION_UPDATE_URL || `https://raw.githubusercontent.com/1409yak/orion-chat/main/version.json?t=${Date.now()}`;
 const UPDATE_CHECK_URL = UPDATE_MANIFEST_URL;
 let activeOtaManifest = null;
 let isDownloadingUpdate = false;
