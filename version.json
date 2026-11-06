@@ -1,6 +1,6 @@
 {
-  "version": "1.0.6",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.6/bundle.zip",
-  "checksum": "b29fd16c117b0f884f1c14e5f80ff74f46059794d1b5ff3e8ee6a4d299391c54",
-  "notes": "Added unread notification badges on category slider (DMs, Groups, Channels)."
+  "version": "1.0.5",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.5/bundle.zip",
+  "checksum": "bdf0d6a6b4ee5daee579e5e2dba1f57773933d8e87cf0d9598dbad91123810fb",
+  "notes": "Fixed v1.0.5 checksum mismatch."
 }
