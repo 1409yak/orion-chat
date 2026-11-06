@@ -1112,12 +1112,14 @@ function sanitizeMojibakeEmoji(str) {
 
 // Helper to detect links and YouTube IDs
 function linkifyAndEmbed(rawText) {
-    let text = sanitizeMojibakeEmoji(rawText);
+    if (!rawText) return { html: "", youtubeId: null, imageUrls: [], joinChatIds: [] };
+    const safeRaw = typeof rawText === 'string' ? rawText : String(rawText);
+    let text = sanitizeMojibakeEmoji(safeRaw);
     if (text && text.startsWith('data:image/')) {
         return { html: "", youtubeId: null, imageUrls: [text], joinChatIds: [] };
     }
 
-    const escaped = escapeHTML(text);
+    let escaped = escapeHTML(text);
     // More robust URL regex that avoids capturing trailing punctuation
     const urlRegex = /https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*)/g;
     // Improved YouTube regex to catch shorts, embed, and various watch formats
@@ -2158,12 +2160,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.0';
+const CURRENT_APP_VERSION = '1.1.2';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.0';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.2';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2325,7 +2327,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.0';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.2';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();

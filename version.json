@@ -1,6 +1,6 @@
 {
-  "version": "1.1.0",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.0/bundle.zip",
-  "checksum": "2dcdad60a85e2463d7d3faa2d3c1b2190143fcbae2e1742459cf56c67791ba11",
-  "notes": "Orion Chat v1.1.0 baseline release"
+  "version": "1.1.2",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.2/bundle.zip",
+  "checksum": "a4ca1018d5653a3aa2a01e4484e4db31bb7cf7d6ac56562ea08834793e906dfa",
+  "notes": "Orion Chat v1.1.2: Clean OTA cache-busting release"
 }
