@@ -1,6 +1,6 @@
 {
-  "version": "1.0.8",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.8/bundle.zip",
-  "checksum": "f2146b142b95c411fb47b5c65db1b88e7f7674920116b924ca57d22e490ab401",
-  "notes": "Return proper File object for compressed images."
+  "version": "1.0.9",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.9/bundle.zip",
+  "checksum": "cd66e10c26b299481391e1510abfa42d590106205b80cb822327f72126fc090d",
+  "notes": "Orion Chat v1.0.9 release"
 }
