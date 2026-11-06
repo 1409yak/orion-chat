@@ -1960,12 +1960,13 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.0.3';
+const CURRENT_APP_VERSION = '1.0.4';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.0.3';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.0.4';
+
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
             const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -1976,9 +1977,9 @@ async function updateSettingsVersionDisplay() {
     } catch (e) {
         console.warn('Could not read bundle version:', e);
     }
-
-    // Ensure strictly one 'v' prefix
-    const cleanVersion = 'v' + finalVersion.replace(/^v+/i, '');
+    
+    // Forcefully remove all 'v' or 'V' characters, then add exactly one 'v'
+    const cleanVersion = 'v' + String(finalVersion).toLowerCase().replace(/v/g, '').trim();
     
     allVersionEls.forEach(el => {
         if (el) el.textContent = cleanVersion;
@@ -2078,7 +2079,7 @@ function dismissOtaUpdateBanner() {
 async function applyUpdateAndReload() {
     if (isDownloadingUpdate || !activeOtaManifest) return;
     isDownloadingUpdate = true;
-    const targetVer = activeOtaManifest.version || '1.0.3';
+    const targetVer = activeOtaManifest.version || '1.0.4';
     const bundleUrl = activeOtaManifest.url || `https://orion-fcm-worker.gaim.workers.dev/download-ota/v${targetVer}/bundle.zip`;
     const checksum = activeOtaManifest.checksum || '25cb5c41e94305a32b7d743ac33df4eb05fe0c595b6a49abc00b26cd99f63cd0';
     try {
@@ -2263,7 +2264,7 @@ async function downloadAndApplyUpdate(targetVersion, bundleUrl, checksum = null)
 }
 window.downloadAndApplyUpdate = downloadAndApplyUpdate;
 
-window.triggerOtaUpdate = async function(targetVersion = '1.0.3', directUrl = null, directChecksum = null) {
+window.triggerOtaUpdate = async function(targetVersion = '1.0.4', directUrl = null, directChecksum = null) {
     if (isInstallingFromChannel) return;
     isInstallingFromChannel = true;
 
