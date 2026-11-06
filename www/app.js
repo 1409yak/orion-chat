@@ -2109,12 +2109,12 @@ async function checkForUpdates(isManual = false) {
 
     try {
         const manifestUrl = `https://raw.githubusercontent.com/1409yak/orion-chat/main/version.json?t=${Date.now()}`;
-        console.log(`[OTA] Checking manifest from: ${manifestUrl} (Current: ${CURRENT_APP_VERSION}, Manual: ${isManual})`);
+        console.log(`[OTA] Checking manifest from: ${manifestUrl}`);
         const response = await fetch(manifestUrl, {
             headers: { 'Accept': 'application/json' }
         });
         if (!response.ok) {
-            throw new Error(`Failed to fetch update manifest: HTTP ${response.status}`);
+            throw new Error(`HTTP ${response.status}`);
         }
 
         const manifest = await response.json();
@@ -2142,8 +2142,8 @@ async function checkForUpdates(isManual = false) {
             }
         }
     } catch (err) {
-        console.error('Update check failed:', err.message, err);
-        const errMsg = err.message && err.message.startsWith('Server returned HTTP')
+        console.error('[OTA] checkForUpdates error:', err);
+        const errMsg = err.message && err.message.startsWith('HTTP')
             ? err.message
             : (err.message ? `Error: ${err.message}` : 'Check connection.');
         if (statusMsg) {
