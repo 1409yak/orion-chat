@@ -3,8 +3,6 @@
  * Uses Web Crypto API to sign Google OAuth2 JWTs and send push notifications via FCM HTTP v1 API
  */
 
-import { bundleZipBase64 } from "./bundle-data.js";
-
 // Cache Google OAuth2 access token to avoid signing and fetching on every request
 let cachedToken = null;
 let tokenExpiresAt = 0;
@@ -165,39 +163,55 @@ export default {
       });
     }
 
-    if (url.pathname === '/download-ota') {
-      const version = url.searchParams.get('version') || 'v1.0.2';
-      const targetTag = version.startsWith('v') ? version : `v${version}`;
-      const githubUrl = `https://github.com/1409yak/orion-chat/releases/download/${targetTag}/bundle.zip`;
+    const otaMatch = url.pathname.match(/\/download-ota\/(v[\d.]+)\/bundle\.zip/i) || 
+                     url.pathname.match(/\/download-ota\/([\d.]+)\/bundle\.zip/i);
+
+    if (otaMatch || url.pathname === '/download-ota') {
+      let rawVersion = otaMatch ? otaMatch[1] : (url.searchParams.get('version') || 'v1.0.2');
+      const targetTag = rawVersion.startsWith('v') ? rawVersion : `v${rawVersion}`;
+      const candidateUrls = [
+        `https://github.com/1409yak/orion-chat/releases/download/${targetTag}/bundle.zip?t=${Date.now()}`,
+        `https://github.com/1409yak/orion-web/releases/download/${targetTag}/bundle.zip?t=${Date.now()}`
+      ];
 
       try {
-        const ghRes = await fetch(githubUrl, {
-          method: 'GET',
-          redirect: 'follow',
-          headers: {
-            'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OrionUpdater/1.0',
-            'Accept': '*/*'
-          }
-        });
+        let ghRes = null;
+        for (const candidateUrl of candidateUrls) {
+          try {
+            const res = await fetch(candidateUrl, {
+              method: 'GET',
+              redirect: 'follow',
+              headers: {
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) OrionUpdater/1.0',
+                'Accept': '*/*'
+              },
+              cf: { cacheTtl: 0 }
+            });
+            if (res.ok) {
+              ghRes = res;
+              break;
+            }
+          } catch (_) {}
+        }
 
-        if (!ghRes.ok) {
-          return new Response(`GitHub error: ${ghRes.status}`, {
-            status: ghRes.status,
+        if (!ghRes || !ghRes.ok) {
+          return new Response(`GitHub error: ${ghRes ? ghRes.status : 404}`, {
+            status: ghRes ? ghRes.status : 404,
             headers: { 'Access-Control-Allow-Origin': '*' }
           });
         }
 
-        // Buffer the binary array so we can compute the exact byte length for Android
-        const arrayBuffer = await ghRes.arrayBuffer();
+        const buffer = await ghRes.arrayBuffer();
 
         const responseHeaders = {
           'Content-Type': 'application/zip',
-          'Content-Length': arrayBuffer.byteLength.toString(),
-          'Content-Disposition': 'attachment; filename="bundle.zip"',
+          'Content-Length': buffer.byteLength.toString(),
+          'Content-Disposition': `attachment; filename="bundle-${targetTag}.zip"`,
           'Access-Control-Allow-Origin': '*',
           'Access-Control-Allow-Methods': 'GET, HEAD, OPTIONS',
           'Access-Control-Expose-Headers': 'Content-Length',
-          'Cache-Control': 'no-cache'
+          'Cache-Control': 'no-cache, no-store, must-revalidate',
+          'Accept-Ranges': 'bytes'
         };
 
         if (request.method === 'HEAD') {
@@ -207,7 +221,7 @@ export default {
           });
         }
 
-        return new Response(arrayBuffer, {
+        return new Response(buffer, {
           status: 200,
           headers: responseHeaders
         });
@@ -224,8 +238,9 @@ export default {
         return new Response(
           JSON.stringify({
             version: "1.0.2",
-            url: "https://orion-fcm-worker.charming-button.workers.dev/bundle-1.0.2.zip",
-            notes: "Orion Updates channel, Telegram-style message menu, and relative timestamps."
+            url: "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.2/bundle.zip",
+            checksum: "4ae248bead0ec6a661464214cf7a44127fc9da70e3de229525938d787fdae9ff",
+            notes: "Dynamic version display, fixed settings exit, and restored updates channel."
           }, null, 2),
           {
             headers: {
@@ -237,33 +252,8 @@ export default {
         );
       }
 
-      if (url.pathname === "/bundle-1.0.2.zip" || url.pathname === "/bundle.zip" || url.pathname.endsWith(".zip")) {
-        if (request.method === "HEAD") {
-          return new Response(null, {
-            headers: {
-              ...corsHeaders,
-              "Content-Type": "application/zip",
-              "Content-Disposition": 'attachment; filename="bundle-1.0.2.zip"',
-              "Content-Length": "796045",
-              "Cache-Control": "public, max-age=3600",
-            },
-          });
-        }
-        const binaryStr = atob(bundleZipBase64);
-        const len = binaryStr.length;
-        const bytes = new Uint8Array(len);
-        for (let i = 0; i < len; i++) {
-          bytes[i] = binaryStr.charCodeAt(i);
-        }
-        return new Response(bytes.buffer, {
-          headers: {
-            ...corsHeaders,
-            "Content-Type": "application/zip",
-            "Content-Disposition": 'attachment; filename="bundle-1.0.2.zip"',
-            "Content-Length": String(bytes.byteLength),
-            "Cache-Control": "public, max-age=3600",
-          },
-        });
+      if (url.pathname === "/bundle-1.0.2.zip" || url.pathname === "/bundle.zip") {
+        return Response.redirect(`${url.origin}/download-ota/v1.0.2/bundle.zip`, 302);
       }
 
       return new Response(
