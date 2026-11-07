@@ -1,6 +1,6 @@
 {
-  "version": "1.1.5",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.5/bundle.zip",
-  "checksum": "22780019a3ab902b655e9b334ab8747226d132e0b9ba692e8e325610fbc430e7",
-  "notes": "Orion Chat v1.1.5: Mobile message tap menus and menu z-index stacking"
+  "version": "1.1.6",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.6/bundle.zip",
+  "checksum": "2b830a8ce80414daa0d44288ef8359dac1adb2be4ea9e5d361a8bcafefb6541a",
+  "notes": "Orion Chat v1.1.6: Material icons, native downloads, and image forwarding"
 }
