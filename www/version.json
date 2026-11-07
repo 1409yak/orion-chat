@@ -1,6 +1,6 @@
 {
-  "version": "1.0.4",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.0.4/bundle.zip",
-  "checksum": "b0cc3f5b0bffdd82b25d8444c19ad3d326fb8f1f45e44bfcd0ec1b681e230f1b",
-  "notes": "Fixed version display duplication and updated settings UI."
+  "version": "1.1.4",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.4/bundle.zip",
+  "checksum": "ff80dec3ec2a13afb8962f0a603b560450df26b0d7329a0744381e3c97ba133e",
+  "notes": "Orion Chat v1.1.4: WhatsApp-style full-screen image viewer"
 }
