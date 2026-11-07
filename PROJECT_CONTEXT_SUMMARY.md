@@ -69,7 +69,7 @@ Orion Chat uses a self-hosted Capgo update pipeline with zero external Capgo Clo
 
 ## 4. Current State & Baseline
 
-- **Current Version:** `v1.1.3`
-- **Native Android Base APK:** Freshly compiled debug APK (`app-debug.apk`) with native HEIC support (`heic2any`), bulletproof Capgo container checking, read-only broadcast channel guards, and fully asynchronous non-blocking image upload pipeline.
-- **OTA Release Status:** `v1.1.3` published on GitHub releases, Cloudflare Pages, and live on `version.json`. Checksums verified with 100% parity.
+- **Current Version:** `v1.1.4`
+- **Native Android Base APK:** Freshly compiled debug APK (`app-debug.apk`) with native HEIC support (`heic2any`), bulletproof Capgo container checking, read-only broadcast channel guards, fully asynchronous non-blocking image upload pipeline, and WhatsApp-style full-screen image viewer.
+- **OTA Release Status:** `v1.1.4` published on GitHub releases, Cloudflare Pages, and live on `version.json`. Checksums verified with 100% parity.
 - **Announcement Channel:** Updates automatically broadcast to `channel_orion_updates` with interactive in-message update install cards (`[UPDATE_VERSION:x.x.x]`).
