@@ -1959,6 +1959,11 @@ document.addEventListener('click', (e) => {
     document.querySelectorAll('.msg-action-menu').forEach(menu => {
         if (!menu.parentElement.contains(e.target)) {
             menu.style.display = 'none';
+            const parentWrap = menu.closest('.msg-wrapper');
+            if (parentWrap) {
+                parentWrap.style.zIndex = '';
+                parentWrap.style.position = '';
+            }
         }
     });
 });
@@ -2160,12 +2165,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.4';
+const CURRENT_APP_VERSION = '1.1.5';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.4';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.5';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2327,7 +2332,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.4';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.5';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4781,6 +4786,8 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         e.stopPropagation();
         replyToMessage(messageId, msg.text, msg.sender_name);
         actionMenu.style.display = 'none';
+        wrap.style.zIndex = '';
+        wrap.style.position = '';
     };
     actionMenu.appendChild(replyBtn);
     
@@ -4792,6 +4799,8 @@ function renderMessage(msg, isConsecutive = false, messageId) {
             e.stopPropagation();
             editMessage(messageId, msg.text);
             actionMenu.style.display = 'none';
+            wrap.style.zIndex = '';
+            wrap.style.position = '';
         };
         const deleteBtn = document.createElement('button');
         deleteBtn.innerText = 'Delete';
@@ -4800,6 +4809,8 @@ function renderMessage(msg, isConsecutive = false, messageId) {
             e.stopPropagation();
             deleteMessage(messageId);
             actionMenu.style.display = 'none';
+            wrap.style.zIndex = '';
+            wrap.style.position = '';
         };
         actionMenu.appendChild(editBtn);
         actionMenu.appendChild(deleteBtn);
@@ -4808,13 +4819,39 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     actionsContainer.appendChild(actionButton);
     actionsContainer.appendChild(actionMenu);
     
-    actionButton.onclick = (e) => {
-        e.stopPropagation();
+    const toggleMenu = (e) => {
+        if (e) e.stopPropagation();
+        const isOpening = actionMenu.style.display === 'none' || !actionMenu.style.display;
         document.querySelectorAll('.msg-action-menu').forEach(m => { 
-            if (m !== actionMenu) m.style.display = 'none'; 
+            m.style.display = 'none'; 
+            const p = m.closest('.msg-wrapper');
+            if (p) {
+                p.style.zIndex = '';
+                p.style.position = '';
+            }
         });
-        actionMenu.style.display = actionMenu.style.display === 'none' ? 'flex' : 'none';
+        if (isOpening) {
+            actionMenu.style.display = 'flex';
+            wrap.style.zIndex = '100';
+            wrap.style.position = 'relative';
+        } else {
+            actionMenu.style.display = 'none';
+            wrap.style.zIndex = '';
+            wrap.style.position = '';
+        }
     };
+
+    actionButton.onclick = toggleMenu;
+
+    // Mobile-Only Tap Trigger: hide dropdown triangle and bind menu toggle to message bubble
+    const isMobile = window.Capacitor?.isNative || /Mobi|Android/i.test(navigator.userAgent);
+    if (isMobile) {
+        actionButton.style.display = 'none';
+        bubble.onclick = (e) => {
+            if (e.target.closest('a, button, .chat-embedded-image, .image-embed-wrapper, .reply-quote, .reaction-tag')) return;
+            toggleMenu(e);
+        };
+    }
     
     bubble.appendChild(actionsContainer);
     attachMessageContextMenu(bubble, messageId, msg, isMe);
@@ -5124,6 +5161,8 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
         e.stopPropagation();
         replyToMessage(messageId, "[Sticker]", msg.sender_name);
         actionMenu.style.display = 'none';
+        wrap.style.zIndex = '';
+        wrap.style.position = '';
     };
     actionMenu.appendChild(replyBtn);
     
@@ -5135,17 +5174,46 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
             e.stopPropagation();
             deleteMessage(messageId);
             actionMenu.style.display = 'none';
+            wrap.style.zIndex = '';
+            wrap.style.position = '';
         };
         actionMenu.appendChild(deleteBtn);
     }
     
     actionsContainer.appendChild(actionButton);
     actionsContainer.appendChild(actionMenu);
-    actionButton.onclick = (e) => {
-        e.stopPropagation();
-        document.querySelectorAll('.msg-action-menu').forEach(m => { if (m !== actionMenu) m.style.display = 'none'; });
-        actionMenu.style.display = actionMenu.style.display === 'none' ? 'flex' : 'none';
+
+    const toggleStickerMenu = (e) => {
+        if (e) e.stopPropagation();
+        const isOpening = actionMenu.style.display === 'none' || !actionMenu.style.display;
+        document.querySelectorAll('.msg-action-menu').forEach(m => { 
+            m.style.display = 'none'; 
+            const p = m.closest('.msg-wrapper');
+            if (p) {
+                p.style.zIndex = '';
+                p.style.position = '';
+            }
+        });
+        if (isOpening) {
+            actionMenu.style.display = 'flex';
+            wrap.style.zIndex = '100';
+            wrap.style.position = 'relative';
+        } else {
+            actionMenu.style.display = 'none';
+            wrap.style.zIndex = '';
+            wrap.style.position = '';
+        }
     };
+    actionButton.onclick = toggleStickerMenu;
+
+    const isMobileSticker = window.Capacitor?.isNative || /Mobi|Android/i.test(navigator.userAgent);
+    if (isMobileSticker) {
+        actionButton.style.display = 'none';
+        bubble.onclick = (e) => {
+            if (e.target.closest('a, button, .chat-sticker, .reaction-tag')) return;
+            toggleStickerMenu(e);
+        };
+    }
     bubble.appendChild(actionsContainer);
     attachMessageContextMenu(bubble, messageId, msg, isMe);
 

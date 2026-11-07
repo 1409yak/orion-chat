@@ -14,3 +14,11 @@
 | **BUG-005** | **Firebase Permission Denied**<br>Console filled with Realtime Database permission denied errors on app startup. | `ensureOrionUpdatesChannel()` attempted to write a membership record (`members/channel_orion_updates/${uid}`) to the system broadcast channel, which has strict server-side read-only security rules. | Added a guard clause in `ensureOrionUpdatesChannel`: `if (channelId !== 'channel_orion_updates') { ... }` to skip member writes for the announcement channel while allowing read subscription. |
 | **BUG-006** | **Stale Base APK Compilation**<br>Newly compiled Android debug APK still loaded older web assets (e.g. v1.0.1) instead of the latest code. | Gradle's incremental build cache and `npx cap sync android` failed to overwrite assets when source timestamps or directories had minor drift. | Bypass `cap sync` when necessary by directly clearing and injecting `OrionWeb` assets into `android/app/src/main/assets/public`. Verify version strings in memory before compiling, and build using `.\gradlew.bat clean assembleDebug --no-build-cache`. |
 | **BUG-007** | **Main-Thread Lock During Server Upload Execution**<br>UI thread deadlocked immediately following `[UPLOAD] Initiating server upload for: ...` log. | 1. `fileUploadInput.onchange` invoked a blocking DOM modal `showConfirm` after file selection.<br>2. `sendImageMessage` ran a redundant second canvas re-compression pass via synchronous `canvas.toDataURL('image/jpeg')` on large images.<br>3. Foreground notification dispatches blocked the write. | 1. Removed `showConfirm` modal from file picker.<br>2. Created `blobToDataUrlAsync` with non-blocking `FileReader`.<br>3. Eliminated the redundant second canvas pass (relies on `compressImageAsync`'s native `canvas.toBlob`).<br>4. Injected event loop yields (`await new Promise(r => setTimeout(r, 0))`).<br>5. Offloaded push notification dispatches to background tasks. |
+
+---
+
+## Recent Fixes & Feature Enhancements
+
+- *Message Menu Overlap:* Menu hidden under subsequent messages. Solution: Dynamically elevated parent message z-index when menu is active.
+- *Mobile Context Menu:* Bound menu trigger directly to message tap on mobile, hiding the legacy dropdown button.
+
