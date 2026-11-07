@@ -21,4 +21,6 @@
 
 - *Message Menu Overlap:* Menu hidden under subsequent messages. Solution: Dynamically elevated parent message z-index when menu is active.
 - *Mobile Context Menu:* Bound menu trigger directly to message tap on mobile, hiding the legacy dropdown button.
+- *Viewer Download Fail:* WebViews block blob anchor downloads. Solution: Implemented native Capacitor Filesystem API to write to EXTERNAL_STORAGE.
+- *Image Forwarding:* Added forward modal with slider UI and 'Forwarded' indicator on messages. Replaced emojis with Material Symbols.
 

@@ -2165,12 +2165,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.5';
+const CURRENT_APP_VERSION = '1.1.6';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.5';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.6';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2332,7 +2332,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.5';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.6';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4535,6 +4535,13 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
 
+    // Handle Forwarded Tag
+    if (msg.isForwarded) {
+        const forwardedDiv = document.createElement('div');
+        forwardedDiv.innerHTML = `<div style="font-size: 12px; color: #ccc; margin-bottom: 4px; display: flex; align-items: center; gap: 4px;"><i>Forwarded</i> <span class="material-symbols-outlined" style="font-size: 14px;">forward</span></div>`;
+        bubble.appendChild(forwardedDiv.firstElementChild || forwardedDiv);
+    }
+
     // Handle Game Invite Link
     if (msg.gameInvite) {
         bubble.classList.add('game-invite-bubble');
@@ -5503,8 +5510,9 @@ function blobToDataUrlAsync(blob) {
 }
 
 // Asynchronous sendImageMessage with full trace logging and zero synchronous re-encoding
-async function sendImageMessage(imageData) {
-    if (!currentChatId) {
+async function sendImageMessage(imageData, targetChatId = null, extraProps = {}) {
+    const destChatId = targetChatId || currentChatId;
+    if (!destChatId) {
         console.warn('[UPLOAD] No active chat ID for image upload.');
         return;
     }
@@ -5524,13 +5532,13 @@ async function sendImageMessage(imageData) {
     await new Promise(r => setTimeout(r, 0));
 
     console.log('[UPLOAD] Generating database message key and metadata...');
-    const mKey = push(ref(db, `messages/${currentChatId}`)).key;
+    const mKey = push(ref(db, `messages/${destChatId}`)).key;
     const senderName = document.getElementById('current-user-name')?.innerText || auth.currentUser?.displayName || "User";
     
     // Resolve identity if in a channel
     let identityName = senderName;
     try {
-        const chatSnap = await get(ref(db, `chats/${currentChatId}`));
+        const chatSnap = await get(ref(db, `chats/${destChatId}`));
         const chatData = chatSnap.val();
         if (chatData?.isChannel) {
             identityName = chatData.title || senderName;
@@ -5540,24 +5548,25 @@ async function sendImageMessage(imageData) {
     }
 
     const updates = {};
-    updates[`/messages/${currentChatId}/${mKey}`] = {
+    updates[`/messages/${destChatId}/${mKey}`] = {
         sender_id: auth.currentUser.uid,
         sender_name: identityName,
         text: base64Data,
         timestamp: serverTimestamp(),
-        createdAt: serverTimestamp()
+        createdAt: serverTimestamp(),
+        ...extraProps
     };
 
-    updates[`/chats/${currentChatId}/last_message`] = "Sent an image";
-    updates[`/chats/${currentChatId}/timestamp`] = serverTimestamp();
+    updates[`/chats/${destChatId}/last_message`] = extraProps?.isForwarded ? "Forwarded an image" : "Sent an image";
+    updates[`/chats/${destChatId}/timestamp`] = serverTimestamp();
 
     console.log('[UPLOAD] Fetching chat members for unread flags...');
     try {
-        const membersSnap = await get(ref(db, `members/${currentChatId}`));
+        const membersSnap = await get(ref(db, `members/${destChatId}`));
         const members = membersSnap.val();
         if (members) {
             Object.keys(members).forEach(uid => { 
-                if (uid !== auth.currentUser.uid) updates[`/unread/${uid}/${currentChatId}`] = true; 
+                if (uid !== auth.currentUser.uid) updates[`/unread/${uid}/${destChatId}`] = true; 
             });
         }
 
@@ -5583,7 +5592,7 @@ async function sendImageMessage(imageData) {
                             recipientFcmToken = userSnap.val();
                         }
                         if (recipientFcmToken) {
-                            sendPushNotification(recipientFcmToken, identityName, "Sent an image", { chatId: currentChatId });
+                            sendPushNotification(recipientFcmToken, identityName, extraProps?.isForwarded ? "Forwarded an image" : "Sent an image", { chatId: destChatId });
                         }
                     } catch (notifyErr) {
                         console.error("[FCM Worker] Error notifying recipient for image:", rUid, notifyErr);
@@ -6525,40 +6534,209 @@ if (downloadViewerBtn) {
     downloadViewerBtn.onclick = async () => {
         if (!window.currentViewingImage) return;
         try {
+            console.log('[VIEWER] Fetching image for download...');
             const response = await fetch(window.currentViewingImage);
             const blob = await response.blob();
-            const url = window.URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.style.display = 'none';
-            a.href = url;
-            a.download = `Orion_Image_${Date.now()}.jpg`;
-            document.body.appendChild(a);
-            a.click();
-            window.URL.revokeObjectURL(url);
+            const base64Data = await new Promise((resolve) => {
+                const reader = new FileReader();
+                reader.onloadend = () => resolve(reader.result.split(',')[1]);
+                reader.readAsDataURL(blob);
+            });
+
+            const fileName = `Orion_${Date.now()}.jpg`;
+            
+            if (window.Capacitor?.Plugins?.Filesystem) {
+                await window.Capacitor.Plugins.Filesystem.writeFile({
+                    path: `Download/${fileName}`,
+                    data: base64Data,
+                    directory: 'EXTERNAL_STORAGE' // Standard Android public directory
+                });
+                console.log(`[VIEWER] Successfully saved to Downloads: ${fileName}`);
+                if (typeof showNotification === 'function') {
+                    showNotification(`Image saved to Downloads: ${fileName}`, 'success');
+                }
+            } else {
+                const url = window.URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.style.display = 'none';
+                a.href = url;
+                a.download = fileName;
+                document.body.appendChild(a);
+                a.click();
+                window.URL.revokeObjectURL(url);
+                console.log(`[VIEWER] Browser download completed: ${fileName}`);
+            }
         } catch (e) {
-            console.error('[VIEWER] Download failed:', e);
+            console.error('[VIEWER] Native download failed:', e);
+            if (typeof showNotification === 'function') {
+                showNotification('Download failed: ' + (e.message || 'Error'), 'error');
+            }
         }
     };
 }
 
+// Forwarding Logic & Slider Setup
+function getActiveChatsForForward() {
+    const chats = [];
+    const chatLinkEls = document.querySelectorAll('#chats-list .chat-link');
+    if (chatLinkEls.length > 0) {
+        chatLinkEls.forEach(el => {
+            const chatId = el.id.replace(/^link-/, '');
+            if (!chatId) return;
+            const titleEl = el.querySelector('strong');
+            const title = titleEl ? titleEl.textContent.trim() : 'Chat';
+            const imgEl = el.querySelector('img');
+            const iconEl = el.querySelector('.chat-type-icon');
+            const pic = imgEl ? imgEl.src : null;
+            const icon = iconEl ? iconEl.textContent.trim() : '';
+
+            let category = 'dms';
+            if (el.classList.contains('group-link') || el.classList.contains('sub-channel')) {
+                category = 'groups';
+            } else if (el.classList.contains('channel-link')) {
+                category = 'channels';
+            } else if (el.classList.contains('dm-link')) {
+                category = 'dms';
+            }
+            chats.push({ id: chatId, title, pic, icon, category });
+        });
+    } else {
+        allChatsStore.forEach((data, id) => {
+            const isChannel = data.isChannel || data.type === 'channel' || id === 'channel_orion_updates';
+            const isGroup = data.isGroup || !!data.groupId;
+            const category = isChannel ? 'channels' : (isGroup ? 'groups' : 'dms');
+            const title = data.title || data.name || (id === 'channel_orion_updates' ? 'Orion Updates' : 'Chat');
+            chats.push({ id, title, pic: data.profilePic, icon: isChannel ? '📢' : (isGroup ? '#' : '👤'), category });
+        });
+    }
+    return chats;
+}
+
+let forwardGliderInitialized = false;
+function setupForwardGlider() {
+    if (forwardGliderInitialized) return;
+    const tabs = document.querySelectorAll('#forward-glider-track .glider-tab');
+    const thumb = document.getElementById('forward-glider-thumb');
+    if (!thumb || tabs.length === 0) return;
+
+    tabs.forEach((tab, index) => {
+        tab.onclick = () => {
+            tabs.forEach(t => t.classList.remove('active'));
+            tab.classList.add('active');
+            thumb.style.transform = `translateX(calc(${index * 100}% + ${index * 4}px))`;
+            const filter = tab.dataset.forwardFilter || 'dms';
+            renderForwardChats(filter);
+        };
+    });
+    forwardGliderInitialized = true;
+}
+
+function renderForwardChats(filter = 'dms') {
+    const listEl = document.getElementById('forward-chats-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+
+    const allChats = getActiveChatsForForward();
+    const filtered = allChats.filter(c => {
+        if (filter === 'dms') return c.category === 'dms';
+        if (filter === 'groups') return c.category === 'groups';
+        if (filter === 'channels') return c.category === 'channels' && c.id !== 'channel_orion_updates';
+        return true;
+    });
+
+    if (filtered.length === 0) {
+        listEl.innerHTML = `<div style="text-align: center; padding: 24px; opacity: 0.5; font-size: 13px;">No ${filter === 'dms' ? 'direct messages' : filter} found</div>`;
+        return;
+    }
+
+    filtered.forEach(chat => {
+        const item = document.createElement('div');
+        item.className = 'forward-chat-item';
+        item.dataset.chatId = chat.id;
+
+        const avatarContent = chat.pic 
+            ? `<img src="${chat.pic}" style="width: 32px; height: 32px; border-radius: 50%; object-fit: cover;">`
+            : `<div style="width: 32px; height: 32px; border-radius: 50%; background: rgba(255,255,255,0.08); display: flex; align-items: center; justify-content: center; font-size: 14px;">${chat.icon || '👤'}</div>`;
+
+        item.innerHTML = `
+            ${avatarContent}
+            <div style="flex: 1; min-width: 0;">
+                <div style="font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">${escapeHTML(chat.title)}</div>
+            </div>
+            <span class="material-symbols-outlined" style="font-size: 18px; opacity: 0.6;">send</span>
+        `;
+
+        item.onclick = async () => {
+            await forwardImageToChat(chat.id, chat.title);
+        };
+
+        listEl.appendChild(item);
+    });
+}
+
+async function forwardImageToChat(targetChatId, chatTitle) {
+    if (!window.currentViewingImage) return;
+    const imgData = window.currentViewingImage;
+    const forwardModal = document.getElementById('forward-menu-modal');
+    if (forwardModal) forwardModal.classList.add('hidden');
+    const viewerModal = document.getElementById('image-viewer-modal');
+    if (viewerModal) viewerModal.classList.add('hidden');
+
+    try {
+        if (typeof showNotification === 'function') {
+            showNotification(`Forwarding image to ${chatTitle}...`, 'info');
+        }
+        await sendImageMessage(imgData, targetChatId, { isForwarded: true });
+        if (typeof showNotification === 'function') {
+            showNotification(`Image forwarded to ${chatTitle}!`, 'success');
+        }
+    } catch (err) {
+        console.error('[FORWARD] Failed to forward image:', err);
+        if (typeof showNotification === 'function') {
+            showNotification('Failed to forward image', 'error');
+        }
+    }
+}
+
+function openForwardModal() {
+    if (!window.currentViewingImage) return;
+    const modal = document.getElementById('forward-menu-modal');
+    if (!modal) return;
+    modal.classList.remove('hidden');
+    setupForwardGlider();
+    // Reset to DMs/Chats tab
+    const tabs = document.querySelectorAll('#forward-glider-track .glider-tab');
+    const thumb = document.getElementById('forward-glider-thumb');
+    if (tabs.length > 0) {
+        tabs.forEach(t => t.classList.remove('active'));
+        tabs[0].classList.add('active');
+        if (thumb) thumb.style.transform = 'translateX(0)';
+    }
+    renderForwardChats('dms');
+}
+
 const forwardViewerBtn = document.getElementById('forward-viewer-btn');
 if (forwardViewerBtn) {
-    forwardViewerBtn.onclick = async () => {
+    forwardViewerBtn.onclick = () => {
         if (!window.currentViewingImage) return;
-        // Trigger existing forward/share logic here, passing window.currentViewingImage
-        console.log('[VIEWER] Forward triggered for:', window.currentViewingImage);
-        if (navigator.share) {
-            try {
-                await navigator.share({
-                    title: 'Orion Image',
-                    url: window.currentViewingImage
-                });
-            } catch (err) {
-                console.log('[VIEWER] Share dismissed:', err);
-            }
-        }
-        const modal = document.getElementById('image-viewer-modal');
+        openForwardModal();
+    };
+}
+
+const closeForwardBtn = document.getElementById('close-forward-modal-btn');
+if (closeForwardBtn) {
+    closeForwardBtn.onclick = () => {
+        const modal = document.getElementById('forward-menu-modal');
         if (modal) modal.classList.add('hidden');
+    };
+}
+
+const forwardMenuModal = document.getElementById('forward-menu-modal');
+if (forwardMenuModal) {
+    forwardMenuModal.onclick = (e) => {
+        if (e.target.id === 'forward-menu-modal') {
+            forwardMenuModal.classList.add('hidden');
+        }
     };
 }
 
@@ -6578,6 +6756,10 @@ window.addEventListener('keydown', (e) => {
         if (modal && !modal.classList.contains('hidden')) {
             modal.classList.add('hidden');
             window.currentViewingImage = null;
+        }
+        const forwardModal = document.getElementById('forward-menu-modal');
+        if (forwardModal && !forwardModal.classList.contains('hidden')) {
+            forwardModal.classList.add('hidden');
         }
     }
 }); 

@@ -10,22 +10,44 @@
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined" rel="stylesheet" />
 </head>
 <body>
     <!-- WhatsApp-Style Fullscreen Image Viewer Modal -->
     <div id="image-viewer-modal" class="image-viewer-modal hidden">
         <div class="viewer-header">
             <div class="viewer-header-left">
-                <button id="close-viewer-btn" class="viewer-btn" title="Back" aria-label="Close">←</button>
+                <button id="close-viewer-btn" class="viewer-btn" title="Back" aria-label="Close"><span class="material-symbols-outlined">arrow_back</span></button>
                 <span id="viewer-sender-name">Sender Name</span>
             </div>
             <div class="viewer-header-right">
-                <button id="download-viewer-btn" class="viewer-btn" title="Download" aria-label="Download">⬇️</button>
-                <button id="forward-viewer-btn" class="viewer-btn" title="Forward" aria-label="Forward">↪️</button>
+                <button id="download-viewer-btn" class="viewer-btn" title="Download" aria-label="Download"><span class="material-symbols-outlined">download</span></button>
+                <button id="forward-viewer-btn" class="viewer-btn" title="Forward" aria-label="Forward"><span class="material-symbols-outlined">forward</span></button>
             </div>
         </div>
         <div class="viewer-body">
             <img id="viewer-main-img" src="" alt="Photo">
+        </div>
+    </div>
+
+    <!-- Forward Destination Modal -->
+    <div id="forward-menu-modal" class="modal hidden">
+        <div class="glass-card modal-content" style="max-width: 420px; width: 90%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+                <h3 style="margin: 0; font-size: 18px;">Forward to...</h3>
+                <button type="button" id="close-forward-modal-btn" class="close-sidebar-btn" aria-label="Close" style="background:none; border:none; color:var(--text); font-size:18px; cursor:pointer;">✕</button>
+            </div>
+            <div class="glider-container" style="padding: 0 0 10px 0;">
+                <div class="glider-track" id="forward-glider-track">
+                    <button type="button" class="glider-tab active" data-forward-filter="dms">Chats</button>
+                    <button type="button" class="glider-tab" data-forward-filter="groups">Groups</button>
+                    <button type="button" class="glider-tab" data-forward-filter="channels">Channels</button>
+                    <div class="glider-thumb" id="forward-glider-thumb"></div>
+                </div>
+            </div>
+            <div id="forward-chats-list" style="max-height: 320px; overflow-y: auto; display: flex; flex-direction: column; gap: 6px;">
+                <!-- Populated dynamically -->
+            </div>
         </div>
     </div>
 
@@ -536,7 +558,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.5</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.6</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>

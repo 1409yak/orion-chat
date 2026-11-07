@@ -5111,5 +5111,52 @@ body:not(.liquid-glass):not(.theme-liquid-glass) .message-context-sheet {
     animation: zoom-in 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
+/* Material Symbols Configuration */
+.material-symbols-outlined {
+    font-family: 'Material Symbols Outlined';
+    font-weight: normal;
+    font-style: normal;
+    font-size: 24px;
+    line-height: 1;
+    letter-spacing: normal;
+    text-transform: none;
+    display: inline-block;
+    white-space: nowrap;
+    word-wrap: normal;
+    direction: ltr;
+    -webkit-font-feature-settings: 'liga';
+    -webkit-font-smoothing: antialiased;
+    vertical-align: middle;
+}
+
+.viewer-btn .material-symbols-outlined {
+    font-size: 22px;
+}
+
+/* Forward Destination Modal & Items */
+.forward-chat-item {
+    padding: 10px 14px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--glass-border);
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+    user-select: none;
+    color: var(--text);
+    text-decoration: none;
+}
+
+.forward-chat-item:hover {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.forward-chat-item:active {
+    transform: scale(0.98);
+}
+
+
 
 
