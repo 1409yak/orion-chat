@@ -2160,12 +2160,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.3';
+const CURRENT_APP_VERSION = '1.1.4';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.3';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.4';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2327,7 +2327,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.3';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.4';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4717,7 +4717,23 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         img.loading = 'lazy';
         img.decoding = 'async';
         img.alt = 'Shared image';
-        img.onclick = (e) => { openImageLightbox(url); e.stopPropagation(); };
+        img.onclick = (e) => {
+            e.stopPropagation();
+            const modal = document.getElementById('image-viewer-modal');
+            const modalImg = document.getElementById('viewer-main-img');
+            const senderNameEl = document.getElementById('viewer-sender-name');
+
+            if (modal && modalImg && senderNameEl) {
+                modalImg.src = img.src;
+                // Extract sender name from the message data
+                senderNameEl.textContent = msg.sender_name || msg.senderName || (isMe ? 'You' : 'Photo');
+                // Store current image URL globally for download/forward buttons
+                window.currentViewingImage = img.src;
+                modal.classList.remove('hidden');
+            } else {
+                openImageLightbox(url);
+            }
+        };
         img.onload = () => {
             imgWrap.style.minHeight = '';
             imgWrap.style.background = '';
@@ -5382,8 +5398,18 @@ async function deletePrivateChat(chatId) {
     }
 }
 
-// --- Image Lightbox ---
-function openImageLightbox(url) {
+// --- Image Lightbox / Fullscreen Viewer ---
+function openImageLightbox(url, senderName = 'Photo') {
+    const modal = document.getElementById('image-viewer-modal');
+    const modalImg = document.getElementById('viewer-main-img');
+    const senderNameEl = document.getElementById('viewer-sender-name');
+    if (modal && modalImg && senderNameEl) {
+        modalImg.src = url;
+        senderNameEl.textContent = senderName || 'Photo';
+        window.currentViewingImage = url;
+        modal.classList.remove('hidden');
+        return;
+    }
     const lb = document.getElementById('image-lightbox');
     const img = document.getElementById('lightbox-img');
     if (!lb || !img) return;
@@ -6415,6 +6441,78 @@ document.getElementById('open-premium-panel-btn').onclick = () => {
     closeSidebarDrawer();
     openPremiumPanelModal('account');
 }; 
+
+// WhatsApp-style Image Viewer Modal Actions
+const closeViewerBtn = document.getElementById('close-viewer-btn');
+if (closeViewerBtn) {
+    closeViewerBtn.onclick = () => {
+        const modal = document.getElementById('image-viewer-modal');
+        if (modal) modal.classList.add('hidden');
+        window.currentViewingImage = null;
+    };
+}
+
+const downloadViewerBtn = document.getElementById('download-viewer-btn');
+if (downloadViewerBtn) {
+    downloadViewerBtn.onclick = async () => {
+        if (!window.currentViewingImage) return;
+        try {
+            const response = await fetch(window.currentViewingImage);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = `Orion_Image_${Date.now()}.jpg`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error('[VIEWER] Download failed:', e);
+        }
+    };
+}
+
+const forwardViewerBtn = document.getElementById('forward-viewer-btn');
+if (forwardViewerBtn) {
+    forwardViewerBtn.onclick = async () => {
+        if (!window.currentViewingImage) return;
+        // Trigger existing forward/share logic here, passing window.currentViewingImage
+        console.log('[VIEWER] Forward triggered for:', window.currentViewingImage);
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Orion Image',
+                    url: window.currentViewingImage
+                });
+            } catch (err) {
+                console.log('[VIEWER] Share dismissed:', err);
+            }
+        }
+        const modal = document.getElementById('image-viewer-modal');
+        if (modal) modal.classList.add('hidden');
+    };
+}
+
+const imageViewerModal = document.getElementById('image-viewer-modal');
+if (imageViewerModal) {
+    imageViewerModal.onclick = (e) => {
+        if (e.target.id === 'image-viewer-modal' || e.target.classList.contains('viewer-body')) {
+            imageViewerModal.classList.add('hidden');
+            window.currentViewingImage = null;
+        }
+    };
+}
+
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('image-viewer-modal');
+        if (modal && !modal.classList.contains('hidden')) {
+            modal.classList.add('hidden');
+            window.currentViewingImage = null;
+        }
+    }
+}); 
 
 document.getElementById('close-profile-modal').onclick = () => {
     closeAnimatedModal(document.getElementById('profile-modal'));

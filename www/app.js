@@ -920,7 +920,34 @@ function downscaleImageDimensions(base64Str, maxWidth = 800, maxHeight = 800) {
 }
 
 // Asynchronous canvas-based image downscaler/compressor yielding to the main thread
-function compressImageAsync(file, maxWidth = 1280, quality = 0.8) {
+async function compressImageAsync(file, maxWidth = 1280, quality = 0.8) {
+    let sourceFile = file;
+
+    // Intercept HEIC / HEIF files and convert to JPEG blob
+    if (file && (file.name.toLowerCase().endsWith('.heic') || file.name.toLowerCase().endsWith('.heif') || file.type === 'image/heic' || file.type === 'image/heif')) {
+        try {
+            if (typeof heic2any === 'function') {
+                console.log(`[UPLOAD] Converting HEIC image to JPEG: ${file.name}`);
+                const convertedBlob = await heic2any({
+                    blob: file,
+                    toType: 'image/jpeg',
+                    quality: quality
+                });
+                const singleBlob = Array.isArray(convertedBlob) ? convertedBlob[0] : convertedBlob;
+                const convertedName = file.name.replace(/\.(heic|heif)$/i, '.jpg');
+                sourceFile = new File([singleBlob], convertedName, {
+                    type: 'image/jpeg',
+                    lastModified: Date.now()
+                });
+                console.log(`[UPLOAD] HEIC conversion complete: ${sourceFile.name}, Size: ${(sourceFile.size / 1024).toFixed(2)} KB`);
+            } else {
+                console.warn('[UPLOAD] heic2any library not available, proceeding with raw file.');
+            }
+        } catch (heicErr) {
+            console.error('[UPLOAD] HEIC conversion error:', heicErr);
+        }
+    }
+
     return new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onerror = error => reject(error);
@@ -950,8 +977,9 @@ function compressImageAsync(file, maxWidth = 1280, quality = 0.8) {
                     
                     canvas.toBlob(blob => {
                         if (blob) {
-                            const compressedFile = new File([blob], file.name, {
-                                type: file.type || 'image/jpeg',
+                            const outputName = sourceFile.name.replace(/\.(heic|heif)$/i, '.jpg');
+                            const compressedFile = new File([blob], outputName, {
+                                type: sourceFile.type || 'image/jpeg',
                                 lastModified: Date.now(),
                             });
                             console.log(`[UPLOAD] Compressed to: ${(compressedFile.size / 1024).toFixed(2)} KB`);
@@ -959,12 +987,12 @@ function compressImageAsync(file, maxWidth = 1280, quality = 0.8) {
                         } else {
                             reject(new Error('Canvas toBlob failed'));
                         }
-                    }, file.type || 'image/jpeg', quality);
+                    }, sourceFile.type || 'image/jpeg', quality);
                 }, 0);
             };
             img.src = event.target.result;
         };
-        reader.readAsDataURL(file);
+        reader.readAsDataURL(sourceFile);
     });
 }
 
@@ -1084,12 +1112,14 @@ function sanitizeMojibakeEmoji(str) {
 
 // Helper to detect links and YouTube IDs
 function linkifyAndEmbed(rawText) {
-    let text = sanitizeMojibakeEmoji(rawText);
+    if (!rawText) return { html: "", youtubeId: null, imageUrls: [], joinChatIds: [] };
+    const safeRaw = typeof rawText === 'string' ? rawText : String(rawText);
+    let text = sanitizeMojibakeEmoji(safeRaw);
     if (text && text.startsWith('data:image/')) {
         return { html: "", youtubeId: null, imageUrls: [text], joinChatIds: [] };
     }
 
-    const escaped = escapeHTML(text);
+    let escaped = escapeHTML(text);
     // More robust URL regex that avoids capturing trailing punctuation
     const urlRegex = /https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*)/g;
     // Improved YouTube regex to catch shorts, embed, and various watch formats
@@ -2130,12 +2160,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.0.10';
+const CURRENT_APP_VERSION = '1.1.4';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.0.10';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.4';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2297,7 +2327,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.0.10';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.4';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4687,7 +4717,23 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         img.loading = 'lazy';
         img.decoding = 'async';
         img.alt = 'Shared image';
-        img.onclick = (e) => { openImageLightbox(url); e.stopPropagation(); };
+        img.onclick = (e) => {
+            e.stopPropagation();
+            const modal = document.getElementById('image-viewer-modal');
+            const modalImg = document.getElementById('viewer-main-img');
+            const senderNameEl = document.getElementById('viewer-sender-name');
+
+            if (modal && modalImg && senderNameEl) {
+                modalImg.src = img.src;
+                // Extract sender name from the message data
+                senderNameEl.textContent = msg.sender_name || msg.senderName || (isMe ? 'You' : 'Photo');
+                // Store current image URL globally for download/forward buttons
+                window.currentViewingImage = img.src;
+                modal.classList.remove('hidden');
+            } else {
+                openImageLightbox(url);
+            }
+        };
         img.onload = () => {
             imgWrap.style.minHeight = '';
             imgWrap.style.background = '';
@@ -5352,8 +5398,18 @@ async function deletePrivateChat(chatId) {
     }
 }
 
-// --- Image Lightbox ---
-function openImageLightbox(url) {
+// --- Image Lightbox / Fullscreen Viewer ---
+function openImageLightbox(url, senderName = 'Photo') {
+    const modal = document.getElementById('image-viewer-modal');
+    const modalImg = document.getElementById('viewer-main-img');
+    const senderNameEl = document.getElementById('viewer-sender-name');
+    if (modal && modalImg && senderNameEl) {
+        modalImg.src = url;
+        senderNameEl.textContent = senderName || 'Photo';
+        window.currentViewingImage = url;
+        modal.classList.remove('hidden');
+        return;
+    }
     const lb = document.getElementById('image-lightbox');
     const img = document.getElementById('lightbox-img');
     if (!lb || !img) return;
@@ -5362,85 +5418,114 @@ function openImageLightbox(url) {
 }
 window.openImageLightbox = openImageLightbox;
 
-// Modified sendImageMessage to accept either Blob or Base64 string and apply quality setting
+// Asynchronous helper to convert Blob/File to Data URL without blocking the main thread
+function blobToDataUrlAsync(blob) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+            if (reader.result) {
+                resolve(reader.result);
+            } else {
+                reject(new Error("FileReader produced empty result"));
+            }
+        };
+        reader.onerror = (err) => reject(err || new Error("FileReader read failed"));
+        reader.readAsDataURL(blob);
+    });
+}
+
+// Asynchronous sendImageMessage with full trace logging and zero synchronous re-encoding
 async function sendImageMessage(imageData) {
-    if (!currentChatId) return;
+    if (!currentChatId) {
+        console.warn('[UPLOAD] No active chat ID for image upload.');
+        return;
+    }
+
+    console.log('[UPLOAD] Storage reference created: preparing image payload...');
+    // Yield to let UI update and ensure non-blocking execution
+    await new Promise(r => setTimeout(r, 0));
 
     let base64Data = imageData;
     if (imageData instanceof Blob) {
-        base64Data = await new Promise((resolve, reject) => {
-            const reader = new FileReader();
-            reader.onload = () => resolve(reader.result);
-            reader.onerror = reject;
-            reader.readAsDataURL(imageData);
-        });
+        console.log(`[UPLOAD] Converting compressed blob (${(imageData.size / 1024).toFixed(2)} KB) to data payload...`);
+        base64Data = await blobToDataUrlAsync(imageData);
+        console.log(`[UPLOAD] Payload converted. Length: ${(base64Data.length / 1024).toFixed(2)} KB.`);
     }
 
+    // Yield again before database operation to ensure UI remains fluid
+    await new Promise(r => setTimeout(r, 0));
+
+    console.log('[UPLOAD] Generating database message key and metadata...');
     const mKey = push(ref(db, `messages/${currentChatId}`)).key;
-    const senderName = document.getElementById('current-user-name').innerText;
-    const updates = {};
-
-    // Always apply quality setting based on premium status
-    const quality = isCurrentUserPremium ? 0.9 : 0.7; // Premium users get higher quality (0.9), basic users get (0.7)
+    const senderName = document.getElementById('current-user-name')?.innerText || auth.currentUser?.displayName || "User";
     
-    const finalBase64 = await new Promise((resolve) => {
-        const img = new Image();
-        img.src = base64Data;
-        img.onload = () => {
-            const canvas = document.createElement('canvas');
-            canvas.width = img.width;
-            canvas.height = img.height;
-            const ctx = canvas.getContext('2d');
-            ctx.drawImage(img, 0, 0, img.width, img.height);
-            resolve(canvas.toDataURL('image/jpeg', quality)); // Apply quality here
-        };
-        img.onerror = () => resolve(base64Data); // Fallback if image fails to load
-    });
+    // Resolve identity if in a channel
+    let identityName = senderName;
+    try {
+        const chatSnap = await get(ref(db, `chats/${currentChatId}`));
+        const chatData = chatSnap.val();
+        if (chatData?.isChannel) {
+            identityName = chatData.title || senderName;
+        }
+    } catch (e) {
+        console.warn('[UPLOAD] Could not fetch chat title for identity:', e);
+    }
 
+    const updates = {};
     updates[`/messages/${currentChatId}/${mKey}`] = {
         sender_id: auth.currentUser.uid,
-        sender_name: senderName,
-        text: finalBase64, // Use the processed base64 data
-        timestamp: serverTimestamp()
+        sender_name: identityName,
+        text: base64Data,
+        timestamp: serverTimestamp(),
+        createdAt: serverTimestamp()
     };
 
     updates[`/chats/${currentChatId}/last_message`] = "Sent an image";
     updates[`/chats/${currentChatId}/timestamp`] = serverTimestamp();
 
-    const membersSnap = await get(ref(db, `members/${currentChatId}`));
-    const members = membersSnap.val();
-    if (members) {
-        Object.keys(members).forEach(uid => { if (uid !== auth.currentUser.uid) updates[`/unread/${uid}/${currentChatId}`] = true; });
-    }
-    await update(ref(db), updates);
+    console.log('[UPLOAD] Fetching chat members for unread flags...');
+    try {
+        const membersSnap = await get(ref(db, `members/${currentChatId}`));
+        const members = membersSnap.val();
+        if (members) {
+            Object.keys(members).forEach(uid => { 
+                if (uid !== auth.currentUser.uid) updates[`/unread/${uid}/${currentChatId}`] = true; 
+            });
+        }
 
-    // Lookup recipient's fcmToken from Firestore (with RTDB fallback) and trigger Cloudflare Worker notification for image
-    if (members) {
-        const recipientUids = Object.keys(members).filter(uid => uid !== auth.currentUser.uid);
-        const chatSnap = await get(ref(db, `chats/${currentChatId}`));
-        const chatData = chatSnap.val();
-        const identityName = chatData?.isChannel ? chatData.title : (document.getElementById('current-user-name')?.innerText || senderName);
+        console.log('[UPLOAD] Writing message payload to Firebase Realtime Database...');
+        await update(ref(db), updates);
+        console.log(`[UPLOAD] Database write completed successfully (mKey: ${mKey}).`);
 
-        recipientUids.forEach(async (rUid) => {
-            try {
-                let recipientFcmToken = null;
-                try {
-                    const userDocSnap = await getDoc(doc(firestore, "users", rUid));
-                    if (userDocSnap.exists()) {
-                        recipientFcmToken = userDocSnap.data()?.fcmToken;
+        // Asynchronously dispatch notifications in background without blocking upload completion
+        if (members) {
+            const recipientUids = Object.keys(members).filter(uid => uid !== auth.currentUser.uid);
+            (async () => {
+                for (const rUid of recipientUids) {
+                    try {
+                        let recipientFcmToken = null;
+                        try {
+                            const userDocSnap = await getDoc(doc(firestore, "users", rUid));
+                            if (userDocSnap.exists()) {
+                                recipientFcmToken = userDocSnap.data()?.fcmToken;
+                            }
+                        } catch (_) {}
+                        if (!recipientFcmToken) {
+                            const userSnap = await get(ref(db, `users/${rUid}/fcmToken`));
+                            recipientFcmToken = userSnap.val();
+                        }
+                        if (recipientFcmToken) {
+                            sendPushNotification(recipientFcmToken, identityName, "Sent an image", { chatId: currentChatId });
+                        }
+                    } catch (notifyErr) {
+                        console.error("[FCM Worker] Error notifying recipient for image:", rUid, notifyErr);
                     }
-                } catch (fsLookupErr) {}
-                if (!recipientFcmToken) {
-                    const userSnap = await get(ref(db, `users/${rUid}/fcmToken`));
-                    recipientFcmToken = userSnap.val();
                 }
-                if (recipientFcmToken) {
-                    sendPushNotification(recipientFcmToken, identityName, "Sent an image", { chatId: currentChatId });
-                }
-            } catch (notifyErr) {
-                console.error("[FCM Worker] Error notifying recipient for image:", rUid, notifyErr);
-            }
-        });
+            })().catch(err => console.warn('[UPLOAD] Background notification dispatch error:', err));
+        }
+    } catch (dbErr) {
+        console.error('[UPLOAD] Database write error:', dbErr);
+        throw dbErr;
     }
 }
 
@@ -5851,15 +5936,16 @@ function setupInputAreaListeners() {
             console.log(`[UPLOAD] Selected file: ${file.name}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
 
             try {
-                const compressedBlob = await compressImageAsync(file);
+                await new Promise(r => setTimeout(r, 0));
+                const quality = isCurrentUserPremium ? 0.9 : 0.8;
+                const compressedBlob = await compressImageAsync(file, 1280, quality);
                 console.log(`[UPLOAD] Initiating server upload for: ${compressedBlob.name}`);
-                const confirmed = await showConfirm("Send Image", "Do you want to send this image?");
-                if (confirmed) {
-                    await sendImageMessage(compressedBlob);
-                    console.log(`[UPLOAD] Server upload completed successfully.`);
-                }
+                await new Promise(r => setTimeout(r, 0));
+                await sendImageMessage(compressedBlob);
+                console.log(`[UPLOAD] Server upload completed successfully.`);
             } catch (error) {
                 console.error('[UPLOAD] Image processing failed:', error);
+                showNotification("Failed to send image: " + (error?.message || "Unknown error"), "error");
             } finally {
                 fileUploadInput.value = '';
             }
@@ -6072,8 +6158,11 @@ messageInput.onpaste = async (e) => {
             try {
                 const confirmed = await showConfirm("Send Image", "Do you want to send the image from your clipboard?");
                 if (confirmed) {
-                    const compressedBlob = await compressImageAsync(file);
+                    await new Promise(r => setTimeout(r, 0));
+                    const quality = isCurrentUserPremium ? 0.9 : 0.8;
+                    const compressedBlob = await compressImageAsync(file, 1280, quality);
                     console.log(`[UPLOAD] Initiating server upload for: ${compressedBlob.name}`);
+                    await new Promise(r => setTimeout(r, 0));
                     await sendImageMessage(compressedBlob);
                     console.log(`[UPLOAD] Server upload completed successfully.`);
                 }
@@ -6132,8 +6221,11 @@ if (cameraBtn && cameraInput) {
         console.log(`[UPLOAD] Camera capture: ${file.name}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
 
         try {
-            const compressedBlob = await compressImageAsync(file);
+            await new Promise(r => setTimeout(r, 0));
+            const quality = isCurrentUserPremium ? 0.9 : 0.8;
+            const compressedBlob = await compressImageAsync(file, 1280, quality);
             console.log(`[UPLOAD] Initiating server upload for: ${compressedBlob.name}`);
+            await new Promise(r => setTimeout(r, 0));
             await sendImageMessage(compressedBlob);
             console.log(`[UPLOAD] Server upload completed successfully.`);
         } catch (error) {
@@ -6349,6 +6441,78 @@ document.getElementById('open-premium-panel-btn').onclick = () => {
     closeSidebarDrawer();
     openPremiumPanelModal('account');
 }; 
+
+// WhatsApp-style Image Viewer Modal Actions
+const closeViewerBtn = document.getElementById('close-viewer-btn');
+if (closeViewerBtn) {
+    closeViewerBtn.onclick = () => {
+        const modal = document.getElementById('image-viewer-modal');
+        if (modal) modal.classList.add('hidden');
+        window.currentViewingImage = null;
+    };
+}
+
+const downloadViewerBtn = document.getElementById('download-viewer-btn');
+if (downloadViewerBtn) {
+    downloadViewerBtn.onclick = async () => {
+        if (!window.currentViewingImage) return;
+        try {
+            const response = await fetch(window.currentViewingImage);
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none';
+            a.href = url;
+            a.download = `Orion_Image_${Date.now()}.jpg`;
+            document.body.appendChild(a);
+            a.click();
+            window.URL.revokeObjectURL(url);
+        } catch (e) {
+            console.error('[VIEWER] Download failed:', e);
+        }
+    };
+}
+
+const forwardViewerBtn = document.getElementById('forward-viewer-btn');
+if (forwardViewerBtn) {
+    forwardViewerBtn.onclick = async () => {
+        if (!window.currentViewingImage) return;
+        // Trigger existing forward/share logic here, passing window.currentViewingImage
+        console.log('[VIEWER] Forward triggered for:', window.currentViewingImage);
+        if (navigator.share) {
+            try {
+                await navigator.share({
+                    title: 'Orion Image',
+                    url: window.currentViewingImage
+                });
+            } catch (err) {
+                console.log('[VIEWER] Share dismissed:', err);
+            }
+        }
+        const modal = document.getElementById('image-viewer-modal');
+        if (modal) modal.classList.add('hidden');
+    };
+}
+
+const imageViewerModal = document.getElementById('image-viewer-modal');
+if (imageViewerModal) {
+    imageViewerModal.onclick = (e) => {
+        if (e.target.id === 'image-viewer-modal' || e.target.classList.contains('viewer-body')) {
+            imageViewerModal.classList.add('hidden');
+            window.currentViewingImage = null;
+        }
+    };
+}
+
+window.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') {
+        const modal = document.getElementById('image-viewer-modal');
+        if (modal && !modal.classList.contains('hidden')) {
+            modal.classList.add('hidden');
+            window.currentViewingImage = null;
+        }
+    }
+}); 
 
 document.getElementById('close-profile-modal').onclick = () => {
     closeAnimatedModal(document.getElementById('profile-modal'));

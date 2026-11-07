@@ -5002,4 +5002,108 @@ body:not(.liquid-glass):not(.theme-liquid-glass) .message-context-sheet {
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
 }
 
+/* WhatsApp-Style Fullscreen Image Viewer Modal */
+#image-viewer-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100vw;
+    height: 100vh;
+    background: #000000;
+    z-index: 99999;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: stretch;
+    box-sizing: border-box;
+    padding-top: env(safe-area-inset-top, 0);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    user-select: none;
+    -webkit-user-select: none;
+}
+
+#image-viewer-modal.hidden,
+.image-viewer-modal.hidden {
+    display: none !important;
+}
+
+.viewer-header {
+    height: 56px;
+    padding: 0 16px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    background: rgba(0, 0, 0, 0.7);
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+    z-index: 10;
+}
+
+.viewer-header-left {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+.viewer-header-right {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.viewer-btn {
+    background: transparent;
+    border: none;
+    outline: none;
+    color: #ffffff;
+    font-size: 20px;
+    width: 40px;
+    height: 40px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.15s ease, transform 0.1s ease;
+}
+
+.viewer-btn:hover {
+    background: rgba(255, 255, 255, 0.15);
+}
+
+.viewer-btn:active {
+    transform: scale(0.92);
+}
+
+#viewer-sender-name {
+    color: #ffffff;
+    font-size: 16px;
+    font-weight: 600;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 50vw;
+}
+
+.viewer-body {
+    flex: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    overflow: hidden;
+    position: relative;
+    padding: 8px;
+}
+
+#viewer-main-img {
+    max-width: 100%;
+    max-height: 100%;
+    object-fit: contain;
+    border-radius: 4px;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.8);
+    animation: zoom-in 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+
 
