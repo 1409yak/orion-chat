@@ -2165,12 +2165,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.10';
+const CURRENT_APP_VERSION = '1.1.11';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.10';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.11';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2332,7 +2332,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.10';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.11';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6539,8 +6539,8 @@ if (downloadViewerBtn) {
             
             const fileName = `Orion_${Date.now()}.jpg`;
             
-            if (window.Capacitor?.isNative) {
-                // Manually bridge the native plugin for vanilla JS
+            // Bypass the strict isNative boolean and check for the bridge directly
+            if (window.Capacitor && window.Capacitor.registerPlugin) {
                 const Filesystem = window.Capacitor.registerPlugin('Filesystem');
                 
                 await Filesystem.writeFile({
@@ -6553,7 +6553,8 @@ if (downloadViewerBtn) {
                 console.log(`[VIEWER] Successfully saved via registered Filesystem: ${fileName}`);
                 alert('Image saved to Documents');
             } else {
-                console.error('[VIEWER] Not running in native Capacitor environment.');
+                console.error('[VIEWER] Capacitor bridge disconnected. window.Capacitor.registerPlugin is undefined.');
+                alert('Download failed: App bridge disconnected.');
             }
         } catch (e) {
             console.error('[VIEWER] Native download failed:', e);

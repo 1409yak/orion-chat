@@ -25,4 +25,5 @@
 - *Native Filesystem Unavailable:* Missing native plugin in build. Solution: Installed @capacitor/filesystem and compiled a new base APK.
 - *OTA Check Connection Error:* App reverted to CORS-blocked releases URL. Solution: Hardcoded raw.githubusercontent.com URL into base APK v1.1.9.
 - *Filesystem Plugin Unavailable:* Capacitor 3+ requires manual JS registration. Solution: Used `Capacitor.registerPlugin('Filesystem')` and string enum `'DOCUMENTS'` in v1.1.10.
+- *False Negative isNative Check:* Capgo OTA obfuscated the `isNative` boolean. Solution: Bypassed boolean and checked directly for `window.Capacitor.registerPlugin` in v1.1.11.
 
