@@ -1196,25 +1196,13 @@ async function editMessage(messageId, currentText) {
     const previewBar = document.getElementById('edit-preview-bar');
     const previewText = document.getElementById('edit-preview-text');
 
-    if ('value' in input) input.value = currentText;
-    input.innerText = currentText;
+    input.value = currentText;
     previewText.innerText = currentText;
     previewBar.style.display = 'flex';
     
     input.focus();
     // Move cursor to end
-    if (input.setSelectionRange) {
-        input.setSelectionRange(currentText.length, currentText.length);
-    } else {
-        try {
-            const range = document.createRange();
-            const sel = window.getSelection();
-            range.selectNodeContents(input);
-            range.collapse(false);
-            sel.removeAllRanges();
-            sel.addRange(range);
-        } catch (_) {}
-    }
+    input.setSelectionRange(currentText.length, currentText.length);
 }
 
 async function replyToMessage(messageId, text, senderName) {
@@ -2177,12 +2165,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.14';
+const CURRENT_APP_VERSION = '1.1.15';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.14';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.15';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2344,7 +2332,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.14';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.15';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4031,10 +4019,8 @@ async function openChat(chatId, title) {
         const sendBtn = document.getElementById('send-btn');
         if (input && sendBtn) {
             input.disabled = true;
-            input.contentEditable = "false";
             sendBtn.disabled = true;
             input.placeholder = "Only system and administrators can post here";
-            input.setAttribute('placeholder', "Only system and administrators can post here");
         }
     }
 
@@ -5318,10 +5304,8 @@ function checkMuteStatus() {
         if (currentChatId === 'channel_orion_updates') {
             if (!isAdmin) {
                 input.disabled = true;
-                input.contentEditable = "false";
                 sendBtn.disabled = true;
                 input.placeholder = "Only system and administrators can post here";
-                input.setAttribute('placeholder', "Only system and administrators can post here");
                 if (typingInd) typingInd.style.display = 'none';
                 return;
             }
@@ -5329,25 +5313,19 @@ function checkMuteStatus() {
 
         if (isChannel && !isAdmin) {
             input.disabled = true;
-            input.contentEditable = "false";
             sendBtn.disabled = true;
             input.placeholder = "Only admins can post in this channel";
-            input.setAttribute('placeholder', "Only admins can post in this channel");
             if (typingInd) typingInd.style.display = 'none';
         } else if (myData && myData.mutedUntil && myData.mutedUntil > Date.now()) {
         const remaining = Math.ceil((myData.mutedUntil - Date.now()) / 60000);
         input.disabled = true;
-        input.contentEditable = "false";
         sendBtn.disabled = true;
         input.placeholder = `Oops you're muted for ${remaining}m`;
-        input.setAttribute('placeholder', `Oops you're muted for ${remaining}m`);
         if (typingInd) typingInd.style.display = 'none';
     } else {
         input.disabled = false;
-        input.contentEditable = "true";
         sendBtn.disabled = false;
         input.placeholder = "Type a message...";
-        input.setAttribute('placeholder', "Type a message...");
     }
     });
 }
@@ -5828,7 +5806,7 @@ async function sendMessage() {
         currentStickerPickerMessageId = null; // Clear after sending
     }
 
-    const txt = (input.innerText || input.textContent || input.value || '').trim();
+    const txt = input.value.trim();
 
     // --- Anti-spam detection ---
     let isSpamDetected = false;
@@ -5858,9 +5836,7 @@ async function sendMessage() {
     if (isSpamDetected) {
         const success = await applyMute(currentChatId, myUid, SPAM_MUTE_DURATION_MINUTES, "Spamming", currentChatMemberData);
         if (success) showNotification("Spam detected! You have been muted for 30 minutes.", "error");
-        input.innerText = '';
-        input.innerHTML = '';
-        if ('value' in input) input.value = ''; // Clear input to prevent further spam attempts
+        input.value = ''; // Clear input to prevent further spam attempts
         return; // Prevent sending the spam message
     }
 
@@ -5992,9 +5968,7 @@ async function sendMessage() {
         });
     }
 
-    input.innerText = '';
-    input.innerHTML = '';
-    if ('value' in input) input.value = '';
+    input.value = '';
     updateInputButtons();
 }
 
@@ -6188,10 +6162,7 @@ messageInput.onkeydown = (e) => {
             }
         }
     } else if (e.key === 'Enter') {
-        if (!e.shiftKey) {
-            e.preventDefault();
-            sendMessage();
-        }
+        sendMessage();
     }
 };
 
@@ -6231,13 +6202,10 @@ function renderMentionDropdownList(filter = "") {
         `;
 
         div.onclick = () => {
-            const text = (messageInput.innerText || messageInput.textContent || messageInput.value || '');
+            const text = messageInput.value;
             const before = text.substring(0, mentionStartIndex);
-            const selStart = (typeof messageInput.selectionStart === 'number') ? messageInput.selectionStart : (window.getSelection()?.anchorOffset ?? text.length);
-            const after = text.substring(selStart > mentionStartIndex ? selStart : text.length);
-            const newText = `${before}@${name} ${after}`;
-            if ('value' in messageInput) messageInput.value = newText;
-            messageInput.innerText = newText;
+            const after = text.substring(messageInput.selectionStart);
+            messageInput.value = `${before}@${name} ${after}`;
             closeMentionDropdown();
             messageInput.focus();
         };
@@ -6251,8 +6219,8 @@ function renderMentionDropdownList(filter = "") {
 }
 
 messageInput.oninput = (e) => {
-    const val = (e.target.innerText || e.target.textContent || e.target.value || '');
-    const cursor = (typeof e.target.selectionStart === 'number') ? e.target.selectionStart : (window.getSelection()?.anchorOffset ?? val.length);
+    const val = e.target.value;
+    const cursor = e.target.selectionStart;
     const lastChar = val.charAt(cursor - 1);
     const textBeforeCursor = val.substring(0, cursor);
     
@@ -6286,27 +6254,33 @@ messageInput.oninput = (e) => {
     updateInputButtons();
 };
 
-messageInput.addEventListener('paste', async (e) => {
-    const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
-    if (!items) return;
-    for (let item of items) {
-        if (item.kind === 'file' && item.type.startsWith('image/')) {
-            e.preventDefault(); // Stop default text pasting
-            const fileBlob = item.getAsFile();
-            if (!fileBlob) continue;
-            console.log('[UPLOAD] Keyboard sticker detected:', fileBlob.type);
+// --- DEDICATED STICKER ATTACHMENT FEATURE ---
+const attachStickerBtn = document.getElementById('attach-sticker-btn');
+const hiddenStickerInput = document.getElementById('hidden-sticker-input');
 
-            // Reuse your existing upload logic but flag it as a sticker
-            // This bypasses standard HEIC compression since stickers are already lightweight png/webp
-            try {
-                await sendImageMessage(fileBlob, null, { isSticker: true });
-                console.log('[UPLOAD] Keyboard sticker sent successfully.');
-            } catch (err) {
-                console.error('[UPLOAD] Keyboard sticker upload failed:', err);
-            }
+if (attachStickerBtn && hiddenStickerInput) {
+    attachStickerBtn.onclick = () => {
+        hiddenStickerInput.click();
+    };
+
+    hiddenStickerInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        console.log('[UPLOAD] Custom sticker selected:', file.name);
+
+        // Upload using existing logic but flag it to render transparently
+        try {
+            await sendImageMessage(file, null, { isSticker: true });
+            console.log('[UPLOAD] Custom sticker uploaded successfully.');
+        } catch (err) {
+            console.error('[UPLOAD] Custom sticker upload failed:', err);
         }
-    }
-});
+
+        // Clear the input so the same sticker can be selected again
+        e.target.value = '';
+    };
+}
 
 // --- CAMERA UPLOAD FEATURE (PHONE ONLY) ---
 const cameraBtn = document.getElementById('camera-btn');
@@ -6317,6 +6291,7 @@ function updateInputButtons() {
     const sendBtn = document.getElementById('send-btn');
     const camBtn = document.getElementById('camera-btn');
     const stickerBtn = document.getElementById('sticker-btn');
+    const attachBtn = document.getElementById('attach-sticker-btn');
     const plusBtn = document.getElementById('plus-btn'); // Get the plus button
     if (!input || !sendBtn || !camBtn) return;
 
@@ -6324,23 +6299,25 @@ function updateInputButtons() {
         if (plusBtn) plusBtn.style.display = 'none'; // Hide plus button if no chat selected
         sendBtn.style.display = 'none';
         camBtn.style.display = 'none';
+        if (attachBtn) attachBtn.style.display = 'none';
         return;
     }
 
     const isMobile = window.innerWidth <= 768;
     const isPremium = isCurrentUserPremium; // Use the global premium status
-    const textVal = (input.innerText || input.textContent || input.value || '').trim();
-    const hasText = textVal.length > 0;
+    const hasText = input.value.trim().length > 0;
 
     if (hasText) {
         sendBtn.style.display = isMobile ? 'flex' : 'none';
         camBtn.style.display = 'none';
         stickerBtn.style.display = 'none';
+        if (isMobile && attachBtn) attachBtn.style.display = 'none';
         if (plusBtn) plusBtn.style.display = 'none'; // Hide plus button if text is being typed
     } else {
         sendBtn.style.display = 'none'; // Hide send button if no text
         camBtn.style.display = isMobile ? 'flex' : 'none';
         stickerBtn.style.display = 'none'; // Integrated into emoji menu
+        if (attachBtn) attachBtn.style.display = 'inline-flex';
         if (plusBtn) plusBtn.style.display = 'flex'; // Show plus button if no text and chat is open
     }
 }
@@ -8642,8 +8619,7 @@ async function renderEmojiPicker() {
                     activeReactionMessageId = null;
                 } else {
                     const input = document.getElementById('message-input');
-                    if ('value' in input) input.value += emoji;
-                    input.innerText = (input.innerText || '') + emoji;
+                    input.value += emoji;
                     input.focus();
                     updateInputButtons();
                 }

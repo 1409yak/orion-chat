@@ -1443,9 +1443,10 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
     z-index: 2; /* Sits on top of the preview bars */
     box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.3); /* Adds depth to show it's on top */
 }
-#message-input { flex: 1; background: none; border: none; color: var(--text); padding: 10px; outline: none; z-index: 10; user-select: text; min-height: 24px; max-height: 120px; overflow-y: auto; word-break: break-word; white-space: pre-wrap; }
-#message-input:empty:before,
-#message-input::placeholder { content: attr(placeholder); color: var(--text); opacity: 0.5; pointer-events: none; display: inline-block; }
+#message-input { flex: 1; background: none; border: none; color: var(--text); padding: 10px; outline: none; z-index: 10; user-select: text; }
+#message-input::placeholder { color: var(--text); opacity: 0.5; }
+#attach-sticker-btn { cursor: pointer; color: var(--text); opacity: 0.7; padding: 4px 6px; font-size: 22px; user-select: none; transition: opacity 0.2s, transform 0.2s; display: inline-flex; align-items: center; justify-content: center; }
+#attach-sticker-btn:hover { opacity: 1; transform: scale(1.08); }
 .send-icon-btn { width: 40px; height: 40px; background: var(--accent); border: none; border-radius: 50%; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
 
 .section-header { 
@@ -3977,7 +3978,6 @@ body.liquid-glass .setting-card input:focus {
         0 10px 30px color-mix(in srgb, var(--accent) 38%, transparent);
 }
 body.liquid-glass .input-wrapper #message-input { background: transparent; box-shadow: none; }
-body.liquid-glass #message-input:empty:before,
 body.liquid-glass #message-input::placeholder { opacity: .6; }
 body.liquid-glass #message-input::selection { background: color-mix(in srgb, var(--accent) 55%, transparent); color: inherit; }
 
