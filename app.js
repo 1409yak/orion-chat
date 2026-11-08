@@ -2165,12 +2165,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.8';
+const CURRENT_APP_VERSION = '1.1.9';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.8';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.9';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2191,7 +2191,7 @@ async function updateSettingsVersionDisplay() {
     });
 }
 window.updateSettingsVersionDisplay = updateSettingsVersionDisplay;
-const UPDATE_MANIFEST_URL = window.ORION_UPDATE_URL || `https://raw.githubusercontent.com/1409yak/orion-web/main/version.json?t=${Date.now()}`;
+const UPDATE_MANIFEST_URL = window.ORION_UPDATE_URL || ('https://raw.githubusercontent.com/1409yak/orion-web/main/version.json?t=' + Date.now());
 const UPDATE_CHECK_URL = UPDATE_MANIFEST_URL;
 let activeOtaManifest = null;
 let isDownloadingUpdate = false;
@@ -2315,7 +2315,7 @@ async function checkForUpdates(isManual = false) {
     }
 
     try {
-        const manifestUrl = `https://raw.githubusercontent.com/1409yak/orion-web/main/version.json?t=${Date.now()}`;
+        const manifestUrl = 'https://raw.githubusercontent.com/1409yak/orion-web/main/version.json?t=' + Date.now();
         console.log(`[OTA] Checking manifest from: ${manifestUrl}`);
         const response = await fetch(manifestUrl, {
             headers: { 'Accept': 'application/json' }
@@ -2332,7 +2332,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.8';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.9';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -2498,7 +2498,7 @@ window.triggerOtaUpdate = async function(targetVersion = '1.0.4', directUrl = nu
 
         if (!directUrl || !manifestChecksum) {
             try {
-                const manifestUrl = `https://raw.githubusercontent.com/1409yak/orion-web/main/version.json?t=${Date.now()}`;
+                const manifestUrl = 'https://raw.githubusercontent.com/1409yak/orion-web/main/version.json?t=' + Date.now();
                 const manifestResp = await fetch(manifestUrl, {
                     headers: { 'Accept': 'application/json' }
                 });

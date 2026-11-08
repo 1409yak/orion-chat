@@ -23,4 +23,5 @@
 - *Mobile Context Menu:* Bound menu trigger directly to message tap on mobile, hiding the legacy dropdown button.
 - *Viewer Download Fail:* WebViews silently block web downloads. Solution: Enforced @capacitor/filesystem to write to Directory.Documents.
 - *Native Filesystem Unavailable:* Missing native plugin in build. Solution: Installed @capacitor/filesystem and compiled a new base APK.
+- *OTA Check Connection Error:* App reverted to CORS-blocked releases URL. Solution: Hardcoded raw.githubusercontent.com URL into base APK v1.1.9.
 
