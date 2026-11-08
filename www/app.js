@@ -2165,12 +2165,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.9';
+const CURRENT_APP_VERSION = '1.1.10';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.9';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.10';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2332,7 +2332,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.9';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.10';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6531,7 +6531,6 @@ if (downloadViewerBtn) {
             const response = await fetch(window.currentViewingImage);
             const blob = await response.blob();
 
-            // Convert Blob to Base64 for Capacitor
             const base64Data = await new Promise((resolve) => {
                 const reader = new FileReader();
                 reader.onloadend = () => resolve(reader.result.split(',')[1]);
@@ -6540,20 +6539,21 @@ if (downloadViewerBtn) {
             
             const fileName = `Orion_${Date.now()}.jpg`;
             
-            // Strictly use Capacitor Filesystem to write to public Documents/Downloads
-            if (window.Capacitor?.isNative && window.Capacitor.Plugins.Filesystem) {
-                const { Filesystem, Directory } = window.Capacitor.Plugins;
+            if (window.Capacitor?.isNative) {
+                // Manually bridge the native plugin for vanilla JS
+                const Filesystem = window.Capacitor.registerPlugin('Filesystem');
+                
                 await Filesystem.writeFile({
                     path: fileName,
                     data: base64Data,
-                    directory: Directory.Documents, // Native public directory
+                    directory: 'DOCUMENTS',
                     recursive: true
                 });
-                console.log(`[VIEWER] Successfully saved via native Filesystem: ${fileName}`);
+                
+                console.log(`[VIEWER] Successfully saved via registered Filesystem: ${fileName}`);
                 alert('Image saved to Documents');
             } else {
-                console.error('[VIEWER] Capacitor Filesystem plugin is not available. Native download aborted.');
-                alert('Download failed: Native filesystem unavailable.');
+                console.error('[VIEWER] Not running in native Capacitor environment.');
             }
         } catch (e) {
             console.error('[VIEWER] Native download failed:', e);
