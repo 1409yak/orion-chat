@@ -1216,7 +1216,7 @@ async function replyToMessage(messageId, text, senderName) {
     const previewTitle = document.getElementById('reply-info-title');
 
     previewTitle.innerText = `Replying to ${senderName}`;
-    previewText.innerText = text.startsWith('data:image/') ? "Image" : text;
+    previewText.innerText = (text === '[Sticker]' || text.startsWith('[Sticker]')) ? "Sticker" : (text.startsWith('data:image/') ? "Image" : text);
     previewBar.style.display = 'flex';
     document.getElementById('message-input').focus();
 }
@@ -1365,8 +1365,8 @@ function openMessageContextMenu(messageId, msg, isMe, posX, posY) {
     const myUid = auth.currentUser ? auth.currentUser.uid : null;
     const isGroupAdmin = currentChatMemberData?.[myUid]?.role === 'admin' || myUid === currentChatCreatorId;
     const canDelete = isMe || isGroupAdmin;
-    const canEdit = isMe && !msg.poll && !msg.stickerId;
-    const canCopy = !msg.poll && !msg.stickerId && !!msg.text;
+    const canEdit = isMe && !msg.poll && !msg.stickerId && !msg.isSticker;
+    const canCopy = !msg.poll && !msg.stickerId && !msg.isSticker && !!msg.text;
 
     activeContextTarget = {
         messageId,
@@ -1511,7 +1511,7 @@ function initMessageContextMenu() {
             if (activeContextTarget) {
                 const { messageId, msg } = activeContextTarget;
                 const senderName = msg.sender_name || (msg.sender_id === 'system' ? 'Orion System' : 'User');
-                replyToMessage(messageId, msg.text || (msg.stickerId ? '[Sticker]' : ''), senderName);
+                replyToMessage(messageId, (msg.isSticker || msg.stickerId) ? '[Sticker]' : (msg.text || ''), senderName);
             }
             closeMessageContextMenu();
         };
@@ -2165,12 +2165,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.12';
+const CURRENT_APP_VERSION = '1.1.13';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.12';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.13';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2332,7 +2332,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.12';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.13';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4524,16 +4524,28 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         return;
     }
 
+    const messageData = msg;
+    const isSticker = !!messageData.isSticker;
+
     if (isSystem) {
         wrap.className = 'msg-wrapper system-msg';
     } else {
         wrap.className = isMe ? 'msg-wrapper sent' : 'msg-wrapper rcv';
         if (isConsecutive) wrap.classList.add('consecutive');
         if (isUserMentioned) wrap.classList.add('user-mentioned');
+        if (isSticker) wrap.classList.add('sticker-msg');
     }
 
     const bubble = document.createElement('div');
-    bubble.className = 'msg-bubble';
+    if (isSticker) {
+        bubble.className = 'msg-bubble sticker-bubble';
+        bubble.style.background = 'transparent';
+        bubble.style.border = 'none';
+        bubble.style.boxShadow = 'none';
+        bubble.style.padding = '0';
+    } else {
+        bubble.className = 'msg-bubble';
+    }
 
     // Handle Game Invite Link
     if (msg.gameInvite) {
@@ -4687,7 +4699,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     htmlContent = htmlContent.replace(/@everyone\b/gi, `<span class="mention-pill">@everyone</span>`);
 
     // Only show text node if there's actual text remaining or if there are no other embeds to show
-    if (htmlContent || (formatted.imageUrls.length === 0 && !formatted.youtubeId && formatted.joinChatIds.length === 0)) {
+    if (!isSticker && (htmlContent || (formatted.imageUrls.length === 0 && !formatted.youtubeId && formatted.joinChatIds.length === 0))) {
         const textNode = document.createElement('div');
         textNode.innerHTML = htmlContent;
         msgContent.appendChild(textNode);
@@ -4707,47 +4719,70 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         msgContent.appendChild(updateCard);
     }
 
-    formatted.imageUrls.forEach(url => {
-        const imgWrap = document.createElement('div');
-        imgWrap.className = 'image-embed-wrapper';
-        imgWrap.style.minHeight = '140px';
-        imgWrap.style.background = 'rgba(255, 255, 255, 0.04)';
-        imgWrap.style.borderRadius = '12px';
-        imgWrap.style.display = 'flex';
-        imgWrap.style.alignItems = 'center';
-        imgWrap.style.justifyContent = 'center';
-        const img = document.createElement('img');
-        img.src = url;
-        img.className = 'chat-embedded-image';
-        img.loading = 'lazy';
-        img.decoding = 'async';
-        img.alt = 'Shared image';
-        img.onclick = (e) => {
-            e.stopPropagation();
-            const modal = document.getElementById('image-viewer-modal');
-            const modalImg = document.getElementById('viewer-main-img');
-            const senderNameEl = document.getElementById('viewer-sender-name');
-
-            if (modal && modalImg && senderNameEl) {
-                modalImg.src = img.src;
-                // Extract sender name from the message data
-                senderNameEl.textContent = msg.sender_name || msg.senderName || (isMe ? 'You' : 'Photo');
-                // Store current image URL globally for download button
-                window.currentViewingImage = img.src;
-                modal.classList.remove('hidden');
-            } else {
-                openImageLightbox(url);
-            }
-        };
-        img.onload = () => {
-            imgWrap.style.minHeight = '';
-            imgWrap.style.background = '';
+    if (isSticker) {
+        const stickerSrc = formatted.imageUrls[0] || messageData.text;
+        const stickerImg = document.createElement('img');
+        stickerImg.src = stickerSrc;
+        stickerImg.className = 'chat-sticker keyboard-sticker-img';
+        stickerImg.loading = 'lazy';
+        stickerImg.decoding = 'async';
+        stickerImg.alt = 'Sticker';
+        stickerImg.style.background = 'transparent';
+        stickerImg.style.border = 'none';
+        stickerImg.style.boxShadow = 'none';
+        stickerImg.style.maxWidth = '150px';
+        stickerImg.style.maxHeight = '150px';
+        stickerImg.style.objectFit = 'contain';
+        stickerImg.style.display = 'block';
+        // Do NOT attach the image-viewer-modal click listener to stickers
+        stickerImg.onload = () => {
             const isNearBottom = cont.scrollHeight - cont.scrollTop - cont.clientHeight < 120;
             if (isNearBottom) cont.scrollTop = cont.scrollHeight;
         };
-        imgWrap.appendChild(img);
-        msgContent.appendChild(imgWrap);
-    });
+        msgContent.appendChild(stickerImg);
+    } else {
+        formatted.imageUrls.forEach(url => {
+            const imgWrap = document.createElement('div');
+            imgWrap.className = 'image-embed-wrapper';
+            imgWrap.style.minHeight = '140px';
+            imgWrap.style.background = 'rgba(255, 255, 255, 0.04)';
+            imgWrap.style.borderRadius = '12px';
+            imgWrap.style.display = 'flex';
+            imgWrap.style.alignItems = 'center';
+            imgWrap.style.justifyContent = 'center';
+            const img = document.createElement('img');
+            img.src = url;
+            img.className = 'chat-embedded-image';
+            img.loading = 'lazy';
+            img.decoding = 'async';
+            img.alt = 'Shared image';
+            img.onclick = (e) => {
+                e.stopPropagation();
+                const modal = document.getElementById('image-viewer-modal');
+                const modalImg = document.getElementById('viewer-main-img');
+                const senderNameEl = document.getElementById('viewer-sender-name');
+
+                if (modal && modalImg && senderNameEl) {
+                    modalImg.src = img.src;
+                    // Extract sender name from the message data
+                    senderNameEl.textContent = msg.sender_name || msg.senderName || (isMe ? 'You' : 'Photo');
+                    // Store current image URL globally for download button
+                    window.currentViewingImage = img.src;
+                    modal.classList.remove('hidden');
+                } else {
+                    openImageLightbox(url);
+                }
+            };
+            img.onload = () => {
+                imgWrap.style.minHeight = '';
+                imgWrap.style.background = '';
+                const isNearBottom = cont.scrollHeight - cont.scrollTop - cont.clientHeight < 120;
+                if (isNearBottom) cont.scrollTop = cont.scrollHeight;
+            };
+            imgWrap.appendChild(img);
+            msgContent.appendChild(imgWrap);
+        });
+    }
 
     if (formatted.youtubeId) {
         const ytWrap = document.createElement('div');
@@ -4784,7 +4819,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     replyBtn.className = 'glass-btn-secondary';
     replyBtn.onclick = (e) => {
         e.stopPropagation();
-        replyToMessage(messageId, msg.text, msg.sender_name);
+        replyToMessage(messageId, isSticker ? '[Sticker]' : msg.text, msg.sender_name);
         actionMenu.style.display = 'none';
         wrap.style.zIndex = '';
         wrap.style.position = '';
@@ -4792,27 +4827,29 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     actionMenu.appendChild(replyBtn);
     
     if (isMe) {
-        const editBtn = document.createElement('button');
-        editBtn.innerText = 'Edit';
-        editBtn.className = 'glass-btn-secondary';
-        editBtn.onclick = (e) => {
-            e.stopPropagation();
-            editMessage(messageId, msg.text);
-            actionMenu.style.display = 'none';
-            wrap.style.zIndex = '';
-            wrap.style.position = '';
-        };
+        if (!isSticker) {
+            const editBtn = document.createElement('button');
+            editBtn.innerText = 'Edit';
+            editBtn.className = 'glass-btn-secondary';
+            editBtn.onclick = (e) => {
+                e.stopPropagation();
+                editMessage(messageId, msg.text);
+                actionMenu.style.display = 'none';
+                wrap.style.zIndex = '';
+                wrap.style.position = '';
+            };
+            actionMenu.appendChild(editBtn);
+        }
         const deleteBtn = document.createElement('button');
         deleteBtn.innerText = 'Delete';
         deleteBtn.className = 'glass-btn-secondary delete-btn';
         deleteBtn.onclick = (e) => {
             e.stopPropagation();
-            deleteMessage(messageId);
+            deleteMessage(messageId, isSticker);
             actionMenu.style.display = 'none';
             wrap.style.zIndex = '';
             wrap.style.position = '';
         };
-        actionMenu.appendChild(editBtn);
         actionMenu.appendChild(deleteBtn);
     }
     
@@ -5550,7 +5587,7 @@ async function sendImageMessage(imageData, targetChatId = null, extraProps = {})
         ...extraProps
     };
 
-    updates[`/chats/${destChatId}/last_message`] = "Sent an image";
+    updates[`/chats/${destChatId}/last_message`] = extraProps?.isSticker ? "Sent a sticker" : "Sent an image";
     updates[`/chats/${destChatId}/timestamp`] = serverTimestamp();
 
     console.log('[UPLOAD] Fetching chat members for unread flags...');
@@ -5585,7 +5622,7 @@ async function sendImageMessage(imageData, targetChatId = null, extraProps = {})
                             recipientFcmToken = userSnap.val();
                         }
                         if (recipientFcmToken) {
-                            sendPushNotification(recipientFcmToken, identityName, "Sent an image", { chatId: destChatId });
+                            sendPushNotification(recipientFcmToken, identityName, extraProps?.isSticker ? "Sent a sticker" : "Sent an image", { chatId: destChatId });
                         }
                     } catch (notifyErr) {
                         console.error("[FCM Worker] Error notifying recipient for image:", rUid, notifyErr);
@@ -6217,31 +6254,27 @@ messageInput.oninput = (e) => {
     updateInputButtons();
 };
 
-messageInput.onpaste = async (e) => {
-    const items = (e.clipboardData || e.originalEvent.clipboardData)?.items;
+messageInput.addEventListener('paste', async (e) => {
+    const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
     if (!items) return;
-    for (const item of items) {
+    for (let item of items) {
         if (item.kind === 'file' && item.type.startsWith('image/')) {
-            const file = item.getAsFile();
-            if (!file) continue;
-            console.log(`[UPLOAD] Clipboard file: ${file.name || 'image'}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+            e.preventDefault(); // Stop default text pasting
+            const fileBlob = item.getAsFile();
+            if (!fileBlob) continue;
+            console.log('[UPLOAD] Keyboard sticker detected:', fileBlob.type);
+
+            // Reuse your existing upload logic but flag it as a sticker
+            // This bypasses standard HEIC compression since stickers are already lightweight png/webp
             try {
-                const confirmed = await showConfirm("Send Image", "Do you want to send the image from your clipboard?");
-                if (confirmed) {
-                    await new Promise(r => setTimeout(r, 0));
-                    const quality = isCurrentUserPremium ? 0.9 : 0.8;
-                    const compressedBlob = await compressImageAsync(file, 1280, quality);
-                    console.log(`[UPLOAD] Initiating server upload for: ${compressedBlob.name}`);
-                    await new Promise(r => setTimeout(r, 0));
-                    await sendImageMessage(compressedBlob);
-                    console.log(`[UPLOAD] Server upload completed successfully.`);
-                }
-            } catch (error) {
-                console.error('[UPLOAD] Clipboard image processing failed:', error);
+                await sendImageMessage(fileBlob, null, { isSticker: true });
+                console.log('[UPLOAD] Keyboard sticker sent successfully.');
+            } catch (err) {
+                console.error('[UPLOAD] Keyboard sticker upload failed:', err);
             }
         }
     }
-};
+});
 
 // --- CAMERA UPLOAD FEATURE (PHONE ONLY) ---
 const cameraBtn = document.getElementById('camera-btn');

@@ -772,6 +772,16 @@ body.liquid-glass .sticker-bubble {
     -webkit-backdrop-filter: none !important;
 }
 
+.chat-sticker.keyboard-sticker-img {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    max-width: 150px !important;
+    max-height: 150px !important;
+    object-fit: contain !important;
+    display: block;
+}
+
 .chat-sticker:hover,
 .sticker-img:hover {
     transform: scale(1.08);
