@@ -1196,13 +1196,25 @@ async function editMessage(messageId, currentText) {
     const previewBar = document.getElementById('edit-preview-bar');
     const previewText = document.getElementById('edit-preview-text');
 
-    input.value = currentText;
+    if ('value' in input) input.value = currentText;
+    input.innerText = currentText;
     previewText.innerText = currentText;
     previewBar.style.display = 'flex';
     
     input.focus();
     // Move cursor to end
-    input.setSelectionRange(currentText.length, currentText.length);
+    if (input.setSelectionRange) {
+        input.setSelectionRange(currentText.length, currentText.length);
+    } else {
+        try {
+            const range = document.createRange();
+            const sel = window.getSelection();
+            range.selectNodeContents(input);
+            range.collapse(false);
+            sel.removeAllRanges();
+            sel.addRange(range);
+        } catch (_) {}
+    }
 }
 
 async function replyToMessage(messageId, text, senderName) {
@@ -2165,12 +2177,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.13';
+const CURRENT_APP_VERSION = '1.1.14';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.13';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.14';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2332,7 +2344,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.13';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.14';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4019,8 +4031,10 @@ async function openChat(chatId, title) {
         const sendBtn = document.getElementById('send-btn');
         if (input && sendBtn) {
             input.disabled = true;
+            input.contentEditable = "false";
             sendBtn.disabled = true;
             input.placeholder = "Only system and administrators can post here";
+            input.setAttribute('placeholder', "Only system and administrators can post here");
         }
     }
 
@@ -5304,8 +5318,10 @@ function checkMuteStatus() {
         if (currentChatId === 'channel_orion_updates') {
             if (!isAdmin) {
                 input.disabled = true;
+                input.contentEditable = "false";
                 sendBtn.disabled = true;
                 input.placeholder = "Only system and administrators can post here";
+                input.setAttribute('placeholder', "Only system and administrators can post here");
                 if (typingInd) typingInd.style.display = 'none';
                 return;
             }
@@ -5313,19 +5329,25 @@ function checkMuteStatus() {
 
         if (isChannel && !isAdmin) {
             input.disabled = true;
+            input.contentEditable = "false";
             sendBtn.disabled = true;
             input.placeholder = "Only admins can post in this channel";
+            input.setAttribute('placeholder', "Only admins can post in this channel");
             if (typingInd) typingInd.style.display = 'none';
         } else if (myData && myData.mutedUntil && myData.mutedUntil > Date.now()) {
         const remaining = Math.ceil((myData.mutedUntil - Date.now()) / 60000);
         input.disabled = true;
+        input.contentEditable = "false";
         sendBtn.disabled = true;
         input.placeholder = `Oops you're muted for ${remaining}m`;
+        input.setAttribute('placeholder', `Oops you're muted for ${remaining}m`);
         if (typingInd) typingInd.style.display = 'none';
     } else {
         input.disabled = false;
+        input.contentEditable = "true";
         sendBtn.disabled = false;
         input.placeholder = "Type a message...";
+        input.setAttribute('placeholder', "Type a message...");
     }
     });
 }
@@ -5806,7 +5828,7 @@ async function sendMessage() {
         currentStickerPickerMessageId = null; // Clear after sending
     }
 
-    const txt = input.value.trim();
+    const txt = (input.innerText || input.textContent || input.value || '').trim();
 
     // --- Anti-spam detection ---
     let isSpamDetected = false;
@@ -5836,7 +5858,9 @@ async function sendMessage() {
     if (isSpamDetected) {
         const success = await applyMute(currentChatId, myUid, SPAM_MUTE_DURATION_MINUTES, "Spamming", currentChatMemberData);
         if (success) showNotification("Spam detected! You have been muted for 30 minutes.", "error");
-        input.value = ''; // Clear input to prevent further spam attempts
+        input.innerText = '';
+        input.innerHTML = '';
+        if ('value' in input) input.value = ''; // Clear input to prevent further spam attempts
         return; // Prevent sending the spam message
     }
 
@@ -5968,7 +5992,9 @@ async function sendMessage() {
         });
     }
 
-    input.value = '';
+    input.innerText = '';
+    input.innerHTML = '';
+    if ('value' in input) input.value = '';
     updateInputButtons();
 }
 
@@ -6162,7 +6188,10 @@ messageInput.onkeydown = (e) => {
             }
         }
     } else if (e.key === 'Enter') {
-        sendMessage();
+        if (!e.shiftKey) {
+            e.preventDefault();
+            sendMessage();
+        }
     }
 };
 
@@ -6202,10 +6231,13 @@ function renderMentionDropdownList(filter = "") {
         `;
 
         div.onclick = () => {
-            const text = messageInput.value;
+            const text = (messageInput.innerText || messageInput.textContent || messageInput.value || '');
             const before = text.substring(0, mentionStartIndex);
-            const after = text.substring(messageInput.selectionStart);
-            messageInput.value = `${before}@${name} ${after}`;
+            const selStart = (typeof messageInput.selectionStart === 'number') ? messageInput.selectionStart : (window.getSelection()?.anchorOffset ?? text.length);
+            const after = text.substring(selStart > mentionStartIndex ? selStart : text.length);
+            const newText = `${before}@${name} ${after}`;
+            if ('value' in messageInput) messageInput.value = newText;
+            messageInput.innerText = newText;
             closeMentionDropdown();
             messageInput.focus();
         };
@@ -6219,8 +6251,8 @@ function renderMentionDropdownList(filter = "") {
 }
 
 messageInput.oninput = (e) => {
-    const val = e.target.value;
-    const cursor = e.target.selectionStart;
+    const val = (e.target.innerText || e.target.textContent || e.target.value || '');
+    const cursor = (typeof e.target.selectionStart === 'number') ? e.target.selectionStart : (window.getSelection()?.anchorOffset ?? val.length);
     const lastChar = val.charAt(cursor - 1);
     const textBeforeCursor = val.substring(0, cursor);
     
@@ -6297,7 +6329,8 @@ function updateInputButtons() {
 
     const isMobile = window.innerWidth <= 768;
     const isPremium = isCurrentUserPremium; // Use the global premium status
-    const hasText = input.value.trim().length > 0;
+    const textVal = (input.innerText || input.textContent || input.value || '').trim();
+    const hasText = textVal.length > 0;
 
     if (hasText) {
         sendBtn.style.display = isMobile ? 'flex' : 'none';
@@ -8609,7 +8642,8 @@ async function renderEmojiPicker() {
                     activeReactionMessageId = null;
                 } else {
                     const input = document.getElementById('message-input');
-                    input.value += emoji;
+                    if ('value' in input) input.value += emoji;
+                    input.innerText = (input.innerText || '') + emoji;
                     input.focus();
                     updateInputButtons();
                 }

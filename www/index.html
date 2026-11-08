@@ -191,7 +191,7 @@
                 <div class="input-wrapper">
                     <button id="emoji-btn" class="emoji-trigger-btn" title="Add Emoji">😊</button>
                     <button id="plus-btn" class="emoji-trigger-btn" title="Actions">+</button>
-                    <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+                    <div id="message-input" contenteditable="true" role="textbox" aria-multiline="true" enterkeyhint="send" placeholder="Type a message..." style="min-height: 24px; max-height: 120px; overflow-y: auto; outline: none; word-break: break-word; white-space: pre-wrap; user-select: text;"></div>
                     <input type="file" id="file-upload-input" accept="image/*" style="display: none;">
                     <input type="file" id="camera-input" accept="image/*" capture="environment" style="display: none;">
                     <button id="camera-btn" class="camera-icon-btn" title="Take Photo" style="display: none;">📷</button>
@@ -537,7 +537,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.13</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.14</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>

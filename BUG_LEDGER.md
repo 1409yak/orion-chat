@@ -19,6 +19,7 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Keyboard Media Blocked:* Android OS blocked rich media paste into standard text inputs. Solution: Converted chat input to `contenteditable='true'` div to signal rich media support to the native keyboard.
 - *Native Keyboard Stickers:* Intercepted Android keyboard paste events to send local gallery/keyboard stickers as transparent images.
 - *Message Menu Overlap:* Menu hidden under subsequent messages. Solution: Dynamically elevated parent message z-index when menu is active.
 - *Mobile Context Menu:* Bound menu trigger directly to message tap on mobile, hiding the legacy dropdown button.
