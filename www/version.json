@@ -1,6 +1,6 @@
 {
-  "version": "1.1.12",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.12/bundle.zip",
-  "checksum": "0f96e3f1ccdbda34ba2325b97757c8aebfe355dcb3c2082a3e6b2e78797ed30e",
-  "notes": "Fixing small bugs"
+  "version": "1.1.13",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.13/bundle.zip",
+  "checksum": "fd02e9ece571257821cd9feb85ee48ab91f1d4e73a393bf86faa9d84f6b3a3f6",
+  "notes": "Added keyboard sticker support"
 }
