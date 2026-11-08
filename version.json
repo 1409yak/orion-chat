@@ -1,6 +1,6 @@
 {
-  "version": "1.1.6",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.6/bundle.zip",
-  "checksum": "2b830a8ce80414daa0d44288ef8359dac1adb2be4ea9e5d361a8bcafefb6541a",
-  "notes": "Orion Chat v1.1.6: Material icons, native downloads, and image forwarding"
+  "version": "1.1.7",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.7/bundle.zip",
+  "checksum": "aed3be7b4ab2e1a51119ff07bd07c7c08f1da410ce58ec848f304a4f898ed9fc",
+  "notes": "Fixing small bugs"
 }
