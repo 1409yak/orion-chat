@@ -26,4 +26,5 @@
 - *OTA Check Connection Error:* App reverted to CORS-blocked releases URL. Solution: Hardcoded raw.githubusercontent.com URL into base APK v1.1.9.
 - *Filesystem Plugin Unavailable:* Capacitor 3+ requires manual JS registration. Solution: Used `Capacitor.registerPlugin('Filesystem')` and string enum `'DOCUMENTS'` in v1.1.10.
 - *False Negative isNative Check:* Capgo OTA obfuscated the `isNative` boolean. Solution: Bypassed boolean and checked directly for `window.Capacitor.registerPlugin` in v1.1.11.
+- *Vanilla JS Bridge Failure:* Missing JS proxies for Filesystem plugin. Solution: Utilized dynamic ES module imports (`import()`) via CDN to bridge the vanilla JS directly to the native API.
 

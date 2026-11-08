@@ -2165,12 +2165,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.11';
+const CURRENT_APP_VERSION = '1.1.12';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.11';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.12';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2332,7 +2332,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.11';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.12';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6539,23 +6539,19 @@ if (downloadViewerBtn) {
             
             const fileName = `Orion_${Date.now()}.jpg`;
             
-            // Bypass the strict isNative boolean and check for the bridge directly
-            if (window.Capacitor && window.Capacitor.registerPlugin) {
-                const Filesystem = window.Capacitor.registerPlugin('Filesystem');
-                
-                await Filesystem.writeFile({
-                    path: fileName,
-                    data: base64Data,
-                    directory: 'DOCUMENTS',
-                    recursive: true
-                });
-                
-                console.log(`[VIEWER] Successfully saved via registered Filesystem: ${fileName}`);
-                alert('Image saved to Documents');
-            } else {
-                console.error('[VIEWER] Capacitor bridge disconnected. window.Capacitor.registerPlugin is undefined.');
-                alert('Download failed: App bridge disconnected.');
-            }
+            console.log('[VIEWER] Loading native JS proxies via CDN...');
+            // Dynamically fetch the translation layer for vanilla JS
+            const { Filesystem, Directory } = await import('https://cdn.jsdelivr.net/npm/@capacitor/filesystem/+esm');
+            
+            await Filesystem.writeFile({
+                path: fileName,
+                data: base64Data,
+                directory: Directory.Documents,
+                recursive: true
+            });
+            
+            console.log(`[VIEWER] Successfully saved to Documents: ${fileName}`);
+            alert('Image saved to Documents');
         } catch (e) {
             console.error('[VIEWER] Native download failed:', e);
             alert('Download error: ' + e.message);
