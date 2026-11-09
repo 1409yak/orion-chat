@@ -30,4 +30,5 @@
 - *Filesystem Plugin Unavailable:* Capacitor 3+ requires manual JS registration. Solution: Used `Capacitor.registerPlugin('Filesystem')` and string enum `'DOCUMENTS'` in v1.1.10.
 - *False Negative isNative Check:* Capgo OTA obfuscated the `isNative` boolean. Solution: Bypassed boolean and checked directly for `window.Capacitor.registerPlugin` in v1.1.11.
 - *Vanilla JS Bridge Failure:* Missing JS proxies for Filesystem plugin. Solution: Utilized dynamic ES module imports (`import()`) via CDN to bridge the vanilla JS directly to the native API.
+- *App Lag:* DOM bloat and media RAM leaks. Solution: Capped group chat initial load to 15 messages and explicitly nullified image src/blob references to trigger garbage collection.
 

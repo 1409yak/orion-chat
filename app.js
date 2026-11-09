@@ -2165,12 +2165,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.15';
+const CURRENT_APP_VERSION = '1.1.16';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.15';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.16';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2332,7 +2332,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.15';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.16';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4302,8 +4302,8 @@ async function openChat(chatId, title) {
         topObserver.observe(topSentinel);
     }
 
-    // Fetch initial newest 30 messages (limitToLast(30))
-    const initialQuery = query(ref(db, `messages/${chatId}`), orderByKey(), limitToLast(30));
+    // Fetch initial newest 15 messages (limitToLast(15))
+    const initialQuery = query(ref(db, `messages/${chatId}`), orderByKey(), limitToLast(15));
     const initialSnap = await get(initialQuery);
     if (currentChatId !== chatId) return;
 
@@ -4312,7 +4312,7 @@ async function openChat(chatId, title) {
         initialMessages.push({ key: child.key, val: child.val() });
     });
 
-    if (initialMessages.length < 30) {
+    if (initialMessages.length < 15) {
         hasMoreOlderMessages = false;
     }
 
@@ -6264,7 +6264,7 @@ if (attachStickerBtn && hiddenStickerInput) {
     };
 
     hiddenStickerInput.onchange = async (e) => {
-        const file = e.target.files[0];
+        let file = e.target.files[0];
         if (!file) return;
 
         console.log('[UPLOAD] Custom sticker selected:', file.name);
@@ -6275,6 +6275,8 @@ if (attachStickerBtn && hiddenStickerInput) {
             console.log('[UPLOAD] Custom sticker uploaded successfully.');
         } catch (err) {
             console.error('[UPLOAD] Custom sticker upload failed:', err);
+        } finally {
+            file = null;
         }
 
         // Clear the input so the same sticker can be selected again
@@ -6561,6 +6563,7 @@ if (closeViewerBtn) {
     closeViewerBtn.onclick = () => {
         const modal = document.getElementById('image-viewer-modal');
         if (modal) modal.classList.add('hidden');
+        document.getElementById('viewer-main-img').src = '';
         window.currentViewingImage = null;
     };
 }
@@ -6607,6 +6610,8 @@ if (imageViewerModal) {
     imageViewerModal.onclick = (e) => {
         if (e.target.id === 'image-viewer-modal' || e.target.classList.contains('viewer-body')) {
             imageViewerModal.classList.add('hidden');
+            const modalImg = document.getElementById('viewer-main-img');
+            if (modalImg) modalImg.src = '';
             window.currentViewingImage = null;
         }
     };
@@ -6617,6 +6622,8 @@ window.addEventListener('keydown', (e) => {
         const modal = document.getElementById('image-viewer-modal');
         if (modal && !modal.classList.contains('hidden')) {
             modal.classList.add('hidden');
+            const modalImg = document.getElementById('viewer-main-img');
+            if (modalImg) modalImg.src = '';
             window.currentViewingImage = null;
         }
     }
