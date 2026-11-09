@@ -1583,6 +1583,110 @@ function initMessageContextMenu() {
 }
 window.initMessageContextMenu = initMessageContextMenu;
 
+// --- HORIZONTAL SWIPE-TO-REPLY GESTURE ---
+let swipeStartX = 0;
+let swipeStartY = 0;
+let activeSwipeMessage = null;
+let isSwipingRight = false;
+let suppressSwipeClick = false;
+
+document.addEventListener('touchstart', (e) => {
+    // Only track single touch
+    if (e.touches.length !== 1) return;
+
+    const msgBubble = e.target.closest('.msg-bubble');
+    if (!msgBubble) return;
+
+    // Do not swipe system messages or when touching interactive controls
+    if (msgBubble.closest('.system-msg')) return;
+    if (e.target.closest('button, a, input, select, textarea, .msg-action-menu, .reaction-emoji, .expand-reactions-btn, .image-embed-wrapper, .chat-embedded-image')) return;
+
+    activeSwipeMessage = msgBubble;
+    swipeStartX = e.touches[0].clientX;
+    swipeStartY = e.touches[0].clientY;
+    isSwipingRight = false;
+
+    // Disable snap-back transition while finger is actively dragging
+    activeSwipeMessage.style.transition = 'none';
+}, { passive: true });
+
+document.addEventListener('touchmove', (e) => {
+    if (!activeSwipeMessage) return;
+
+    const currentX = e.touches[0].clientX;
+    const currentY = e.touches[0].clientY;
+    const diffX = currentX - swipeStartX;
+    const diffY = currentY - swipeStartY;
+
+    // Lock into swipe mode only if moving horizontally more than vertically
+    if (!isSwipingRight && Math.abs(diffX) > Math.abs(diffY) && diffX > 10) {
+        isSwipingRight = true;
+    }
+
+    if (isSwipingRight && diffX > 0) {
+        // Drag the bubble right, capped at 75px max distance
+        const dragDistance = Math.min(diffX, 75);
+        activeSwipeMessage.style.transform = `translateX(${dragDistance}px)`;
+    }
+}, { passive: true });
+
+document.addEventListener('touchend', (e) => {
+    if (!activeSwipeMessage) return;
+
+    const diffX = e.changedTouches[0].clientX - swipeStartX;
+
+    // Smoothly snap the message back to its original position
+    activeSwipeMessage.style.transition = 'transform 0.25s ease-out';
+    activeSwipeMessage.style.transform = 'translateX(0px)';
+
+    // If swiped far enough right (e.g., > 50px), trigger the reply action
+    if (isSwipingRight && diffX > 50) {
+        console.log('[SWIPE] Triggering reply action');
+        suppressSwipeClick = true;
+        setTimeout(() => { suppressSwipeClick = false; }, 350);
+
+        if (window.navigator?.vibrate) {
+            try { window.navigator.vibrate(30); } catch (_) {}
+        }
+
+        if (activeSwipeMessage._replyData) {
+            const { messageId, text, senderName } = activeSwipeMessage._replyData;
+            replyToMessage(messageId, text, senderName);
+        } else {
+            const wrap = activeSwipeMessage.closest('.msg-wrapper');
+            const msgId = activeSwipeMessage.dataset.messageId || wrap?.id?.replace(/^msg-/, '');
+            const sName = activeSwipeMessage.dataset.senderName || wrap?.querySelector('.msg-author')?.innerText || 'User';
+            const txt = activeSwipeMessage.dataset.text || activeSwipeMessage.querySelector('.msg-content')?.innerText || '';
+            if (msgId) {
+                replyToMessage(msgId, txt, sName);
+            }
+        }
+    } else if (isSwipingRight) {
+        suppressSwipeClick = true;
+        setTimeout(() => { suppressSwipeClick = false; }, 350);
+    }
+
+    activeSwipeMessage = null;
+    isSwipingRight = false;
+});
+
+document.addEventListener('touchcancel', () => {
+    if (activeSwipeMessage) {
+        activeSwipeMessage.style.transition = 'transform 0.25s ease-out';
+        activeSwipeMessage.style.transform = 'translateX(0px)';
+        activeSwipeMessage = null;
+    }
+    isSwipingRight = false;
+}, { passive: true });
+
+// Prevent accidental clicks / menu triggers after a swipe gesture
+window.addEventListener('click', (e) => {
+    if (suppressSwipeClick) {
+        e.stopPropagation();
+        e.preventDefault();
+    }
+}, true);
+
 // Reusable function to apply mute
 async function applyMute(chatId, targetUid, durationMinutes, reason, currentMemberData) {
     const mutedUntil = Date.now() + (durationMinutes * 60 * 1000);
@@ -2161,12 +2265,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.18';
+const CURRENT_APP_VERSION = '1.1.19';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.18';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.19';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2328,7 +2432,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.18';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.19';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4530,6 +4634,13 @@ function renderMessage(msg, isConsecutive = false, messageId) {
 
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
+    bubble.dataset.messageId = messageId;
+    bubble.dataset.senderName = msg.sender_name || (isMe ? (auth.currentUser?.displayName || 'You') : 'User');
+    bubble._replyData = {
+        messageId,
+        text: msg.text || '',
+        senderName: msg.sender_name || (isMe ? (auth.currentUser?.displayName || 'You') : 'User')
+    };
 
     // Handle Game Invite Link
     if (msg.gameInvite) {
@@ -4916,6 +5027,13 @@ async function renderPollMessage(msg, isConsecutive, messageId, isMe, isUserMent
 
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble poll-bubble';
+    bubble.dataset.messageId = messageId;
+    bubble.dataset.senderName = msg.sender_name || (isMe ? (auth.currentUser?.displayName || 'You') : 'User');
+    bubble._replyData = {
+        messageId,
+        text: msg.poll?.question ? `[Poll: ${msg.poll.question}]` : '[Poll]',
+        senderName: msg.sender_name || (isMe ? (auth.currentUser?.displayName || 'You') : 'User')
+    };
 
     const question = document.createElement('span');
     question.className = 'poll-question';
@@ -5115,6 +5233,13 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
 
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble sticker-bubble';
+    bubble.dataset.messageId = messageId;
+    bubble.dataset.senderName = msg.sender_name || (isMe ? (auth.currentUser?.displayName || 'You') : 'User');
+    bubble._replyData = {
+        messageId,
+        text: '[Sticker]',
+        senderName: msg.sender_name || (isMe ? (auth.currentUser?.displayName || 'You') : 'User')
+    };
 
     const stickerMetaSnap = await get(ref(db, `sticker_metadata/${msg.stickerId}`));
     const stickerMeta = stickerMetaSnap.val();
