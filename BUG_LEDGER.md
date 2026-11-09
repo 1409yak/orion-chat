@@ -19,6 +19,7 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Menu Invisible & Adblock Drops:* Adblockers dropped WebChannel XHRs, and the consolidated menu lacked strict z-indexing. Solution: Forced DB WebSockets and rebuilt the attachment HTML with absolute positioning and high z-index.
 - *Game Mode Migration:* Flag guessing game dropped during previous UI consolidation. Solution: Successfully ported legacy game HTML, CSS, and state machine logic into the latest build.
 - *Phantom UI Freezes:* Screen stopped responding to taps after scrolling. Solution: Added `touchcancel` event listener to reset stuck swipe-to-reply states when Android OS interrupts gestures.
 - *Game Mode Broken:* Flag game trigger disconnected during menu consolidation. Solution: Re-bound the unified Games button to the game initialization function and secured the game modal DOM.

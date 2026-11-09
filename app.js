@@ -20,6 +20,7 @@ import {
 
 import {
     getDatabase,
+    forceWebSockets,
     ref,
     set,
     push,
@@ -45,6 +46,7 @@ import {
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 import {
+    initializeFirestore,
     getFirestore,
     doc,
     setDoc,
@@ -64,7 +66,21 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
-const firestore = getFirestore(app);
+try {
+    forceWebSockets(db);
+} catch (e) {
+    console.warn("Could not force WebSockets on RTDB:", e);
+}
+
+const firestore = (() => {
+    try {
+        return initializeFirestore(app, {
+            experimentalForceLongPolling: false
+        });
+    } catch (_) {
+        return getFirestore(app);
+    }
+})();
 const messaging = getMessaging(app);
 
 let currentChatId = null;
@@ -2285,12 +2301,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.25';
+const CURRENT_APP_VERSION = '1.1.26';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.25';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.26';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2452,7 +2468,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.25';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.26';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6276,6 +6292,66 @@ function setupInputAreaListeners() {
     } else {
         console.error("Element with ID 'confirm-poll-btn' not found.");
     }
+
+    // Attachment dropdown wiring
+    const attachToggle = document.getElementById('main-attachment-toggle');
+    const attachMenu = document.getElementById('attachment-options-menu');
+    const menuCameraBtn = document.getElementById('menu-camera-btn');
+    const menuFileBtn = document.getElementById('menu-file-btn');
+    const openGamesOption = document.getElementById('open-games-option') || document.getElementById('menu-games-btn');
+    const createPollBtn = document.getElementById('create-poll-option');
+    const hiddenStickerInput = document.getElementById('hidden-sticker-input');
+    const hiddenCameraInput = document.getElementById('hidden-camera-input');
+
+    if (attachToggle && attachMenu) {
+        attachToggle.onclick = (e) => {
+            e.stopPropagation();
+            attachMenu.style.display = attachMenu.style.display === 'none' ? 'flex' : 'none';
+        };
+    }
+
+    if (openGamesOption) {
+        openGamesOption.onclick = (e) => {
+            if (e) e.stopPropagation();
+            if (attachMenu) attachMenu.style.display = 'none';
+            closeAttachmentMenu();
+            const glm = document.getElementById('games-library-modal');
+            if (glm) glm.style.display = 'flex';
+        };
+    }
+
+    if (menuCameraBtn) {
+        menuCameraBtn.onclick = (e) => {
+            if (e) e.stopPropagation();
+            if (attachMenu) attachMenu.style.display = 'none';
+            closeAttachmentMenu();
+            const targetInput = hiddenCameraInput || document.getElementById('camera-input');
+            if (targetInput) targetInput.click();
+        };
+    }
+
+    if (menuFileBtn) {
+        menuFileBtn.onclick = (e) => {
+            if (e) e.stopPropagation();
+            if (attachMenu) attachMenu.style.display = 'none';
+            closeAttachmentMenu();
+            const targetInput = hiddenStickerInput || document.getElementById('file-upload-input');
+            if (targetInput) targetInput.click();
+        };
+    }
+
+    if (createPollBtn) {
+        createPollBtn.onclick = (e) => {
+            if (e) e.stopPropagation();
+            if (attachMenu) attachMenu.style.display = 'none';
+            closeAttachmentMenu();
+            if (pollModal) pollModal.style.display = 'flex';
+            if (pollQuestionInput) pollQuestionInput.value = '';
+            if (pollOptionsContainer) {
+                pollOptionsContainer.innerHTML = '<label>Options</label><input type="text" class="poll-option-input" placeholder="Option 1"><input type="text" class="poll-option-input" placeholder="Option 2">';
+            }
+        };
+    }
 }
 
 const messageInput = document.getElementById('message-input');
@@ -6429,37 +6505,48 @@ function toggleAttachmentMenu(e) {
     }
 }
 
-const mainAttachmentToggle = document.getElementById('main-attachment-toggle');
+const attachToggle = document.getElementById('main-attachment-toggle');
+const attachMenu = document.getElementById('attachment-options-menu');
 const menuFileBtn = document.getElementById('menu-file-btn');
 const menuCameraBtn = document.getElementById('menu-camera-btn');
 const createPollOption = document.getElementById('create-poll-option');
-const menuGamesBtn = document.getElementById('menu-games-btn') || document.getElementById('open-games-option');
+const openGamesOption = document.getElementById('open-games-option') || document.getElementById('menu-games-btn');
 const hiddenStickerInput = document.getElementById('hidden-sticker-input');
 const hiddenCameraInput = document.getElementById('hidden-camera-input');
+const fileUploadInput = document.getElementById('file-upload-input');
+const cameraInput = document.getElementById('camera-input');
 
-if (mainAttachmentToggle) {
-    mainAttachmentToggle.onclick = toggleAttachmentMenu;
-}
-
-if (menuFileBtn && hiddenStickerInput) {
-    menuFileBtn.onclick = (e) => {
-        if (e) e.stopPropagation();
-        closeAttachmentMenu();
-        hiddenStickerInput.click();
+if (attachToggle && attachMenu) {
+    attachToggle.onclick = (e) => {
+        e.stopPropagation();
+        attachMenu.style.display = attachMenu.style.display === 'none' ? 'flex' : 'none';
     };
 }
 
-if (menuCameraBtn && hiddenCameraInput) {
+if (menuFileBtn) {
+    menuFileBtn.onclick = (e) => {
+        if (e) e.stopPropagation();
+        if (attachMenu) attachMenu.style.display = 'none';
+        closeAttachmentMenu();
+        const targetInput = hiddenStickerInput || fileUploadInput;
+        if (targetInput) targetInput.click();
+    };
+}
+
+if (menuCameraBtn) {
     menuCameraBtn.onclick = (e) => {
         if (e) e.stopPropagation();
+        if (attachMenu) attachMenu.style.display = 'none';
         closeAttachmentMenu();
-        hiddenCameraInput.click();
+        const targetInput = hiddenCameraInput || cameraInput;
+        if (targetInput) targetInput.click();
     };
 }
 
 if (createPollOption) {
     createPollOption.onclick = (e) => {
         if (e) e.stopPropagation();
+        if (attachMenu) attachMenu.style.display = 'none';
         closeAttachmentMenu();
         const pollModal = document.getElementById('poll-modal');
         if (pollModal) pollModal.style.display = 'flex';
@@ -6472,10 +6559,10 @@ if (createPollOption) {
     };
 }
 
-if (menuGamesBtn) {
-    menuGamesBtn.onclick = (e) => {
+if (openGamesOption) {
+    openGamesOption.onclick = (e) => {
         if (e) e.stopPropagation();
-        document.getElementById('attachment-options-menu')?.classList.add('hidden');
+        if (attachMenu) attachMenu.style.display = 'none';
         closeAttachmentMenu();
         const glm = document.getElementById('games-library-modal');
         if (glm) glm.style.display = 'flex';
@@ -6485,6 +6572,8 @@ if (menuGamesBtn) {
 // Close attachment options menu when clicking outside
 document.addEventListener('click', (e) => {
     if (!e.target.closest('#attachment-wrapper')) {
+        const attachMenu = document.getElementById('attachment-options-menu');
+        if (attachMenu) attachMenu.style.display = 'none';
         closeAttachmentMenu();
     }
 });
@@ -6518,6 +6607,17 @@ if (hiddenStickerInput) {
     };
 }
 
+if (fileUploadInput) {
+    fileUploadInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        try {
+            await handleMediaUpload(file, 'File');
+        } finally {
+            fileUploadInput.value = '';
+        }
+    };
+}
+
 if (hiddenCameraInput) {
     hiddenCameraInput.onchange = async (e) => {
         const file = e.target.files[0];
@@ -6525,6 +6625,18 @@ if (hiddenCameraInput) {
             await handleMediaUpload(file, 'Camera');
         } finally {
             hiddenCameraInput.value = '';
+        }
+    };
+}
+
+const cameraInput = document.getElementById('camera-input');
+if (cameraInput) {
+    cameraInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        try {
+            await handleMediaUpload(file, 'Camera');
+        } finally {
+            cameraInput.value = '';
         }
     };
 }
