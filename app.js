@@ -2265,12 +2265,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.20';
+const CURRENT_APP_VERSION = '1.1.21';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.20';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.21';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2432,7 +2432,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.20';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.21';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4402,25 +4402,30 @@ async function openChat(chatId, title) {
         topObserver.observe(topSentinel);
     }
 
-    // Fetch initial newest 15 messages (limitToLast(15))
-    const initialQuery = query(ref(db, `messages/${chatId}`), orderByKey(), limitToLast(15));
-    const initialSnap = await get(initialQuery);
-    if (currentChatId !== chatId) return;
+    // Stale-While-Revalidate Local Storage Cache Pattern
+    const clearChatContainer = () => {
+        const children = Array.from(cont.children);
+        for (const child of children) {
+            if (child !== topSentinel) {
+                child.remove();
+            }
+        }
+        lastSenderId = null;
+    };
 
-    const initialMessages = [];
-    initialSnap.forEach(child => {
-        initialMessages.push({ key: child.key, val: child.val() });
-    });
+    const renderMessageList = (messagesList) => {
+        if (!messagesList || messagesList.length === 0) {
+            hasMoreOlderMessages = false;
+            return;
+        }
+        if (messagesList.length < 15) {
+            hasMoreOlderMessages = false;
+        }
+        currentOldestMessageKey = messagesList[0].key;
+        currentNewestMessageKey = messagesList[messagesList.length - 1].key;
+        lastSenderId = null;
 
-    if (initialMessages.length < 15) {
-        hasMoreOlderMessages = false;
-    }
-
-    if (initialMessages.length > 0) {
-        currentOldestMessageKey = initialMessages[0].key;
-        currentNewestMessageKey = initialMessages[initialMessages.length - 1].key;
-
-        for (const item of initialMessages) {
+        for (const item of messagesList) {
             const msg = item.val;
             if (chatId !== 'channel_orion_updates' && msg.sender_id !== auth.currentUser.uid && !viewedMessagesInSession.has(item.key)) {
                 viewedMessagesInSession.add(item.key);
@@ -4434,7 +4439,59 @@ async function openChat(chatId, title) {
         }
         cont.scrollTop = cont.scrollHeight;
         updateInputButtons();
-    }
+    };
+
+    const fetchRecentMessagesFromDB = async (roomId) => {
+        const initialQuery = query(ref(db, `messages/${roomId}`), orderByKey(), limitToLast(15));
+        const initialSnap = await get(initialQuery);
+        if (currentChatId !== roomId) return [];
+
+        const freshMessages = [];
+        initialSnap.forEach(child => {
+            freshMessages.push({ key: child.key, val: child.val() });
+        });
+        return freshMessages;
+    };
+
+    const loadChatMessages = async (roomId) => {
+        const cacheKey = `orion_cache_${roomId}`;
+        const cachedData = localStorage.getItem(cacheKey);
+
+        // 1. Instantly render from local cache if it exists
+        if (cachedData) {
+            try {
+                const parsedCache = JSON.parse(cachedData);
+                renderMessageList(parsedCache);
+            } catch (err) {
+                console.error('[CACHE] Corrupt cache parsing failed:', err);
+            }
+        }
+
+        // 2. Silently fetch the latest 15 messages from the server/Firebase
+        try {
+            const freshMessages = await fetchRecentMessagesFromDB(roomId);
+            if (currentChatId !== roomId) return;
+
+            // 3. Check for changes
+            const freshDataString = JSON.stringify(freshMessages);
+            if (cachedData !== freshDataString) {
+                // Update cache and refresh UI only if data changed
+                try {
+                    localStorage.setItem(cacheKey, freshDataString);
+                } catch (e) {
+                    console.warn('[CACHE] localStorage quota exceeded or write failed:', e);
+                }
+
+                clearChatContainer();
+                renderMessageList(freshMessages);
+            }
+        } catch (error) {
+            console.error('[CACHE] Background sync failed:', error);
+        }
+    };
+
+    await loadChatMessages(chatId);
+    if (currentChatId !== chatId) return;
 
     // Real-time listener for newly appended messages
     const newMsgsQuery = currentNewestMessageKey
