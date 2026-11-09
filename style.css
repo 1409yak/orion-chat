@@ -730,10 +730,14 @@ input {
     margin-left: 10%; /* This might need adjustment depending on the button's position */
 }
 
-#plus-menu {
-    left: 68px !important;
-    right: auto !important;
+#plus-menu, .plus-popup {
+    right: 20px !important;
+    left: auto !important;
+    bottom: 85px !important;
+    top: auto !important;
     margin-left: 0 !important;
+    width: 160px;
+    z-index: 501;
 }
 
 .rcv .msg-action-menu {

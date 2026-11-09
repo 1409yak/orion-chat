@@ -182,28 +182,23 @@
                     <div id="picker-tab-content-emojis" class="picker-tab-content active"></div>
                     <div id="picker-tab-content-stickers" class="picker-tab-content" style="display: none;"></div>
                 </div>
-                <button id="sticker-btn" class="sticker-trigger-btn" title="Add Sticker" style="display: none;">🖼️</button>
+                <!-- Plus Menu Popup -->
+                <div id="plus-menu" class="msg-action-menu plus-popup hidden" style="display: none; bottom: 85px; top: auto; right: 20px; left: auto !important; width: 160px; z-index: 501;">
+                    <button type="button" id="upload-file-option">Upload File</button>
+                    <button type="button" id="create-poll-option">Create a Poll</button>
+                    <button type="button" id="open-games-option">Games</button>
+                </div>
+
                 <div class="input-wrapper">
                     <button id="emoji-btn" class="emoji-trigger-btn" title="Add Emoji">😊</button>
                     <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
                     
-                    <div id="attachment-wrapper" style="position: relative; display: inline-flex; align-items: center;">
-                        <button type="button" id="main-attachment-toggle" class="chat-tool-btn" style="background: none; border: none; cursor: pointer; padding: 6px; display: inline-flex; align-items: center; justify-content: center;">
-                            📎
-                        </button>
-                        <div id="attachment-options-menu" class="msg-action-menu" style="display: none; position: absolute; bottom: 100%; right: 0; width: 160px; margin-bottom: 10px; z-index: 501;">
-                            <button id="menu-camera-btn">📷 Camera</button>
-                            <button id="menu-file-btn">📁 Files</button>
-                            <button id="create-poll-option">📊 Create Poll</button>
-                            <button id="open-games-option">🎮 Games</button>
-                        </div>
-                    </div>
-
-                    <!-- Hidden inputs must remain -->
-                    <input type="file" id="hidden-sticker-input" accept="image/*" style="display: none;" />
-                    <input type="file" id="hidden-camera-input" accept="image/*" capture="environment" style="display: none;" />
+                    <!-- Re-integrated paperclip using the legacy plus-btn ID and styling -->
+                    <button id="plus-btn" class="emoji-trigger-btn" title="Actions" style="font-size: 20px;">📎</button>
+                    
                     <input type="file" id="file-upload-input" accept="image/*" style="display: none;">
-
+                    <input type="file" id="camera-input" accept="image/*" capture="environment" style="display: none;">
+                    <button id="camera-btn" class="camera-icon-btn" title="Take Photo" style="display: none;">📷</button>
                     <button id="send-btn" class="send-icon-btn" style="display: none;">
                         <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                     </button>
@@ -546,7 +541,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.27</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.28</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>

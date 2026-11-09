@@ -20,7 +20,6 @@ import {
 
 import {
     getDatabase,
-    forceWebSockets,
     ref,
     set,
     push,
@@ -45,14 +44,6 @@ import {
     orderByKey
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
-import {
-    initializeFirestore,
-    getFirestore,
-    doc,
-    setDoc,
-    getDoc
-} from "https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js";
-
 const firebaseConfig = {
     apiKey: "AIzaSyB6cY9r8eyDmqvWeUKIUpUxIGY5R_4Mqn8",
     authDomain: "orion-291b5.firebaseapp.com",
@@ -66,21 +57,6 @@ const firebaseConfig = {
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getDatabase(app);
-try {
-    forceWebSockets(db);
-} catch (e) {
-    console.warn("Could not force WebSockets on RTDB:", e);
-}
-
-const firestore = (() => {
-    try {
-        return initializeFirestore(app, {
-            experimentalForceLongPolling: false
-        });
-    } catch (_) {
-        return getFirestore(app);
-    }
-})();
 const messaging = getMessaging(app);
 
 let currentChatId = null;
@@ -606,10 +582,10 @@ async function setupGameLobby() {
 }
 
 function initFlagGame() {
-    const attachMenu = document.getElementById('attachment-options-menu');
-    if (attachMenu) {
-        attachMenu.classList.add('hidden');
-        attachMenu.style.display = 'none';
+    const pm = document.getElementById('plus-menu');
+    if (pm) {
+        pm.classList.add('hidden');
+        pm.style.display = 'none';
     }
     setupGameLobby();
 }
@@ -2254,14 +2230,6 @@ async function setupCapacitorPushNotifications(uid) {
                     updates[`users/${uid}/fcmTokens/${tokenClean}`] = true;
                     await update(ref(db), updates);
 
-                    // Save token into Firestore under users/{userId}/fcmToken
-                    try {
-                        await setDoc(doc(firestore, "users", uid), { fcmToken: token.value }, { merge: true });
-                        console.log('Successfully saved native FCM token to Firestore for user:', uid);
-                    } catch (fsErr) {
-                        console.warn('Could not save FCM token to Firestore:', fsErr);
-                    }
-
                     console.log('Successfully saved native FCM token to Firebase for user:', uid);
                 } catch (err) {
                     console.error('Failed to save native FCM token to Firebase:', err);
@@ -2301,12 +2269,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.27';
+const CURRENT_APP_VERSION = '1.1.28';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.27';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.28';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2468,7 +2436,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.27';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.28';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -2754,11 +2722,6 @@ async function setupNotifications(uid) {
             });
             if (token) {
                 await update(ref(db, `users/${uid}`), { fcmToken: token });
-                try {
-                    await setDoc(doc(firestore, "users", uid), { fcmToken: token }, { merge: true });
-                } catch (fsErr) {
-                    console.warn('Could not save web FCM token to Firestore:', fsErr);
-                }
                 console.log('FCM token registered successfully');
             } else {
                 console.warn('FCM getToken returned empty token');
@@ -4784,7 +4747,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         activeReactionMessageId = isSameMessage && picker.style.display === 'grid' ? null : messageId;
 
         if (picker.style.display === 'none' || !isSameMessage) {
-            const pm = document.getElementById('attachment-options-menu') || document.getElementById('plus-menu');
+            const pm = document.getElementById('plus-menu');
             if (pm) { pm.style.display = 'none'; pm.classList.add('hidden'); }
             await renderEmojiPicker();
             picker.style.display = 'grid';
@@ -5336,7 +5299,7 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
         const isSameMessage = activeReactionMessageId === messageId;
         activeReactionMessageId = isSameMessage && picker.style.display === 'grid' ? null : messageId;
         if (picker.style.display === 'none' || !isSameMessage) {
-            const pm = document.getElementById('attachment-options-menu') || document.getElementById('plus-menu');
+            const pm = document.getElementById('plus-menu');
             if (pm) { pm.style.display = 'none'; pm.classList.add('hidden'); }
             await renderEmojiPicker();
             picker.style.display = 'grid';
@@ -5834,16 +5797,8 @@ async function sendImageMessage(imageData, targetChatId = null) {
                 for (const rUid of recipientUids) {
                     try {
                         let recipientFcmToken = null;
-                        try {
-                            const userDocSnap = await getDoc(doc(firestore, "users", rUid));
-                            if (userDocSnap.exists()) {
-                                recipientFcmToken = userDocSnap.data()?.fcmToken;
-                            }
-                        } catch (_) {}
-                        if (!recipientFcmToken) {
-                            const userSnap = await get(ref(db, `users/${rUid}/fcmToken`));
-                            recipientFcmToken = userSnap.val();
-                        }
+                        const userSnap = await get(ref(db, `users/${rUid}/fcmToken`));
+                        recipientFcmToken = userSnap.val();
                         if (recipientFcmToken) {
                             sendPushNotification(recipientFcmToken, identityName, "Sent an image", { chatId: destChatId });
                         }
@@ -6164,24 +6119,14 @@ async function sendMessage() {
     recentUserMessages.set(myUid, userRecentMessages);
     await update(ref(db), updates);
 
-    // Lookup recipient's fcmToken from Firestore (with RTDB fallback) and trigger Cloudflare Worker notification
+    // Lookup recipient's fcmToken from RTDB and trigger Cloudflare Worker notification
     if (members) {
         const recipientUids = Object.keys(members).filter(uid => uid !== auth.currentUser.uid);
         recipientUids.forEach(async (rUid) => {
             try {
                 let recipientFcmToken = null;
-                try {
-                    const userDocSnap = await getDoc(doc(firestore, "users", rUid));
-                    if (userDocSnap.exists()) {
-                        recipientFcmToken = userDocSnap.data()?.fcmToken;
-                    }
-                } catch (fsLookupErr) {
-                    // Fallback to RTDB
-                }
-                if (!recipientFcmToken) {
-                    const userSnap = await get(ref(db, `users/${rUid}/fcmToken`));
-                    recipientFcmToken = userSnap.val();
-                }
+                const userSnap = await get(ref(db, `users/${rUid}/fcmToken`));
+                recipientFcmToken = userSnap.val();
                 if (recipientFcmToken) {
                     sendPushNotification(recipientFcmToken, identityName, lastMsg, { chatId: currentChatId });
                 }
@@ -6293,57 +6238,55 @@ function setupInputAreaListeners() {
         console.error("Element with ID 'confirm-poll-btn' not found.");
     }
 
-    // Attachment dropdown wiring
-    const attachToggle = document.getElementById('main-attachment-toggle');
-    const attachMenu = document.getElementById('attachment-options-menu');
-    const menuCameraBtn = document.getElementById('menu-camera-btn');
-    const menuFileBtn = document.getElementById('menu-file-btn');
-    const openGamesOption = document.getElementById('open-games-option') || document.getElementById('menu-games-btn');
-    const createPollBtn = document.getElementById('create-poll-option');
-    const hiddenStickerInput = document.getElementById('hidden-sticker-input');
-    const hiddenCameraInput = document.getElementById('hidden-camera-input');
+    // --- Plus Menu Logic (Reverted to Legacy) ---
+    const plusBtn = document.getElementById('plus-btn');
+    const plusMenu = document.getElementById('plus-menu');
+    const createPollOption = document.getElementById('create-poll-option');
+    const uploadFileOption = document.getElementById('upload-file-option');
+    const fileUploadInput = document.getElementById('file-upload-input');
+    const openGamesOption = document.getElementById('open-games-option');
 
-    if (attachToggle && attachMenu) {
-        attachToggle.onclick = (e) => {
+    if (plusBtn) {
+        plusBtn.onclick = (e) => {
             e.stopPropagation();
-            attachMenu.style.display = attachMenu.style.display === 'none' ? 'flex' : 'none';
+            if (plusMenu) {
+                const opening = plusMenu.style.display === 'none';
+                plusMenu.style.display = opening ? 'flex' : 'none';
+                if (opening) {
+                    const ep = document.getElementById('emoji-picker');
+                    if (ep) ep.style.display = 'none';
+                    activeReactionMessageId = null;
+                }
+            }
         };
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#plus-menu') && !e.target.closest('#plus-btn')) {
+                if (plusMenu) plusMenu.style.display = 'none';
+            }
+        });
     }
 
     if (openGamesOption) {
         openGamesOption.onclick = (e) => {
             if (e) e.stopPropagation();
-            if (attachMenu) attachMenu.style.display = 'none';
-            closeAttachmentMenu();
+            if (plusMenu) plusMenu.style.display = 'none';
             const glm = document.getElementById('games-library-modal');
             if (glm) glm.style.display = 'flex';
         };
     }
 
-    if (menuCameraBtn) {
-        menuCameraBtn.onclick = (e) => {
+    if (uploadFileOption && fileUploadInput) {
+        uploadFileOption.onclick = (e) => {
             if (e) e.stopPropagation();
-            if (attachMenu) attachMenu.style.display = 'none';
-            closeAttachmentMenu();
-            if (hiddenCameraInput) hiddenCameraInput.click();
+            if (plusMenu) plusMenu.style.display = 'none';
+            fileUploadInput.click();
         };
     }
 
-    if (menuFileBtn) {
-        menuFileBtn.onclick = (e) => {
+    if (createPollOption) {
+        createPollOption.onclick = (e) => {
             if (e) e.stopPropagation();
-            if (attachMenu) attachMenu.style.display = 'none';
-            closeAttachmentMenu();
-            const targetInput = hiddenStickerInput || document.getElementById('file-upload-input');
-            if (targetInput) targetInput.click();
-        };
-    }
-
-    if (createPollBtn) {
-        createPollBtn.onclick = (e) => {
-            if (e) e.stopPropagation();
-            if (attachMenu) attachMenu.style.display = 'none';
-            closeAttachmentMenu();
+            if (plusMenu) plusMenu.style.display = 'none';
             if (pollModal) pollModal.style.display = 'flex';
             if (pollQuestionInput) pollQuestionInput.value = '';
             if (pollOptionsContainer) {
@@ -6471,110 +6414,6 @@ messageInput.oninput = (e) => {
     updateInputButtons();
 };
 
-// --- CONSOLIDATED ATTACHMENT MENU FEATURE ---
-// --- UNIFIED ATTACHMENT MENU FEATURE ---
-function closeAttachmentMenu() {
-    const menu = document.getElementById('attachment-options-menu');
-    if (menu) {
-        menu.classList.add('hidden');
-        menu.style.display = 'none';
-    }
-}
-
-function openAttachmentMenu() {
-    const menu = document.getElementById('attachment-options-menu');
-    if (menu) {
-        menu.classList.remove('hidden');
-        menu.style.display = 'flex';
-        const ep = document.getElementById('emoji-picker');
-        if (ep) ep.style.display = 'none';
-        activeReactionMessageId = null;
-    }
-}
-
-function toggleAttachmentMenu(e) {
-    if (e) e.stopPropagation();
-    const menu = document.getElementById('attachment-options-menu');
-    if (!menu) return;
-    const isHidden = menu.classList.contains('hidden') || menu.style.display === 'none';
-    if (isHidden) {
-        openAttachmentMenu();
-    } else {
-        closeAttachmentMenu();
-    }
-}
-
-const attachToggle = document.getElementById('main-attachment-toggle');
-const attachMenu = document.getElementById('attachment-options-menu');
-const menuFileBtn = document.getElementById('menu-file-btn');
-const menuCameraBtn = document.getElementById('menu-camera-btn');
-const createPollOption = document.getElementById('create-poll-option');
-const openGamesOption = document.getElementById('open-games-option') || document.getElementById('menu-games-btn');
-const hiddenStickerInput = document.getElementById('hidden-sticker-input');
-const hiddenCameraInput = document.getElementById('hidden-camera-input');
-const fileUploadInput = document.getElementById('file-upload-input');
-
-if (attachToggle && attachMenu) {
-    attachToggle.onclick = (e) => {
-        e.stopPropagation();
-        attachMenu.style.display = attachMenu.style.display === 'none' ? 'flex' : 'none';
-    };
-}
-
-if (menuFileBtn) {
-    menuFileBtn.onclick = (e) => {
-        if (e) e.stopPropagation();
-        if (attachMenu) attachMenu.style.display = 'none';
-        closeAttachmentMenu();
-        const targetInput = hiddenStickerInput || fileUploadInput;
-        if (targetInput) targetInput.click();
-    };
-}
-
-if (menuCameraBtn) {
-    menuCameraBtn.onclick = (e) => {
-        if (e) e.stopPropagation();
-        if (attachMenu) attachMenu.style.display = 'none';
-        closeAttachmentMenu();
-        if (hiddenCameraInput) hiddenCameraInput.click();
-    };
-}
-
-if (createPollOption) {
-    createPollOption.onclick = (e) => {
-        if (e) e.stopPropagation();
-        if (attachMenu) attachMenu.style.display = 'none';
-        closeAttachmentMenu();
-        const pollModal = document.getElementById('poll-modal');
-        if (pollModal) pollModal.style.display = 'flex';
-        const pollQuestionInput = document.getElementById('poll-question');
-        if (pollQuestionInput) pollQuestionInput.value = '';
-        const pollOptionsContainer = document.getElementById('poll-options-container');
-        if (pollOptionsContainer) {
-            pollOptionsContainer.innerHTML = '<label>Options</label><input type="text" class="poll-option-input" placeholder="Option 1"><input type="text" class="poll-option-input" placeholder="Option 2">';
-        }
-    };
-}
-
-if (openGamesOption) {
-    openGamesOption.onclick = (e) => {
-        if (e) e.stopPropagation();
-        if (attachMenu) attachMenu.style.display = 'none';
-        closeAttachmentMenu();
-        const glm = document.getElementById('games-library-modal');
-        if (glm) glm.style.display = 'flex';
-    };
-}
-
-// Close attachment options menu when clicking outside
-document.addEventListener('click', (e) => {
-    if (!e.target.closest('#attachment-wrapper')) {
-        const attachMenu = document.getElementById('attachment-options-menu');
-        if (attachMenu) attachMenu.style.display = 'none';
-        closeAttachmentMenu();
-    }
-});
-
 // Reusable media file upload handler
 async function handleMediaUpload(file, sourceLabel = 'File') {
     if (!file) return;
@@ -6593,17 +6432,7 @@ async function handleMediaUpload(file, sourceLabel = 'File') {
     }
 }
 
-if (hiddenStickerInput) {
-    hiddenStickerInput.onchange = async (e) => {
-        const file = e.target.files[0];
-        try {
-            await handleMediaUpload(file, 'File');
-        } finally {
-            hiddenStickerInput.value = '';
-        }
-    };
-}
-
+const fileUploadInput = document.getElementById('file-upload-input');
 if (fileUploadInput) {
     fileUploadInput.onchange = async (e) => {
         const file = e.target.files[0];
@@ -6615,13 +6444,18 @@ if (fileUploadInput) {
     };
 }
 
-if (hiddenCameraInput) {
-    hiddenCameraInput.onchange = async (e) => {
+const cameraInput = document.getElementById('camera-input');
+const cameraBtn = document.getElementById('camera-btn');
+if (cameraBtn && cameraInput) {
+    cameraBtn.onclick = () => cameraInput.click();
+}
+if (cameraInput) {
+    cameraInput.onchange = async (e) => {
         const file = e.target.files[0];
         try {
             await handleMediaUpload(file, 'Camera');
         } finally {
-            hiddenCameraInput.value = '';
+            cameraInput.value = '';
         }
     };
 }
@@ -6629,13 +6463,15 @@ if (hiddenCameraInput) {
 function updateInputButtons() {
     const input = document.getElementById('message-input');
     const sendBtn = document.getElementById('send-btn');
-    const attachWrapper = document.getElementById('attachment-wrapper');
+    const plusBtn = document.getElementById('plus-btn');
+    const cameraBtn = document.getElementById('camera-btn');
     const stickerBtn = document.getElementById('sticker-btn');
     if (!input || !sendBtn) return;
 
     if (!currentChatId) {
+        if (plusBtn) plusBtn.style.display = 'none';
+        if (cameraBtn) cameraBtn.style.display = 'none';
         sendBtn.style.display = 'none';
-        if (attachWrapper) attachWrapper.style.display = 'none';
         return;
     }
 
@@ -6644,11 +6480,13 @@ function updateInputButtons() {
 
     if (hasText) {
         sendBtn.style.display = isMobile ? 'flex' : 'none';
-        if (isMobile && attachWrapper) attachWrapper.style.display = 'none';
+        if (isMobile && plusBtn) plusBtn.style.display = 'none';
+        if (isMobile && cameraBtn) cameraBtn.style.display = 'none';
         if (stickerBtn) stickerBtn.style.display = 'none';
     } else {
         sendBtn.style.display = 'none';
-        if (attachWrapper) attachWrapper.style.display = 'inline-flex';
+        if (plusBtn) plusBtn.style.display = 'inline-flex';
+        if (cameraBtn) cameraBtn.style.display = 'none';
         if (stickerBtn) stickerBtn.style.display = 'none';
     }
 }
@@ -9016,7 +8854,7 @@ if (emojiBtn && emojiPicker) {
         e.stopPropagation();
         activeReactionMessageId = null; // Reset to regular typing mode
         if (emojiPicker.style.display === 'none') {
-            const pm = document.getElementById('attachment-options-menu') || document.getElementById('plus-menu');
+            const pm = document.getElementById('plus-menu');
             if (pm) { pm.style.display = 'none'; pm.classList.add('hidden'); }
             await renderEmojiPicker();
             emojiPicker.style.display = 'flex';
