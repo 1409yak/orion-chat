@@ -496,7 +496,12 @@ let availableFlags = [];
 
 // --- GAME LOGIC ---
 async function setupGameLobby() {
-    if (!currentChatId) return;
+    if (!currentChatId) {
+        showNotification("Please select a chat to play games.", "info");
+        return;
+    }
+    const fgm = document.getElementById('flag-game-lobby-modal');
+    if (fgm) fgm.style.display = 'flex';
     const gameRef = ref(db, `games/${currentChatId}`);
     
     const gameSnap = await get(gameRef);
@@ -584,6 +589,16 @@ async function setupGameLobby() {
     });
 }
 
+function initFlagGame() {
+    const attachMenu = document.getElementById('attachment-options-menu');
+    if (attachMenu) {
+        attachMenu.classList.add('hidden');
+        attachMenu.style.display = 'none';
+    }
+    setupGameLobby();
+}
+window.initFlagGame = initFlagGame;
+
 function startLocalGameUI(gameData) {
     document.getElementById('flag-game-lobby-modal').style.display = 'none';
     document.getElementById('flag-game-screen').style.display = 'flex';
@@ -598,8 +613,9 @@ function startLocalGameUI(gameData) {
     nextFlagRound();
     
     if (gameTimerInterval) clearInterval(gameTimerInterval);
+    const endTime = (gameData && gameData.endTime) ? gameData.endTime : (Date.now() + 300000);
     gameTimerInterval = setInterval(() => {
-        const remaining = Math.max(0, gameData.endTime - Date.now());
+        const remaining = Math.max(0, endTime - Date.now());
         const mins = Math.floor(remaining / 60000);
         const secs = Math.floor((remaining % 60000) / 1000);
         document.getElementById('game-timer').innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
@@ -1633,51 +1649,55 @@ document.addEventListener('touchmove', (e) => {
 document.addEventListener('touchend', (e) => {
     if (!activeSwipeMessage) return;
 
-    const diffX = e.changedTouches[0].clientX - swipeStartX;
+    try {
+        const diffX = e.changedTouches[0].clientX - swipeStartX;
 
-    // Smoothly snap the message back to its original position
+        // Smoothly snap the message back to its original position
+        activeSwipeMessage.style.transition = 'transform 0.25s ease-out';
+        activeSwipeMessage.style.transform = 'translateX(0px)';
+
+        // If swiped far enough right (e.g., > 50px), trigger the reply action
+        if (isSwipingRight && diffX > 50) {
+            console.log('[SWIPE] Triggering reply action');
+            suppressSwipeClick = true;
+            setTimeout(() => { suppressSwipeClick = false; }, 350);
+
+            if (window.navigator?.vibrate) {
+                try { window.navigator.vibrate(30); } catch (_) {}
+            }
+
+            if (activeSwipeMessage._replyData) {
+                const { messageId, text, senderName } = activeSwipeMessage._replyData;
+                replyToMessage(messageId, text, senderName);
+            } else {
+                const wrap = activeSwipeMessage.closest('.msg-wrapper');
+                const msgId = activeSwipeMessage.dataset.messageId || wrap?.id?.replace(/^msg-/, '');
+                const sName = activeSwipeMessage.dataset.senderName || wrap?.querySelector('.msg-author')?.innerText || 'User';
+                const txt = activeSwipeMessage.dataset.text || activeSwipeMessage.querySelector('.msg-content')?.innerText || '';
+                if (msgId) {
+                    replyToMessage(msgId, txt, sName);
+                }
+            }
+        } else if (isSwipingRight) {
+            suppressSwipeClick = true;
+            setTimeout(() => { suppressSwipeClick = false; }, 350);
+        }
+    } finally {
+        activeSwipeMessage = null;
+        isSwipingRight = false;
+    }
+});
+
+document.addEventListener('touchcancel', (e) => {
+    if (!activeSwipeMessage) return;
+
+    // Reset the UI and clear the active state if Android interrupts the touch
     activeSwipeMessage.style.transition = 'transform 0.25s ease-out';
     activeSwipeMessage.style.transform = 'translateX(0px)';
-
-    // If swiped far enough right (e.g., > 50px), trigger the reply action
-    if (isSwipingRight && diffX > 50) {
-        console.log('[SWIPE] Triggering reply action');
-        suppressSwipeClick = true;
-        setTimeout(() => { suppressSwipeClick = false; }, 350);
-
-        if (window.navigator?.vibrate) {
-            try { window.navigator.vibrate(30); } catch (_) {}
-        }
-
-        if (activeSwipeMessage._replyData) {
-            const { messageId, text, senderName } = activeSwipeMessage._replyData;
-            replyToMessage(messageId, text, senderName);
-        } else {
-            const wrap = activeSwipeMessage.closest('.msg-wrapper');
-            const msgId = activeSwipeMessage.dataset.messageId || wrap?.id?.replace(/^msg-/, '');
-            const sName = activeSwipeMessage.dataset.senderName || wrap?.querySelector('.msg-author')?.innerText || 'User';
-            const txt = activeSwipeMessage.dataset.text || activeSwipeMessage.querySelector('.msg-content')?.innerText || '';
-            if (msgId) {
-                replyToMessage(msgId, txt, sName);
-            }
-        }
-    } else if (isSwipingRight) {
-        suppressSwipeClick = true;
-        setTimeout(() => { suppressSwipeClick = false; }, 350);
-    }
-
+    
     activeSwipeMessage = null;
     isSwipingRight = false;
 });
-
-document.addEventListener('touchcancel', () => {
-    if (activeSwipeMessage) {
-        activeSwipeMessage.style.transition = 'transform 0.25s ease-out';
-        activeSwipeMessage.style.transform = 'translateX(0px)';
-        activeSwipeMessage = null;
-    }
-    isSwipingRight = false;
-}, { passive: true });
 
 // Prevent accidental clicks / menu triggers after a swipe gesture
 window.addEventListener('click', (e) => {
@@ -2265,12 +2285,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.20';
+const CURRENT_APP_VERSION = '1.1.25';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.20';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.25';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2432,7 +2452,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.20';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.25';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4402,25 +4422,30 @@ async function openChat(chatId, title) {
         topObserver.observe(topSentinel);
     }
 
-    // Fetch initial newest 15 messages (limitToLast(15))
-    const initialQuery = query(ref(db, `messages/${chatId}`), orderByKey(), limitToLast(15));
-    const initialSnap = await get(initialQuery);
-    if (currentChatId !== chatId) return;
+    // Stale-While-Revalidate Local Storage Cache Pattern
+    const clearChatContainer = () => {
+        const children = Array.from(cont.children);
+        for (const child of children) {
+            if (child !== topSentinel) {
+                child.remove();
+            }
+        }
+        lastSenderId = null;
+    };
 
-    const initialMessages = [];
-    initialSnap.forEach(child => {
-        initialMessages.push({ key: child.key, val: child.val() });
-    });
+    const renderMessageList = (messagesList) => {
+        if (!messagesList || messagesList.length === 0) {
+            hasMoreOlderMessages = false;
+            return;
+        }
+        if (messagesList.length < 15) {
+            hasMoreOlderMessages = false;
+        }
+        currentOldestMessageKey = messagesList[0].key;
+        currentNewestMessageKey = messagesList[messagesList.length - 1].key;
+        lastSenderId = null;
 
-    if (initialMessages.length < 15) {
-        hasMoreOlderMessages = false;
-    }
-
-    if (initialMessages.length > 0) {
-        currentOldestMessageKey = initialMessages[0].key;
-        currentNewestMessageKey = initialMessages[initialMessages.length - 1].key;
-
-        for (const item of initialMessages) {
+        for (const item of messagesList) {
             const msg = item.val;
             if (chatId !== 'channel_orion_updates' && msg.sender_id !== auth.currentUser.uid && !viewedMessagesInSession.has(item.key)) {
                 viewedMessagesInSession.add(item.key);
@@ -4434,7 +4459,59 @@ async function openChat(chatId, title) {
         }
         cont.scrollTop = cont.scrollHeight;
         updateInputButtons();
-    }
+    };
+
+    const fetchRecentMessagesFromDB = async (roomId) => {
+        const initialQuery = query(ref(db, `messages/${roomId}`), orderByKey(), limitToLast(15));
+        const initialSnap = await get(initialQuery);
+        if (currentChatId !== roomId) return [];
+
+        const freshMessages = [];
+        initialSnap.forEach(child => {
+            freshMessages.push({ key: child.key, val: child.val() });
+        });
+        return freshMessages;
+    };
+
+    const loadChatMessages = async (roomId) => {
+        const cacheKey = `orion_cache_${roomId}`;
+        const cachedData = localStorage.getItem(cacheKey);
+
+        // 1. Instantly render from local cache if it exists
+        if (cachedData) {
+            try {
+                const parsedCache = JSON.parse(cachedData);
+                renderMessageList(parsedCache);
+            } catch (err) {
+                console.error('[CACHE] Corrupt cache parsing failed:', err);
+            }
+        }
+
+        // 2. Silently fetch the latest 15 messages from the server/Firebase
+        try {
+            const freshMessages = await fetchRecentMessagesFromDB(roomId);
+            if (currentChatId !== roomId) return;
+
+            // 3. Check for changes
+            const freshDataString = JSON.stringify(freshMessages);
+            if (cachedData !== freshDataString) {
+                // Update cache and refresh UI only if data changed
+                try {
+                    localStorage.setItem(cacheKey, freshDataString);
+                } catch (e) {
+                    console.warn('[CACHE] localStorage quota exceeded or write failed:', e);
+                }
+
+                clearChatContainer();
+                renderMessageList(freshMessages);
+            }
+        } catch (error) {
+            console.error('[CACHE] Background sync failed:', error);
+        }
+    };
+
+    await loadChatMessages(chatId);
+    if (currentChatId !== chatId) return;
 
     // Real-time listener for newly appended messages
     const newMsgsQuery = currentNewestMessageKey
@@ -4691,8 +4768,8 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         activeReactionMessageId = isSameMessage && picker.style.display === 'grid' ? null : messageId;
 
         if (picker.style.display === 'none' || !isSameMessage) {
-            const pm = document.getElementById('plus-menu');
-            if (pm) pm.style.display = 'none';
+            const pm = document.getElementById('attachment-options-menu') || document.getElementById('plus-menu');
+            if (pm) { pm.style.display = 'none'; pm.classList.add('hidden'); }
             await renderEmojiPicker();
             picker.style.display = 'grid';
             picker.scrollTop = 0;
@@ -5243,8 +5320,8 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
         const isSameMessage = activeReactionMessageId === messageId;
         activeReactionMessageId = isSameMessage && picker.style.display === 'grid' ? null : messageId;
         if (picker.style.display === 'none' || !isSameMessage) {
-            const pm = document.getElementById('plus-menu');
-            if (pm) pm.style.display = 'none';
+            const pm = document.getElementById('attachment-options-menu') || document.getElementById('plus-menu');
+            if (pm) { pm.style.display = 'none'; pm.classList.add('hidden'); }
             await renderEmojiPicker();
             picker.style.display = 'grid';
         } else {
@@ -6109,98 +6186,33 @@ document.getElementById('sticker-btn').onclick = openStickerPicker;
 setupInputAreaListeners();
 
 function setupInputAreaListeners() {
-    // --- Plus Menu Logic ---
-    const plusBtn = document.getElementById('plus-btn');
-    const plusMenu = document.getElementById('plus-menu');
-    const createPollOption = document.getElementById('create-poll-option');
-    const uploadImageOption = document.getElementById('upload-image-option');
-    const fileUploadInput = document.getElementById('file-upload-input');
     const addPollOptionBtn = document.getElementById('add-poll-option-btn');
     const closePollModal = document.getElementById('close-poll-modal');
     const confirmPollBtn = document.getElementById('confirm-poll-btn');
     const pollModal = document.getElementById('poll-modal');
     const pollQuestionInput = document.getElementById('poll-question');
     const pollOptionsContainer = document.getElementById('poll-options-container');
-    const openGamesOption = document.getElementById('open-games-option');
 
-    if (plusBtn) {
-        plusBtn.onclick = (e) => {
-            e.stopPropagation();
-            if (plusMenu) {
-                const opening = plusMenu.style.display === 'none';
-                plusMenu.style.display = opening ? 'flex' : 'none';
-                if (opening) { // never show the upload menu and the emoji/sticker picker together
-                    const ep = document.getElementById('emoji-picker');
-                    if (ep) ep.style.display = 'none';
-                    activeReactionMessageId = null;
-                }
-            }
-        };
-        document.addEventListener('click', () => { if (plusMenu) plusMenu.style.display = 'none'; });
-    } else {
-        console.error("Element with ID 'plus-btn' not found.");
-    }
-
-    if (openGamesOption) {
-        openGamesOption.onclick = () => {
-            if (plusMenu) plusMenu.style.display = 'none';
-            document.getElementById('games-library-modal').style.display = 'flex';
+    const selectFlagGame = document.getElementById('select-flag-game');
+    if (selectFlagGame) {
+        selectFlagGame.onclick = () => {
+            const glm = document.getElementById('games-library-modal');
+            if (glm) glm.style.display = 'none';
+            const fgm = document.getElementById('flag-game-lobby-modal');
+            if (fgm) fgm.style.display = 'flex';
+            setupGameLobby();
         };
     }
 
-    document.getElementById('select-flag-game').onclick = () => {
-        document.getElementById('games-library-modal').style.display = 'none';
-        document.getElementById('flag-game-lobby-modal').style.display = 'flex';
-        setupGameLobby();
-    };
-
-    document.getElementById('cancel-game-btn').onclick = () => {
-        document.getElementById('flag-game-lobby-modal').style.display = 'none';
-        if (currentChatId && auth.currentUser) {
-            remove(ref(db, `games/${currentChatId}/players/${auth.currentUser.uid}`));
-        }
-    };
-
-    if (uploadImageOption && fileUploadInput) {
-        uploadImageOption.onclick = () => {
-            if (plusMenu) plusMenu.style.display = 'none';
-            fileUploadInput.click();
-        };
-
-        fileUploadInput.onchange = async (event) => {
-            const file = event.target.files[0];
-            if (!file) return;
-            console.log(`[UPLOAD] Selected file: ${file.name}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
-
-            try {
-                await new Promise(r => setTimeout(r, 0));
-                const quality = isCurrentUserPremium ? 0.9 : 0.8;
-                const compressedBlob = await compressImageAsync(file, 1280, quality);
-                console.log(`[UPLOAD] Initiating server upload for: ${compressedBlob.name}`);
-                await new Promise(r => setTimeout(r, 0));
-                await sendImageMessage(compressedBlob);
-                console.log(`[UPLOAD] Server upload completed successfully.`);
-            } catch (error) {
-                console.error('[UPLOAD] Image processing failed:', error);
-                showNotification("Failed to send image: " + (error?.message || "Unknown error"), "error");
-            } finally {
-                fileUploadInput.value = '';
+    const cancelGameBtn = document.getElementById('cancel-game-btn');
+    if (cancelGameBtn) {
+        cancelGameBtn.onclick = () => {
+            const fgm = document.getElementById('flag-game-lobby-modal');
+            if (fgm) fgm.style.display = 'none';
+            if (currentChatId && auth.currentUser) {
+                remove(ref(db, `games/${currentChatId}/players/${auth.currentUser.uid}`));
             }
         };
-    }
-
-    if (createPollOption) {
-        createPollOption.onclick = () => {
-            if (plusMenu) plusMenu.style.display = 'none';
-            if (pollModal) pollModal.style.display = 'flex';
-            // Reset modal
-            if (pollQuestionInput) pollQuestionInput.value = '';
-            if (pollOptionsContainer) {
-                pollOptionsContainer.innerHTML = '<label>Options</label><input type="text" class="poll-option-input" placeholder="Option 1"><input type="text" class="poll-option-input" placeholder="Option 2">';
-            }
-        };
-    } else {
-        console.error("Element with ID 'create-poll-option' not found.");
     }
 
     if (addPollOptionBtn) {
@@ -6385,40 +6397,95 @@ messageInput.oninput = (e) => {
 };
 
 // --- CONSOLIDATED ATTACHMENT MENU FEATURE ---
+// --- UNIFIED ATTACHMENT MENU FEATURE ---
+function closeAttachmentMenu() {
+    const menu = document.getElementById('attachment-options-menu');
+    if (menu) {
+        menu.classList.add('hidden');
+        menu.style.display = 'none';
+    }
+}
+
+function openAttachmentMenu() {
+    const menu = document.getElementById('attachment-options-menu');
+    if (menu) {
+        menu.classList.remove('hidden');
+        menu.style.display = 'flex';
+        const ep = document.getElementById('emoji-picker');
+        if (ep) ep.style.display = 'none';
+        activeReactionMessageId = null;
+    }
+}
+
+function toggleAttachmentMenu(e) {
+    if (e) e.stopPropagation();
+    const menu = document.getElementById('attachment-options-menu');
+    if (!menu) return;
+    const isHidden = menu.classList.contains('hidden') || menu.style.display === 'none';
+    if (isHidden) {
+        openAttachmentMenu();
+    } else {
+        closeAttachmentMenu();
+    }
+}
+
 const mainAttachmentToggle = document.getElementById('main-attachment-toggle');
-const attachmentOptionsMenu = document.getElementById('attachment-options-menu');
 const menuFileBtn = document.getElementById('menu-file-btn');
 const menuCameraBtn = document.getElementById('menu-camera-btn');
+const createPollOption = document.getElementById('create-poll-option');
+const menuGamesBtn = document.getElementById('menu-games-btn') || document.getElementById('open-games-option');
 const hiddenStickerInput = document.getElementById('hidden-sticker-input');
 const hiddenCameraInput = document.getElementById('hidden-camera-input');
 
-if (mainAttachmentToggle && attachmentOptionsMenu) {
-    mainAttachmentToggle.onclick = (e) => {
-        e.stopPropagation();
-        attachmentOptionsMenu.classList.toggle('hidden');
-    };
+if (mainAttachmentToggle) {
+    mainAttachmentToggle.onclick = toggleAttachmentMenu;
 }
 
 if (menuFileBtn && hiddenStickerInput) {
     menuFileBtn.onclick = (e) => {
-        e.stopPropagation();
-        attachmentOptionsMenu?.classList.add('hidden');
+        if (e) e.stopPropagation();
+        closeAttachmentMenu();
         hiddenStickerInput.click();
     };
 }
 
 if (menuCameraBtn && hiddenCameraInput) {
     menuCameraBtn.onclick = (e) => {
-        e.stopPropagation();
-        attachmentOptionsMenu?.classList.add('hidden');
+        if (e) e.stopPropagation();
+        closeAttachmentMenu();
         hiddenCameraInput.click();
+    };
+}
+
+if (createPollOption) {
+    createPollOption.onclick = (e) => {
+        if (e) e.stopPropagation();
+        closeAttachmentMenu();
+        const pollModal = document.getElementById('poll-modal');
+        if (pollModal) pollModal.style.display = 'flex';
+        const pollQuestionInput = document.getElementById('poll-question');
+        if (pollQuestionInput) pollQuestionInput.value = '';
+        const pollOptionsContainer = document.getElementById('poll-options-container');
+        if (pollOptionsContainer) {
+            pollOptionsContainer.innerHTML = '<label>Options</label><input type="text" class="poll-option-input" placeholder="Option 1"><input type="text" class="poll-option-input" placeholder="Option 2">';
+        }
+    };
+}
+
+if (menuGamesBtn) {
+    menuGamesBtn.onclick = (e) => {
+        if (e) e.stopPropagation();
+        document.getElementById('attachment-options-menu')?.classList.add('hidden');
+        closeAttachmentMenu();
+        const glm = document.getElementById('games-library-modal');
+        if (glm) glm.style.display = 'flex';
     };
 }
 
 // Close attachment options menu when clicking outside
 document.addEventListener('click', (e) => {
     if (!e.target.closest('#attachment-wrapper')) {
-        document.getElementById('attachment-options-menu')?.classList.add('hidden');
+        closeAttachmentMenu();
     }
 });
 
@@ -6467,11 +6534,9 @@ function updateInputButtons() {
     const sendBtn = document.getElementById('send-btn');
     const attachWrapper = document.getElementById('attachment-wrapper');
     const stickerBtn = document.getElementById('sticker-btn');
-    const plusBtn = document.getElementById('plus-btn');
     if (!input || !sendBtn) return;
 
     if (!currentChatId) {
-        if (plusBtn) plusBtn.style.display = 'none';
         sendBtn.style.display = 'none';
         if (attachWrapper) attachWrapper.style.display = 'none';
         return;
@@ -6484,12 +6549,10 @@ function updateInputButtons() {
         sendBtn.style.display = isMobile ? 'flex' : 'none';
         if (isMobile && attachWrapper) attachWrapper.style.display = 'none';
         if (stickerBtn) stickerBtn.style.display = 'none';
-        if (plusBtn) plusBtn.style.display = 'none';
     } else {
         sendBtn.style.display = 'none';
         if (attachWrapper) attachWrapper.style.display = 'inline-flex';
         if (stickerBtn) stickerBtn.style.display = 'none';
-        if (plusBtn) plusBtn.style.display = 'flex';
     }
 }
 
@@ -8856,8 +8919,8 @@ if (emojiBtn && emojiPicker) {
         e.stopPropagation();
         activeReactionMessageId = null; // Reset to regular typing mode
         if (emojiPicker.style.display === 'none') {
-            const pm = document.getElementById('plus-menu');
-            if (pm) pm.style.display = 'none';
+            const pm = document.getElementById('attachment-options-menu') || document.getElementById('plus-menu');
+            if (pm) { pm.style.display = 'none'; pm.classList.add('hidden'); }
             await renderEmojiPicker();
             emojiPicker.style.display = 'flex';
         } else {

@@ -324,21 +324,12 @@ body {
     transform: scale(1.1);
 }
 #attachment-options-menu {
-    background: var(--bg-color, rgba(18, 18, 30, 0.95)) !important;
-    backdrop-filter: blur(25px);
-    -webkit-backdrop-filter: blur(25px);
-    border: 1px solid var(--glass-border);
-    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.45);
-    color: var(--text, #fff);
-    user-select: none;
-}
-#menu-camera-btn, #menu-file-btn {
-    transition: background 0.18s, color 0.18s;
-    font-size: 14px;
-    font-weight: 500;
-}
-#menu-camera-btn:hover, #menu-file-btn:hover {
-    background: var(--glass-bright, rgba(255, 255, 255, 0.12));
+    bottom: calc(100% + 12px) !important;
+    top: auto !important;
+    right: 0 !important;
+    left: auto !important;
+    margin-left: 0 !important;
+    width: 160px;
 }
 .bio-box { background: rgba(255,255,255,0.05); padding: 15px; border-radius: 12px; font-size: 14px; border: 1px solid var(--glass-border); min-height: 60px; word-wrap: break-word; }
 
