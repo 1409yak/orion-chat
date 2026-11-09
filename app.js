@@ -1649,51 +1649,55 @@ document.addEventListener('touchmove', (e) => {
 document.addEventListener('touchend', (e) => {
     if (!activeSwipeMessage) return;
 
-    const diffX = e.changedTouches[0].clientX - swipeStartX;
+    try {
+        const diffX = e.changedTouches[0].clientX - swipeStartX;
 
-    // Smoothly snap the message back to its original position
+        // Smoothly snap the message back to its original position
+        activeSwipeMessage.style.transition = 'transform 0.25s ease-out';
+        activeSwipeMessage.style.transform = 'translateX(0px)';
+
+        // If swiped far enough right (e.g., > 50px), trigger the reply action
+        if (isSwipingRight && diffX > 50) {
+            console.log('[SWIPE] Triggering reply action');
+            suppressSwipeClick = true;
+            setTimeout(() => { suppressSwipeClick = false; }, 350);
+
+            if (window.navigator?.vibrate) {
+                try { window.navigator.vibrate(30); } catch (_) {}
+            }
+
+            if (activeSwipeMessage._replyData) {
+                const { messageId, text, senderName } = activeSwipeMessage._replyData;
+                replyToMessage(messageId, text, senderName);
+            } else {
+                const wrap = activeSwipeMessage.closest('.msg-wrapper');
+                const msgId = activeSwipeMessage.dataset.messageId || wrap?.id?.replace(/^msg-/, '');
+                const sName = activeSwipeMessage.dataset.senderName || wrap?.querySelector('.msg-author')?.innerText || 'User';
+                const txt = activeSwipeMessage.dataset.text || activeSwipeMessage.querySelector('.msg-content')?.innerText || '';
+                if (msgId) {
+                    replyToMessage(msgId, txt, sName);
+                }
+            }
+        } else if (isSwipingRight) {
+            suppressSwipeClick = true;
+            setTimeout(() => { suppressSwipeClick = false; }, 350);
+        }
+    } finally {
+        activeSwipeMessage = null;
+        isSwipingRight = false;
+    }
+});
+
+document.addEventListener('touchcancel', (e) => {
+    if (!activeSwipeMessage) return;
+
+    // Reset the UI and clear the active state if Android interrupts the touch
     activeSwipeMessage.style.transition = 'transform 0.25s ease-out';
     activeSwipeMessage.style.transform = 'translateX(0px)';
-
-    // If swiped far enough right (e.g., > 50px), trigger the reply action
-    if (isSwipingRight && diffX > 50) {
-        console.log('[SWIPE] Triggering reply action');
-        suppressSwipeClick = true;
-        setTimeout(() => { suppressSwipeClick = false; }, 350);
-
-        if (window.navigator?.vibrate) {
-            try { window.navigator.vibrate(30); } catch (_) {}
-        }
-
-        if (activeSwipeMessage._replyData) {
-            const { messageId, text, senderName } = activeSwipeMessage._replyData;
-            replyToMessage(messageId, text, senderName);
-        } else {
-            const wrap = activeSwipeMessage.closest('.msg-wrapper');
-            const msgId = activeSwipeMessage.dataset.messageId || wrap?.id?.replace(/^msg-/, '');
-            const sName = activeSwipeMessage.dataset.senderName || wrap?.querySelector('.msg-author')?.innerText || 'User';
-            const txt = activeSwipeMessage.dataset.text || activeSwipeMessage.querySelector('.msg-content')?.innerText || '';
-            if (msgId) {
-                replyToMessage(msgId, txt, sName);
-            }
-        }
-    } else if (isSwipingRight) {
-        suppressSwipeClick = true;
-        setTimeout(() => { suppressSwipeClick = false; }, 350);
-    }
-
+    
     activeSwipeMessage = null;
     isSwipingRight = false;
 });
-
-document.addEventListener('touchcancel', () => {
-    if (activeSwipeMessage) {
-        activeSwipeMessage.style.transition = 'transform 0.25s ease-out';
-        activeSwipeMessage.style.transform = 'translateX(0px)';
-        activeSwipeMessage = null;
-    }
-    isSwipingRight = false;
-}, { passive: true });
 
 // Prevent accidental clicks / menu triggers after a swipe gesture
 window.addEventListener('click', (e) => {
@@ -2281,12 +2285,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.23';
+const CURRENT_APP_VERSION = '1.1.24';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.23';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.24';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2448,7 +2452,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.23';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.24';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
