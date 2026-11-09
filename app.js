@@ -1216,7 +1216,7 @@ async function replyToMessage(messageId, text, senderName) {
     const previewTitle = document.getElementById('reply-info-title');
 
     previewTitle.innerText = `Replying to ${senderName}`;
-    previewText.innerText = (text === '[Sticker]' || text.startsWith('[Sticker]')) ? "Sticker" : (text.startsWith('data:image/') ? "Image" : text);
+    previewText.innerText = text.startsWith('data:image/') ? "Image" : text;
     previewBar.style.display = 'flex';
     document.getElementById('message-input').focus();
 }
@@ -1234,7 +1234,7 @@ function exitReplyMode() {
     document.getElementById('reply-preview-bar').style.display = 'none';
 }
 
-async function deleteMessage(messageId, isSticker = false) {
+async function deleteMessage(messageId) {
     if (!currentChatId) return;
 
     const confirmed = await showConfirm("Delete Message", "Are you sure you want to delete this message?");
@@ -1242,11 +1242,7 @@ async function deleteMessage(messageId, isSticker = false) {
         try {
             await remove(ref(db, `messages/${currentChatId}/${messageId}`));
         } catch (err) {
-            if (isSticker) {
-                console.error("Error deleting sticker message:", err);
-            } else {
-                console.error("Error deleting message:", err);
-            }
+            console.error("Error deleting message:", err);
             
             if (err.message.includes("permission_denied")) {
                 showNotification("Permission Denied: You can only delete your own messages.", "error");
@@ -1365,8 +1361,8 @@ function openMessageContextMenu(messageId, msg, isMe, posX, posY) {
     const myUid = auth.currentUser ? auth.currentUser.uid : null;
     const isGroupAdmin = currentChatMemberData?.[myUid]?.role === 'admin' || myUid === currentChatCreatorId;
     const canDelete = isMe || isGroupAdmin;
-    const canEdit = isMe && !msg.poll && !msg.stickerId && !msg.isSticker;
-    const canCopy = !msg.poll && !msg.stickerId && !msg.isSticker && !!msg.text;
+    const canEdit = isMe && !msg.poll && !msg.stickerId;
+    const canCopy = !msg.poll && !msg.stickerId && !!msg.text;
 
     activeContextTarget = {
         messageId,
@@ -1511,7 +1507,7 @@ function initMessageContextMenu() {
             if (activeContextTarget) {
                 const { messageId, msg } = activeContextTarget;
                 const senderName = msg.sender_name || (msg.sender_id === 'system' ? 'Orion System' : 'User');
-                replyToMessage(messageId, (msg.isSticker || msg.stickerId) ? '[Sticker]' : (msg.text || ''), senderName);
+                replyToMessage(messageId, msg.text || (msg.stickerId ? '[Sticker]' : ''), senderName);
             }
             closeMessageContextMenu();
         };
@@ -2165,12 +2161,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.16';
+const CURRENT_APP_VERSION = '1.1.18';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.16';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.18';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2332,7 +2328,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.16';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.18';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4524,28 +4520,16 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         return;
     }
 
-    const messageData = msg;
-    const isSticker = !!messageData.isSticker;
-
     if (isSystem) {
         wrap.className = 'msg-wrapper system-msg';
     } else {
         wrap.className = isMe ? 'msg-wrapper sent' : 'msg-wrapper rcv';
         if (isConsecutive) wrap.classList.add('consecutive');
         if (isUserMentioned) wrap.classList.add('user-mentioned');
-        if (isSticker) wrap.classList.add('sticker-msg');
     }
 
     const bubble = document.createElement('div');
-    if (isSticker) {
-        bubble.className = 'msg-bubble sticker-bubble';
-        bubble.style.background = 'transparent';
-        bubble.style.border = 'none';
-        bubble.style.boxShadow = 'none';
-        bubble.style.padding = '0';
-    } else {
-        bubble.className = 'msg-bubble';
-    }
+    bubble.className = 'msg-bubble';
 
     // Handle Game Invite Link
     if (msg.gameInvite) {
@@ -4699,7 +4683,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     htmlContent = htmlContent.replace(/@everyone\b/gi, `<span class="mention-pill">@everyone</span>`);
 
     // Only show text node if there's actual text remaining or if there are no other embeds to show
-    if (!isSticker && (htmlContent || (formatted.imageUrls.length === 0 && !formatted.youtubeId && formatted.joinChatIds.length === 0))) {
+    if (htmlContent || (formatted.imageUrls.length === 0 && !formatted.youtubeId && formatted.joinChatIds.length === 0)) {
         const textNode = document.createElement('div');
         textNode.innerHTML = htmlContent;
         msgContent.appendChild(textNode);
@@ -4719,70 +4703,47 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         msgContent.appendChild(updateCard);
     }
 
-    if (isSticker) {
-        const stickerSrc = formatted.imageUrls[0] || messageData.text;
-        const stickerImg = document.createElement('img');
-        stickerImg.src = stickerSrc;
-        stickerImg.className = 'chat-sticker keyboard-sticker-img';
-        stickerImg.loading = 'lazy';
-        stickerImg.decoding = 'async';
-        stickerImg.alt = 'Sticker';
-        stickerImg.style.background = 'transparent';
-        stickerImg.style.border = 'none';
-        stickerImg.style.boxShadow = 'none';
-        stickerImg.style.maxWidth = '150px';
-        stickerImg.style.maxHeight = '150px';
-        stickerImg.style.objectFit = 'contain';
-        stickerImg.style.display = 'block';
-        // Do NOT attach the image-viewer-modal click listener to stickers
-        stickerImg.onload = () => {
+    formatted.imageUrls.forEach(url => {
+        const imgWrap = document.createElement('div');
+        imgWrap.className = 'image-embed-wrapper';
+        imgWrap.style.minHeight = '140px';
+        imgWrap.style.background = 'rgba(255, 255, 255, 0.04)';
+        imgWrap.style.borderRadius = '12px';
+        imgWrap.style.display = 'flex';
+        imgWrap.style.alignItems = 'center';
+        imgWrap.style.justifyContent = 'center';
+        const img = document.createElement('img');
+        img.src = url;
+        img.className = 'chat-embedded-image';
+        img.loading = 'lazy';
+        img.decoding = 'async';
+        img.alt = 'Shared image';
+        img.onclick = (e) => {
+            e.stopPropagation();
+            const modal = document.getElementById('image-viewer-modal');
+            const modalImg = document.getElementById('viewer-main-img');
+            const senderNameEl = document.getElementById('viewer-sender-name');
+
+            if (modal && modalImg && senderNameEl) {
+                modalImg.src = img.src;
+                // Extract sender name from the message data
+                senderNameEl.textContent = msg.sender_name || msg.senderName || (isMe ? 'You' : 'Photo');
+                // Store current image URL globally for download button
+                window.currentViewingImage = img.src;
+                modal.classList.remove('hidden');
+            } else {
+                openImageLightbox(url);
+            }
+        };
+        img.onload = () => {
+            imgWrap.style.minHeight = '';
+            imgWrap.style.background = '';
             const isNearBottom = cont.scrollHeight - cont.scrollTop - cont.clientHeight < 120;
             if (isNearBottom) cont.scrollTop = cont.scrollHeight;
         };
-        msgContent.appendChild(stickerImg);
-    } else {
-        formatted.imageUrls.forEach(url => {
-            const imgWrap = document.createElement('div');
-            imgWrap.className = 'image-embed-wrapper';
-            imgWrap.style.minHeight = '140px';
-            imgWrap.style.background = 'rgba(255, 255, 255, 0.04)';
-            imgWrap.style.borderRadius = '12px';
-            imgWrap.style.display = 'flex';
-            imgWrap.style.alignItems = 'center';
-            imgWrap.style.justifyContent = 'center';
-            const img = document.createElement('img');
-            img.src = url;
-            img.className = 'chat-embedded-image';
-            img.loading = 'lazy';
-            img.decoding = 'async';
-            img.alt = 'Shared image';
-            img.onclick = (e) => {
-                e.stopPropagation();
-                const modal = document.getElementById('image-viewer-modal');
-                const modalImg = document.getElementById('viewer-main-img');
-                const senderNameEl = document.getElementById('viewer-sender-name');
-
-                if (modal && modalImg && senderNameEl) {
-                    modalImg.src = img.src;
-                    // Extract sender name from the message data
-                    senderNameEl.textContent = msg.sender_name || msg.senderName || (isMe ? 'You' : 'Photo');
-                    // Store current image URL globally for download button
-                    window.currentViewingImage = img.src;
-                    modal.classList.remove('hidden');
-                } else {
-                    openImageLightbox(url);
-                }
-            };
-            img.onload = () => {
-                imgWrap.style.minHeight = '';
-                imgWrap.style.background = '';
-                const isNearBottom = cont.scrollHeight - cont.scrollTop - cont.clientHeight < 120;
-                if (isNearBottom) cont.scrollTop = cont.scrollHeight;
-            };
-            imgWrap.appendChild(img);
-            msgContent.appendChild(imgWrap);
-        });
-    }
+        imgWrap.appendChild(img);
+        msgContent.appendChild(imgWrap);
+    });
 
     if (formatted.youtubeId) {
         const ytWrap = document.createElement('div');
@@ -4819,7 +4780,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     replyBtn.className = 'glass-btn-secondary';
     replyBtn.onclick = (e) => {
         e.stopPropagation();
-        replyToMessage(messageId, isSticker ? '[Sticker]' : msg.text, msg.sender_name);
+        replyToMessage(messageId, msg.text, msg.sender_name);
         actionMenu.style.display = 'none';
         wrap.style.zIndex = '';
         wrap.style.position = '';
@@ -4827,25 +4788,24 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     actionMenu.appendChild(replyBtn);
     
     if (isMe) {
-        if (!isSticker) {
-            const editBtn = document.createElement('button');
-            editBtn.innerText = 'Edit';
-            editBtn.className = 'glass-btn-secondary';
-            editBtn.onclick = (e) => {
-                e.stopPropagation();
-                editMessage(messageId, msg.text);
-                actionMenu.style.display = 'none';
-                wrap.style.zIndex = '';
-                wrap.style.position = '';
-            };
-            actionMenu.appendChild(editBtn);
-        }
+        const editBtn = document.createElement('button');
+        editBtn.innerText = 'Edit';
+        editBtn.className = 'glass-btn-secondary';
+        editBtn.onclick = (e) => {
+            e.stopPropagation();
+            editMessage(messageId, msg.text);
+            actionMenu.style.display = 'none';
+            wrap.style.zIndex = '';
+            wrap.style.position = '';
+        };
+        actionMenu.appendChild(editBtn);
+
         const deleteBtn = document.createElement('button');
         deleteBtn.innerText = 'Delete';
         deleteBtn.className = 'glass-btn-secondary delete-btn';
         deleteBtn.onclick = (e) => {
             e.stopPropagation();
-            deleteMessage(messageId, isSticker);
+            deleteMessage(messageId);
             actionMenu.style.display = 'none';
             wrap.style.zIndex = '';
             wrap.style.position = '';
@@ -5540,7 +5500,7 @@ function blobToDataUrlAsync(blob) {
 }
 
 // Asynchronous sendImageMessage with full trace logging and zero synchronous re-encoding
-async function sendImageMessage(imageData, targetChatId = null, extraProps = {}) {
+async function sendImageMessage(imageData, targetChatId = null) {
     const destChatId = targetChatId || currentChatId;
     if (!destChatId) {
         console.warn('[UPLOAD] No active chat ID for image upload.');
@@ -5583,11 +5543,10 @@ async function sendImageMessage(imageData, targetChatId = null, extraProps = {})
         sender_name: identityName,
         text: base64Data,
         timestamp: serverTimestamp(),
-        createdAt: serverTimestamp(),
-        ...extraProps
+        createdAt: serverTimestamp()
     };
 
-    updates[`/chats/${destChatId}/last_message`] = extraProps?.isSticker ? "Sent a sticker" : "Sent an image";
+    updates[`/chats/${destChatId}/last_message`] = "Sent an image";
     updates[`/chats/${destChatId}/timestamp`] = serverTimestamp();
 
     console.log('[UPLOAD] Fetching chat members for unread flags...');
@@ -5622,7 +5581,7 @@ async function sendImageMessage(imageData, targetChatId = null, extraProps = {})
                             recipientFcmToken = userSnap.val();
                         }
                         if (recipientFcmToken) {
-                            sendPushNotification(recipientFcmToken, identityName, extraProps?.isSticker ? "Sent a sticker" : "Sent an image", { chatId: destChatId });
+                            sendPushNotification(recipientFcmToken, identityName, "Sent an image", { chatId: destChatId });
                         }
                     } catch (notifyErr) {
                         console.error("[FCM Worker] Error notifying recipient for image:", rUid, notifyErr);
@@ -6254,36 +6213,6 @@ messageInput.oninput = (e) => {
     updateInputButtons();
 };
 
-// --- DEDICATED STICKER ATTACHMENT FEATURE ---
-const attachStickerBtn = document.getElementById('attach-sticker-btn');
-const hiddenStickerInput = document.getElementById('hidden-sticker-input');
-
-if (attachStickerBtn && hiddenStickerInput) {
-    attachStickerBtn.onclick = () => {
-        hiddenStickerInput.click();
-    };
-
-    hiddenStickerInput.onchange = async (e) => {
-        let file = e.target.files[0];
-        if (!file) return;
-
-        console.log('[UPLOAD] Custom sticker selected:', file.name);
-
-        // Upload using existing logic but flag it to render transparently
-        try {
-            await sendImageMessage(file, null, { isSticker: true });
-            console.log('[UPLOAD] Custom sticker uploaded successfully.');
-        } catch (err) {
-            console.error('[UPLOAD] Custom sticker upload failed:', err);
-        } finally {
-            file = null;
-        }
-
-        // Clear the input so the same sticker can be selected again
-        e.target.value = '';
-    };
-}
-
 // --- CAMERA UPLOAD FEATURE (PHONE ONLY) ---
 const cameraBtn = document.getElementById('camera-btn');
 const cameraInput = document.getElementById('camera-input');
@@ -6293,7 +6222,6 @@ function updateInputButtons() {
     const sendBtn = document.getElementById('send-btn');
     const camBtn = document.getElementById('camera-btn');
     const stickerBtn = document.getElementById('sticker-btn');
-    const attachBtn = document.getElementById('attach-sticker-btn');
     const plusBtn = document.getElementById('plus-btn'); // Get the plus button
     if (!input || !sendBtn || !camBtn) return;
 
@@ -6301,7 +6229,6 @@ function updateInputButtons() {
         if (plusBtn) plusBtn.style.display = 'none'; // Hide plus button if no chat selected
         sendBtn.style.display = 'none';
         camBtn.style.display = 'none';
-        if (attachBtn) attachBtn.style.display = 'none';
         return;
     }
 
@@ -6313,13 +6240,11 @@ function updateInputButtons() {
         sendBtn.style.display = isMobile ? 'flex' : 'none';
         camBtn.style.display = 'none';
         stickerBtn.style.display = 'none';
-        if (isMobile && attachBtn) attachBtn.style.display = 'none';
         if (plusBtn) plusBtn.style.display = 'none'; // Hide plus button if text is being typed
     } else {
         sendBtn.style.display = 'none'; // Hide send button if no text
         camBtn.style.display = isMobile ? 'flex' : 'none';
         stickerBtn.style.display = 'none'; // Integrated into emoji menu
-        if (attachBtn) attachBtn.style.display = 'inline-flex';
         if (plusBtn) plusBtn.style.display = 'flex'; // Show plus button if no text and chat is open
     }
 }

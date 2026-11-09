@@ -19,6 +19,7 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *All Photos Sending As Stickers:* The isSticker flag leaked into standard uploads, and native keyboard intercepts remained blocked by OEM WebViews. Solution: Rolled back custom sticker logic to restore standard photo bubbles.
 - *Android Keyboard Block:* WebViews natively reject IME CommitContent. Solution: Bypassed keyboard restriction by adding a dedicated attachment button for gallery stickers.
 - *Keyboard Media Blocked:* Android OS blocked rich media paste into standard text inputs. Solution: Converted chat input to `contenteditable='true'` div to signal rich media support to the native keyboard.
 - *Native Keyboard Stickers:* Intercepted Android keyboard paste events to send local gallery/keyboard stickers as transparent images.
