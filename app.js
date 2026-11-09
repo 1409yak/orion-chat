@@ -496,7 +496,12 @@ let availableFlags = [];
 
 // --- GAME LOGIC ---
 async function setupGameLobby() {
-    if (!currentChatId) return;
+    if (!currentChatId) {
+        showNotification("Please select a chat to play games.", "info");
+        return;
+    }
+    const fgm = document.getElementById('flag-game-lobby-modal');
+    if (fgm) fgm.style.display = 'flex';
     const gameRef = ref(db, `games/${currentChatId}`);
     
     const gameSnap = await get(gameRef);
@@ -584,6 +589,16 @@ async function setupGameLobby() {
     });
 }
 
+function initFlagGame() {
+    const attachMenu = document.getElementById('attachment-options-menu');
+    if (attachMenu) {
+        attachMenu.classList.add('hidden');
+        attachMenu.style.display = 'none';
+    }
+    setupGameLobby();
+}
+window.initFlagGame = initFlagGame;
+
 function startLocalGameUI(gameData) {
     document.getElementById('flag-game-lobby-modal').style.display = 'none';
     document.getElementById('flag-game-screen').style.display = 'flex';
@@ -598,8 +613,9 @@ function startLocalGameUI(gameData) {
     nextFlagRound();
     
     if (gameTimerInterval) clearInterval(gameTimerInterval);
+    const endTime = (gameData && gameData.endTime) ? gameData.endTime : (Date.now() + 300000);
     gameTimerInterval = setInterval(() => {
-        const remaining = Math.max(0, gameData.endTime - Date.now());
+        const remaining = Math.max(0, endTime - Date.now());
         const mins = Math.floor(remaining / 60000);
         const secs = Math.floor((remaining % 60000) / 1000);
         document.getElementById('game-timer').innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
@@ -2265,12 +2281,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.22';
+const CURRENT_APP_VERSION = '1.1.23';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.22';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.23';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2432,7 +2448,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.22';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.23';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6413,7 +6429,7 @@ const mainAttachmentToggle = document.getElementById('main-attachment-toggle');
 const menuFileBtn = document.getElementById('menu-file-btn');
 const menuCameraBtn = document.getElementById('menu-camera-btn');
 const createPollOption = document.getElementById('create-poll-option');
-const openGamesOption = document.getElementById('open-games-option');
+const menuGamesBtn = document.getElementById('menu-games-btn') || document.getElementById('open-games-option');
 const hiddenStickerInput = document.getElementById('hidden-sticker-input');
 const hiddenCameraInput = document.getElementById('hidden-camera-input');
 
@@ -6452,12 +6468,12 @@ if (createPollOption) {
     };
 }
 
-if (openGamesOption) {
-    openGamesOption.onclick = (e) => {
+if (menuGamesBtn) {
+    menuGamesBtn.onclick = (e) => {
         if (e) e.stopPropagation();
+        document.getElementById('attachment-options-menu').classList.add('hidden');
         closeAttachmentMenu();
-        const glm = document.getElementById('games-library-modal');
-        if (glm) glm.style.display = 'flex';
+        initFlagGame();
     };
 }
 

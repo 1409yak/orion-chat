@@ -19,6 +19,7 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Game Mode Broken:* Flag game trigger disconnected during menu consolidation. Solution: Re-bound the unified Games button to the game initialization function and secured the game modal DOM.
 - *UI Fragmentation:* Redundant attachment menus on left (+) and right (paperclip). Solution: Consolidated all media, poll, and game options into a single restyled paperclip dropdown on the right.
 - *UI Clipping & Crowding:* File button displaced camera, and context menu clipped off-screen at chat bottom. Solution: Consolidated attachments into a popover menu and added viewport boundary math to dynamically render context menus above or below messages.
 - *Swipe Gestures:* Implemented X/Y axis touchmath to enable horizontal swipe-to-reply on message bubbles while preserving vertical chat scrolling.
