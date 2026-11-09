@@ -2269,12 +2269,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.28';
+const CURRENT_APP_VERSION = '1.1.29';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.28';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.29';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2436,7 +2436,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.28';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.29';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6141,8 +6141,10 @@ async function sendMessage() {
 }
 
 /* ---------------- SEND BUTTON ---------------- */
-document.getElementById('send-btn').onclick = sendMessage;
-document.getElementById('sticker-btn').onclick = openStickerPicker;
+const sendBtn = document.getElementById('send-btn');
+if (sendBtn) sendBtn.onclick = sendMessage;
+const stickerBtn = document.getElementById('sticker-btn');
+if (stickerBtn) stickerBtn.onclick = openStickerPicker;
 
 setupInputAreaListeners();
 
@@ -6241,10 +6243,12 @@ function setupInputAreaListeners() {
     // --- Plus Menu Logic (Reverted to Legacy) ---
     const plusBtn = document.getElementById('plus-btn');
     const plusMenu = document.getElementById('plus-menu');
+    const cameraOptionBtn = document.getElementById('camera-option-btn');
     const createPollOption = document.getElementById('create-poll-option');
     const uploadFileOption = document.getElementById('upload-file-option');
     const fileUploadInput = document.getElementById('file-upload-input');
     const openGamesOption = document.getElementById('open-games-option');
+    const hiddenCamInput = document.getElementById('camera-input');
 
     if (plusBtn) {
         plusBtn.onclick = (e) => {
@@ -6264,6 +6268,14 @@ function setupInputAreaListeners() {
                 if (plusMenu) plusMenu.style.display = 'none';
             }
         });
+    }
+
+    if (cameraOptionBtn && hiddenCamInput) {
+        cameraOptionBtn.onclick = (e) => {
+            if (e) e.stopPropagation();
+            if (plusMenu) plusMenu.style.display = 'none';
+            hiddenCamInput.click();
+        };
     }
 
     if (openGamesOption) {
