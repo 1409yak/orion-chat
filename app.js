@@ -2269,12 +2269,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.29';
+const CURRENT_APP_VERSION = '1.1.30';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.29';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.30';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2436,7 +2436,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.29';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.30';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6239,74 +6239,88 @@ function setupInputAreaListeners() {
     } else {
         console.error("Element with ID 'confirm-poll-btn' not found.");
     }
-
-    // --- Plus Menu Logic (Reverted to Legacy) ---
-    const plusBtn = document.getElementById('plus-btn');
-    const plusMenu = document.getElementById('plus-menu');
-    const cameraOptionBtn = document.getElementById('camera-option-btn');
-    const createPollOption = document.getElementById('create-poll-option');
-    const uploadFileOption = document.getElementById('upload-file-option');
-    const fileUploadInput = document.getElementById('file-upload-input');
-    const openGamesOption = document.getElementById('open-games-option');
-    const hiddenCamInput = document.getElementById('camera-input');
-
-    if (plusBtn) {
-        plusBtn.onclick = (e) => {
-            e.stopPropagation();
-            if (plusMenu) {
-                const opening = plusMenu.style.display === 'none';
-                plusMenu.style.display = opening ? 'flex' : 'none';
-                if (opening) {
-                    const ep = document.getElementById('emoji-picker');
-                    if (ep) ep.style.display = 'none';
-                    activeReactionMessageId = null;
-                }
-            }
-        };
-        document.addEventListener('click', (e) => {
-            if (!e.target.closest('#plus-menu') && !e.target.closest('#plus-btn')) {
-                if (plusMenu) plusMenu.style.display = 'none';
-            }
-        });
-    }
-
-    if (cameraOptionBtn && hiddenCamInput) {
-        cameraOptionBtn.onclick = (e) => {
-            if (e) e.stopPropagation();
-            if (plusMenu) plusMenu.style.display = 'none';
-            hiddenCamInput.click();
-        };
-    }
-
-    if (openGamesOption) {
-        openGamesOption.onclick = (e) => {
-            if (e) e.stopPropagation();
-            if (plusMenu) plusMenu.style.display = 'none';
-            const glm = document.getElementById('games-library-modal');
-            if (glm) glm.style.display = 'flex';
-        };
-    }
-
-    if (uploadFileOption && fileUploadInput) {
-        uploadFileOption.onclick = (e) => {
-            if (e) e.stopPropagation();
-            if (plusMenu) plusMenu.style.display = 'none';
-            fileUploadInput.click();
-        };
-    }
-
-    if (createPollOption) {
-        createPollOption.onclick = (e) => {
-            if (e) e.stopPropagation();
-            if (plusMenu) plusMenu.style.display = 'none';
-            if (pollModal) pollModal.style.display = 'flex';
-            if (pollQuestionInput) pollQuestionInput.value = '';
-            if (pollOptionsContainer) {
-                pollOptionsContainer.innerHTML = '<label>Options</label><input type="text" class="poll-option-input" placeholder="Option 1"><input type="text" class="poll-option-input" placeholder="Option 2">';
-            }
-        };
-    }
 }
+
+// --- Global Event Delegation for Paperclip Menu ---
+document.addEventListener('click', (e) => {
+    // 1. Toggle the Paperclip Menu
+    const plusBtnClick = e.target.closest('#plus-btn');
+    const plusMenu = document.getElementById('plus-menu');
+
+    if (plusBtnClick) {
+        e.stopPropagation(); // Stop global click from immediately hiding it
+        if (plusMenu) {
+            const isOpening = plusMenu.style.display === 'none' || plusMenu.classList.contains('hidden');
+            if (isOpening) {
+                plusMenu.classList.remove('hidden');
+                plusMenu.style.display = 'flex';
+                const ep = document.getElementById('emoji-picker');
+                if (ep) ep.style.display = 'none';
+                activeReactionMessageId = null;
+            } else {
+                plusMenu.style.display = 'none';
+                plusMenu.classList.add('hidden');
+            }
+        }
+        return;
+    }
+
+    // 2. Handle Menu Options dynamically
+    if (e.target.closest('#camera-option-btn')) {
+        if (plusMenu) {
+            plusMenu.style.display = 'none';
+            plusMenu.classList.add('hidden');
+        }
+        document.getElementById('camera-input')?.click();
+        return;
+    }
+    
+    if (e.target.closest('#upload-image-option') || e.target.closest('#upload-file-option')) {
+        if (plusMenu) {
+            plusMenu.style.display = 'none';
+            plusMenu.classList.add('hidden');
+        }
+        document.getElementById('file-upload-input')?.click();
+        return;
+    }
+    
+    if (e.target.closest('#create-poll-option')) {
+        if (plusMenu) {
+            plusMenu.style.display = 'none';
+            plusMenu.classList.add('hidden');
+        }
+        const pollModal = document.getElementById('poll-modal');
+        if (pollModal) {
+            pollModal.style.display = 'flex';
+            // Reset poll inputs
+            const pollQ = document.getElementById('poll-question');
+            if (pollQ) pollQ.value = '';
+            const pollOpts = document.getElementById('poll-options-container');
+            if (pollOpts) {
+                pollOpts.innerHTML = '<label>Options</label><input type="text" class="poll-option-input" placeholder="Option 1"><input type="text" class="poll-option-input" placeholder="Option 2">';
+            }
+        }
+        return;
+    }
+    
+    if (e.target.closest('#open-games-option')) {
+        if (plusMenu) {
+            plusMenu.style.display = 'none';
+            plusMenu.classList.add('hidden');
+        }
+        const gamesModal = document.getElementById('games-library-modal');
+        if (gamesModal) gamesModal.style.display = 'flex';
+        return;
+    }
+
+    // 3. Close menu when clicking outside
+    if (!e.target.closest('#plus-menu')) {
+        if (plusMenu && (plusMenu.style.display !== 'none' || !plusMenu.classList.contains('hidden'))) {
+            plusMenu.style.display = 'none';
+            plusMenu.classList.add('hidden');
+        }
+    }
+});
 
 const messageInput = document.getElementById('message-input');
 
