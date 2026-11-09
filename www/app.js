@@ -2265,12 +2265,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.19';
+const CURRENT_APP_VERSION = '1.1.20';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.19';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.20';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2432,7 +2432,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.19';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.20';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4937,15 +4937,38 @@ function renderMessage(msg, isConsecutive = false, messageId) {
                 p.style.zIndex = '';
                 p.style.position = '';
             }
+            const b = m.closest('.msg-bubble');
+            if (b) {
+                b.style.zIndex = '';
+                b.style.position = '';
+            }
         });
         if (isOpening) {
+            const rect = bubble.getBoundingClientRect();
+            const estimatedMenuHeight = 150; // Dynamic height check for viewport boundary
+
+            // If the message is too close to the bottom of the viewport
+            if (rect.bottom + estimatedMenuHeight > window.innerHeight) {
+                // Render menu ABOVE the message bubble
+                actionMenu.style.top = 'auto';
+                actionMenu.style.bottom = '100%';
+            } else {
+                // Render menu BELOW the message bubble
+                actionMenu.style.bottom = 'auto';
+                actionMenu.style.top = '100%';
+            }
+
             actionMenu.style.display = 'flex';
             wrap.style.zIndex = '100';
             wrap.style.position = 'relative';
+            bubble.style.zIndex = '100';
+            bubble.style.position = 'relative';
         } else {
             actionMenu.style.display = 'none';
             wrap.style.zIndex = '';
             wrap.style.position = '';
+            bubble.style.zIndex = '';
+            bubble.style.position = '';
         }
     };
 
@@ -5315,15 +5338,38 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
                 p.style.zIndex = '';
                 p.style.position = '';
             }
+            const b = m.closest('.msg-bubble');
+            if (b) {
+                b.style.zIndex = '';
+                b.style.position = '';
+            }
         });
         if (isOpening) {
+            const rect = bubble.getBoundingClientRect();
+            const estimatedMenuHeight = 150;
+
+            // If the message is too close to the bottom of the viewport
+            if (rect.bottom + estimatedMenuHeight > window.innerHeight) {
+                // Render menu ABOVE the message bubble
+                actionMenu.style.top = 'auto';
+                actionMenu.style.bottom = '100%';
+            } else {
+                // Render menu BELOW the message bubble
+                actionMenu.style.bottom = 'auto';
+                actionMenu.style.top = '100%';
+            }
+
             actionMenu.style.display = 'flex';
             wrap.style.zIndex = '100';
             wrap.style.position = 'relative';
+            bubble.style.zIndex = '100';
+            bubble.style.position = 'relative';
         } else {
             actionMenu.style.display = 'none';
             wrap.style.zIndex = '';
             wrap.style.position = '';
+            bubble.style.zIndex = '';
+            bubble.style.position = '';
         }
     };
     actionButton.onclick = toggleStickerMenu;
@@ -6338,68 +6384,116 @@ messageInput.oninput = (e) => {
     updateInputButtons();
 };
 
-// --- CAMERA UPLOAD FEATURE (PHONE ONLY) ---
-const cameraBtn = document.getElementById('camera-btn');
-const cameraInput = document.getElementById('camera-input');
+// --- CONSOLIDATED ATTACHMENT MENU FEATURE ---
+const mainAttachmentToggle = document.getElementById('main-attachment-toggle');
+const attachmentOptionsMenu = document.getElementById('attachment-options-menu');
+const menuFileBtn = document.getElementById('menu-file-btn');
+const menuCameraBtn = document.getElementById('menu-camera-btn');
+const hiddenStickerInput = document.getElementById('hidden-sticker-input');
+const hiddenCameraInput = document.getElementById('hidden-camera-input');
+
+if (mainAttachmentToggle && attachmentOptionsMenu) {
+    mainAttachmentToggle.onclick = (e) => {
+        e.stopPropagation();
+        attachmentOptionsMenu.classList.toggle('hidden');
+    };
+}
+
+if (menuFileBtn && hiddenStickerInput) {
+    menuFileBtn.onclick = (e) => {
+        e.stopPropagation();
+        attachmentOptionsMenu?.classList.add('hidden');
+        hiddenStickerInput.click();
+    };
+}
+
+if (menuCameraBtn && hiddenCameraInput) {
+    menuCameraBtn.onclick = (e) => {
+        e.stopPropagation();
+        attachmentOptionsMenu?.classList.add('hidden');
+        hiddenCameraInput.click();
+    };
+}
+
+// Close attachment options menu when clicking outside
+document.addEventListener('click', (e) => {
+    if (!e.target.closest('#attachment-wrapper')) {
+        document.getElementById('attachment-options-menu')?.classList.add('hidden');
+    }
+});
+
+// Reusable media file upload handler
+async function handleMediaUpload(file, sourceLabel = 'File') {
+    if (!file) return;
+    console.log(`[UPLOAD] ${sourceLabel} selected: ${file.name}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+    try {
+        await new Promise(r => setTimeout(r, 0));
+        const quality = isCurrentUserPremium ? 0.9 : 0.8;
+        const compressedBlob = await compressImageAsync(file, 1280, quality);
+        console.log(`[UPLOAD] Initiating server upload for: ${compressedBlob.name}`);
+        await new Promise(r => setTimeout(r, 0));
+        await sendImageMessage(compressedBlob);
+        console.log(`[UPLOAD] Server upload completed successfully.`);
+    } catch (error) {
+        console.error(`[UPLOAD] ${sourceLabel} processing failed:`, error);
+        showNotification("Failed to send image: " + (error?.message || "Unknown error"), "error");
+    }
+}
+
+if (hiddenStickerInput) {
+    hiddenStickerInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        try {
+            await handleMediaUpload(file, 'File');
+        } finally {
+            hiddenStickerInput.value = '';
+        }
+    };
+}
+
+if (hiddenCameraInput) {
+    hiddenCameraInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        try {
+            await handleMediaUpload(file, 'Camera');
+        } finally {
+            hiddenCameraInput.value = '';
+        }
+    };
+}
 
 function updateInputButtons() {
     const input = document.getElementById('message-input');
     const sendBtn = document.getElementById('send-btn');
-    const camBtn = document.getElementById('camera-btn');
+    const attachWrapper = document.getElementById('attachment-wrapper');
     const stickerBtn = document.getElementById('sticker-btn');
-    const plusBtn = document.getElementById('plus-btn'); // Get the plus button
-    if (!input || !sendBtn || !camBtn) return;
+    const plusBtn = document.getElementById('plus-btn');
+    if (!input || !sendBtn) return;
 
     if (!currentChatId) {
-        if (plusBtn) plusBtn.style.display = 'none'; // Hide plus button if no chat selected
+        if (plusBtn) plusBtn.style.display = 'none';
         sendBtn.style.display = 'none';
-        camBtn.style.display = 'none';
+        if (attachWrapper) attachWrapper.style.display = 'none';
         return;
     }
 
     const isMobile = window.innerWidth <= 768;
-    const isPremium = isCurrentUserPremium; // Use the global premium status
     const hasText = input.value.trim().length > 0;
 
     if (hasText) {
         sendBtn.style.display = isMobile ? 'flex' : 'none';
-        camBtn.style.display = 'none';
-        stickerBtn.style.display = 'none';
-        if (plusBtn) plusBtn.style.display = 'none'; // Hide plus button if text is being typed
+        if (isMobile && attachWrapper) attachWrapper.style.display = 'none';
+        if (stickerBtn) stickerBtn.style.display = 'none';
+        if (plusBtn) plusBtn.style.display = 'none';
     } else {
-        sendBtn.style.display = 'none'; // Hide send button if no text
-        camBtn.style.display = isMobile ? 'flex' : 'none';
-        stickerBtn.style.display = 'none'; // Integrated into emoji menu
-        if (plusBtn) plusBtn.style.display = 'flex'; // Show plus button if no text and chat is open
+        sendBtn.style.display = 'none';
+        if (attachWrapper) attachWrapper.style.display = 'inline-flex';
+        if (stickerBtn) stickerBtn.style.display = 'none';
+        if (plusBtn) plusBtn.style.display = 'flex';
     }
 }
 
 window.addEventListener('resize', updateInputButtons);
-
-if (cameraBtn && cameraInput) {
-    // Trigger the hidden file input when the camera button is clicked
-    cameraBtn.onclick = () => cameraInput.click();
-
-    cameraInput.onchange = async (e) => {
-        const file = e.target.files[0];
-        if (!file) return;
-        console.log(`[UPLOAD] Camera capture: ${file.name}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
-
-        try {
-            await new Promise(r => setTimeout(r, 0));
-            const quality = isCurrentUserPremium ? 0.9 : 0.8;
-            const compressedBlob = await compressImageAsync(file, 1280, quality);
-            console.log(`[UPLOAD] Initiating server upload for: ${compressedBlob.name}`);
-            await new Promise(r => setTimeout(r, 0));
-            await sendImageMessage(compressedBlob);
-            console.log(`[UPLOAD] Server upload completed successfully.`);
-        } catch (error) {
-            console.error('[UPLOAD] Camera image processing failed:', error);
-        } finally {
-            cameraInput.value = ''; // Reset input so the same photo can be taken again if needed
-        }
-    };
-}
 
 /* ---------------- GROUP LOGIC ---------------- */
 

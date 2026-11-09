@@ -19,6 +19,7 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *UI Clipping & Crowding:* File button displaced camera, and context menu clipped off-screen at chat bottom. Solution: Consolidated attachments into a popover menu and added viewport boundary math to dynamically render context menus above or below messages.
 - *Swipe Gestures:* Implemented X/Y axis touchmath to enable horizontal swipe-to-reply on message bubbles while preserving vertical chat scrolling.
 - *All Photos Sending As Stickers:* The isSticker flag leaked into standard uploads, and native keyboard intercepts remained blocked by OEM WebViews. Solution: Rolled back custom sticker logic to restore standard photo bubbles.
 - *Android Keyboard Block:* WebViews natively reject IME CommitContent. Solution: Bypassed keyboard restriction by adding a dedicated attachment button for gallery stickers.

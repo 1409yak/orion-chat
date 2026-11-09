@@ -192,9 +192,24 @@
                     <button id="emoji-btn" class="emoji-trigger-btn" title="Add Emoji">😊</button>
                     <button id="plus-btn" class="emoji-trigger-btn" title="Actions">+</button>
                     <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
+                    
+                    <div id="attachment-wrapper" style="position: relative; display: inline-flex; align-items: center;">
+                        <span class="material-symbols-outlined" id="main-attachment-toggle" style="cursor: pointer; padding: 6px;">attach_file</span>
+                        <div id="attachment-options-menu" class="hidden" style="position: absolute; bottom: 100%; right: 0; background: var(--bg-color, #fff); box-shadow: 0 4px 15px rgba(0,0,0,0.2); border-radius: 12px; display: flex; flex-direction: column; padding: 8px; z-index: 101; margin-bottom: 10px; min-width: 120px;">
+                            <div id="menu-camera-btn" style="padding: 12px; display: flex; align-items: center; gap: 10px; cursor: pointer; border-radius: 8px;">
+                                <span class="material-symbols-outlined">photo_camera</span> Camera
+                            </div>
+                            <div id="menu-file-btn" style="padding: 12px; display: flex; align-items: center; gap: 10px; cursor: pointer; border-radius: 8px;">
+                                <span class="material-symbols-outlined">folder</span> Files
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Keep the hidden file inputs intact -->
+                    <input type="file" id="hidden-sticker-input" accept="image/png, image/webp, image/jpeg" style="display: none;" />
+                    <input type="file" id="hidden-camera-input" accept="image/*" capture="environment" style="display: none;" />
                     <input type="file" id="file-upload-input" accept="image/*" style="display: none;">
                     <input type="file" id="camera-input" accept="image/*" capture="environment" style="display: none;">
-                    <button id="camera-btn" class="camera-icon-btn" title="Take Photo" style="display: none;">📷</button>
+
                     <button id="send-btn" class="send-icon-btn" style="display: none;">
                         <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
                     </button>
@@ -537,7 +552,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.19</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.20</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>
