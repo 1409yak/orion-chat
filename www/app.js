@@ -2301,12 +2301,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.34';
+const CURRENT_APP_VERSION = '1.1.35';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.34';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.35';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2468,7 +2468,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.34';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.35';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -8193,6 +8193,42 @@ document.getElementById('toggle-scanner-btn').onclick = async () => {
         stopScanner();
     }
 };
+
+const scanFileBtn = document.getElementById('scan-qr-file-btn');
+const qrFileInput = document.getElementById('qr-file-input');
+
+if (scanFileBtn && qrFileInput) {
+    scanFileBtn.onclick = () => qrFileInput.click();
+
+    qrFileInput.onchange = async (e) => {
+        const file = e.target.files[0];
+        if (!file) return;
+
+        if (!html5QrCode) {
+            html5QrCode = new Html5Qrcode("reader");
+        }
+
+        try {
+            const decodedText = await html5QrCode.scanFile(file, true);
+            if (decodedText) {
+                const code = decodedText.trim().toUpperCase();
+                const q = query(ref(db, 'users'), orderByChild('friendId'), equalTo(code));
+                const snap = await get(q);
+                if (snap.exists()) {
+                    addFriend(auth.currentUser.uid, Object.keys(snap.val())[0]);
+                    closeAnimatedModal(document.getElementById('add-friend-modal'));
+                } else {
+                    showNotification("User not found for this QR code.", "error");
+                }
+            }
+        } catch (err) {
+            console.error("[QR Scanner] File scan error:", err);
+            showNotification("No readable QR code found in image.", "error");
+        } finally {
+            qrFileInput.value = '';
+        }
+    };
+}
 
 // --- Sticker Picker Logic ---
 async function openStickerPicker() {

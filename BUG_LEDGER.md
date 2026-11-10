@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *QR Camera Native Plugin Missing:* Android base APK lacked compiled @capacitor/camera code. Solution: Provided Html5Qrcode.scanFile fallback via standard file/camera capture input.
+
 - *QR Scanner Permission Denied:* WebView threw `NotAllowedError` because native OS permissions weren't granted. Solution: Dynamically imported `@capacitor/camera` to trigger the Android native camera permission prompt before initializing the HTML5 web scanner.
 - *Lobby Management:* Games lacked host reassignment and stale lobby cleanup. Solution: Added peer-to-peer host reassignment for the oldest remaining player, 5-minute empty lobby expiration, and a strict 2-player minimum to start.
 - *UI Polish:* Replaced emoji paperclip with a minimalist SVG vector and overhauled poll message styling for a cleaner, cohesive aesthetic.
