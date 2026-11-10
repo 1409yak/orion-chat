@@ -2301,12 +2301,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.37';
+const CURRENT_APP_VERSION = '1.1.38';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.37';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.38';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2468,7 +2468,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.37';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.38';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6491,6 +6491,27 @@ messageInput.oninput = (e) => {
     }
     updateInputButtons();
 };
+
+messageInput.addEventListener('paste', async (e) => {
+    const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+    if (!items) return;
+
+    for (const item of items) {
+        if (item.kind === 'file' && item.type.startsWith('image/')) {
+            e.preventDefault(); // Stop default text pasting
+            const file = item.getAsFile();
+            if (!file) continue;
+            
+            // Send seamlessly without confirmation to mimic native sticker behavior
+            try {
+                // Uses the existing handleMediaUpload function
+                await handleMediaUpload(file, 'Keyboard Sticker');
+            } catch (err) {
+                console.error("[Keyboard] Sticker upload failed:", err);
+            }
+        }
+    }
+});
 
 // Reusable media file upload handler
 async function handleMediaUpload(file, sourceLabel = 'File') {
