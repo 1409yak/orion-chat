@@ -1,6 +1,6 @@
 {
-  "version": "1.1.32",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.32/bundle.zip",
-  "checksum": "792ec1902bf1276810d8ae1798c17762a33bbe0fc0496cb973c09dc8974c802d",
-  "notes": "UI Overhaul"
+  "version": "1.1.33",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.33/bundle.zip",
+  "checksum": "9aefc98d02d9a36e34fd4125a467e1ae46718ed36d24f8a053566dd848e9a6b5",
+  "notes": "Feature updates"
 }
