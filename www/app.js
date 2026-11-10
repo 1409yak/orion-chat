@@ -2301,12 +2301,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.36';
+const CURRENT_APP_VERSION = '1.1.37';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.36';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.37';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2468,7 +2468,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.36';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.37';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -3207,6 +3207,22 @@ function fetchMyProfile(uid) {
         isCurrentUserPremium = isPremium;
         applyUiPrefs();
         updateInputButtons();
+
+        // Manage Promo Banner Visibility
+        const pBanner = document.getElementById('premium-promo-banner');
+        if (pBanner) {
+            if (isPremium) {
+                pBanner.style.display = 'none'; // Permanently hide for Premium & Admin
+            } else {
+                // Show for Basic users if the 5-minute cooldown has expired
+                const closedAt = localStorage.getItem('premiumBannerClosedAt');
+                if (!closedAt || (Date.now() - parseInt(closedAt)) >= 300000) {
+                    pBanner.style.display = 'flex';
+                } else {
+                    pBanner.style.display = 'none';
+                }
+            }
+        }
 
         document.getElementById('my-user-type').innerText = displayType;
         document.getElementById('my-type-info').title = "Basic - free\nPremium - 1€";
@@ -8991,14 +9007,6 @@ if (confirmCreatePackBtn) {
 /* ---------------- PREMIUM PROMO BANNER & PAYMENT ---------------- */
 
 const promoBanner = document.getElementById('premium-promo-banner');
-const closedAt = localStorage.getItem('premiumBannerClosedAt');
-
-if (closedAt && promoBanner) {
-    const elapsed = Date.now() - parseInt(closedAt);
-    if (elapsed < 300000) { // Keep hidden for 5 minutes (300,000ms)
-        promoBanner.style.display = 'none';
-    }
-}
 
 document.getElementById('close-premium-banner').onclick = (e) => {
     e.stopPropagation();

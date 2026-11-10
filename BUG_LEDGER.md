@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Nag Screen:* Premium/Admin users were still receiving the Support Us popup. Solution: Added `display: none` by default and bound the banner's visibility logic directly to the `fetchMyProfile` tier evaluation.
+
 - *Live QR Scanner Blocked:* Missing native plugin caused Android to permanently block `getUserMedia`. Solution: Ripped out live video feed and replaced `#toggle-scanner-btn` logic with `Html5Qrcode.scanFile()` utilizing a native `<input type="file" capture="environment">`.
 
 - *QR Camera Native Plugin Missing:* Android base APK lacked compiled @capacitor/camera code. Solution: Provided Html5Qrcode.scanFile fallback via standard file/camera capture input.
