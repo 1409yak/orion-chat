@@ -19,6 +19,7 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *UI Polish:* Replaced emoji paperclip with a minimalist SVG vector and overhauled poll message styling for a cleaner, cohesive aesthetic.
 - *Invisible Modal Freezes:* Legacy modals opened via `display: flex` lacked the new opacity classes, creating transparent full-screen UI blocks. Solution: Injected a global MutationObserver to automatically append `modal-visible` to dynamically opened modals.
 - *Unresponsive Paperclip:* Static event listeners severed during DOM refresh. Solution: Implemented global Event Delegation to dynamically route clicks for the paperclip and attachment options.
 - *Null TypeError Crash:* Orphaned onclick listeners for deleted UI elements crashed app.js. Solution: Scrubbed dead listeners and properly mapped the right-side paperclip design using stable legacy DOM IDs.

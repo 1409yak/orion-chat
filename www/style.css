@@ -812,33 +812,38 @@ body.liquid-glass .sticker-bubble {
 
 /* Poll Message Styling */
 .poll-bubble {
-    min-width: 220px;
-    padding: 5px 0;
+    min-width: 240px;
+    padding: 10px 5px 5px 5px;
 }
 .poll-question {
-    font-weight: 700;
-    margin-bottom: 12px;
-    font-size: 15px;
+    font-weight: 800;
+    margin-bottom: 16px;
+    font-size: 16px;
     display: block;
+    padding: 0 5px;
+    letter-spacing: -0.2px;
 }
 .poll-option {
-    background: rgba(255, 255, 255, 0.05);
-    border: 1px solid var(--glass-border);
-    border-radius: 10px;
-    padding: 10px 12px;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 12px;
+    padding: 12px 14px;
     margin-bottom: 8px;
     cursor: pointer;
     position: relative;
     overflow: hidden;
-    transition: background 0.2s;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
 }
-.poll-option:hover { background: rgba(255, 255, 255, 0.1); }
+.poll-option:hover {
+    background: rgba(255, 255, 255, 0.05);
+    border-color: rgba(255, 255, 255, 0.2);
+}
 .poll-option-progress {
     position: absolute;
     top: 0; left: 0; bottom: 0;
     background: var(--accent);
-    opacity: 0.25;
-    transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+    opacity: 0.35;
+    transition: width 0.5s cubic-bezier(0.4, 0, 0.2, 1);
     z-index: 0;
 }
 .poll-option-text {
@@ -846,7 +851,26 @@ body.liquid-glass .sticker-bubble {
     z-index: 1;
     display: flex;
     justify-content: space-between;
+    align-items: center;
+    font-size: 13.5px;
+    font-weight: 600;
+    text-shadow: 0 1px 2px rgba(0,0,0,0.2);
+}
+.poll-results-btn {
+    width: 100%;
+    margin-top: 8px;
+    padding: 10px;
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--glass-border);
+    border-radius: 12px;
+    color: var(--text);
     font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.poll-results-btn:hover {
+    background: rgba(255, 255, 255, 0.1);
 }
 
 #poll-question {
