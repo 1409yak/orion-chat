@@ -19,6 +19,7 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Invisible Modal Freezes:* Legacy modals opened via `display: flex` lacked the new opacity classes, creating transparent full-screen UI blocks. Solution: Injected a global MutationObserver to automatically append `modal-visible` to dynamically opened modals.
 - *Unresponsive Paperclip:* Static event listeners severed during DOM refresh. Solution: Implemented global Event Delegation to dynamically route clicks for the paperclip and attachment options.
 - *Null TypeError Crash:* Orphaned onclick listeners for deleted UI elements crashed app.js. Solution: Scrubbed dead listeners and properly mapped the right-side paperclip design using stable legacy DOM IDs.
 - *Menu Unclickable & Console Spam:* Adblockers blocked accidental Firestore WebChannel injection, and new menu wrapper broke click targets. Solution: Stripped Firestore imports to enforce Realtime DB WebSockets and reverted menu to legacy #plus-btn design mapped to a paperclip icon.

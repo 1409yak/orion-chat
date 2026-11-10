@@ -370,7 +370,7 @@
                 <p class="uv-bio" id="view-user-desc">No bio yet.</p>
                 <div class="uv-actions" id="user-view-actions"></div>
                 <div class="uv-dismiss-footer">
-                    <button class="uv-dismiss-btn" onclick="document.getElementById('user-view-modal').style.display='none'">Dismiss</button>
+                    <button class="uv-dismiss-btn" onclick="closeAnimatedModal(document.getElementById('user-view-modal'))">Dismiss</button>
                 </div>
             </div>
         </div>
@@ -542,7 +542,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.30</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.31</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>
@@ -843,7 +843,7 @@
                 </div>
             </div>
             <div class="modal-actions-vertical">
-                <button onclick="document.getElementById('games-library-modal').style.display='none'" class="glass-btn-secondary">Close</button>
+                <button onclick="closeAnimatedModal(document.getElementById('games-library-modal'))" class="glass-btn-secondary">Close</button>
             </div>
         </div>
     </div>

@@ -592,7 +592,7 @@ function initFlagGame() {
 window.initFlagGame = initFlagGame;
 
 function startLocalGameUI(gameData) {
-    document.getElementById('flag-game-lobby-modal').style.display = 'none';
+    closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
     document.getElementById('flag-game-screen').style.display = 'flex';
     
     // Ensure initial visibility is correct
@@ -620,7 +620,7 @@ function startLocalGameUI(gameData) {
             
             showNotification("Game Over!", "info");
             setTimeout(() => {
-                document.getElementById('flag-game-screen').style.display = 'none';
+                closeAnimatedModal(document.getElementById('flag-game-screen'));
                 if (currentChatId) remove(ref(db, `games/${currentChatId}`));
             }, 5000);
         }
@@ -1927,14 +1927,14 @@ async function openStickerPackPreview(stickerId) {
             try {
                 await remove(ref(db, `user_stickers/${myUid}/${stickerId}`));
                 showNotification("Sticker removed from your collection.", "info");
-                modal.style.display = 'none';
+                closeAnimatedModal(modal);
             } catch (err) { showNotification("Couldn't remove sticker.", "error"); }
         };
     } else {
         actionBtn.innerText = 'Request this sticker';
         actionBtn.className = 'glass-btn-primary';
         actionBtn.onclick = () => {
-            modal.style.display = 'none';
+            closeAnimatedModal(modal);
             openStickerRequestModal(stickerId, meta.ownerId, getStickerDisplayName(meta));
         };
     }
@@ -2269,12 +2269,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.30';
+const CURRENT_APP_VERSION = '1.1.31';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.30';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.31';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2436,7 +2436,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.30';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.31';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -3063,7 +3063,7 @@ document.getElementById('login-btn').onclick = async () => {
 
 document.getElementById('logout-btn').onclick = async () => {
     try {
-        document.getElementById('profile-modal').style.display = 'none';
+        closeAnimatedModal(document.getElementById('profile-modal'));
         const uid = auth.currentUser?.uid;
         if (uid) {
             await update(ref(db, `users/${uid}`), { 
@@ -3230,7 +3230,7 @@ function applySavedSidebarStates() {
 const profileToSettingsBtn = document.getElementById('profile-to-settings-btn');
 if (profileToSettingsBtn) {
     profileToSettingsBtn.onclick = () => {
-        document.getElementById('profile-modal').style.display = 'none';
+        closeAnimatedModal(document.getElementById('profile-modal'));
         openPremiumPanelModal('account', true);
     };
 }
@@ -3238,7 +3238,7 @@ if (profileToSettingsBtn) {
 const bioToSettingsBtn = document.getElementById('bio-to-settings-btn');
 if (bioToSettingsBtn) {
     bioToSettingsBtn.onclick = () => {
-        document.getElementById('profile-modal').style.display = 'none';
+        closeAnimatedModal(document.getElementById('profile-modal'));
         openPremiumPanelModal('account', true);
     };
 }
@@ -3330,7 +3330,7 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
         messageBtn.innerHTML = '<span>\u{1F4AC}</span> Send Message';
         messageBtn.onclick = () => {
             startChat(myUid, targetUid, getDisplayName(userData));
-            document.getElementById('user-view-modal').style.display = 'none';
+            closeAnimatedModal(document.getElementById('user-view-modal'));
         };
         actions.appendChild(messageBtn);
 
@@ -3340,7 +3340,7 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
             const socialSection = makeSection('Relationship');
             socialSection.appendChild(makeActionRow('Add Friend', '\u{1F91D}', false, () => {
                 addFriend(myUid, targetUid);
-                document.getElementById('user-view-modal').style.display = 'none';
+                closeAnimatedModal(document.getElementById('user-view-modal'));
             }));
         }
 
@@ -3356,7 +3356,7 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
                 '\u{1F3F7}\u{FE0F}',
                 false,
                 () => {
-                    document.getElementById('user-view-modal').style.display = 'none';
+                    closeAnimatedModal(document.getElementById('user-view-modal'));
                     openGroupRoleModal(targetUid, chatId, targetRole, getDisplayName(userData));
                 }
             ));
@@ -3370,7 +3370,7 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
                             mutedUntil: null,
                             muteReason: null
                         });
-                        document.getElementById('user-view-modal').style.display = 'none';
+                        closeAnimatedModal(document.getElementById('user-view-modal'));
                     } catch (err) {
                         console.error("Error unmuting user:", err);
                         showNotification("Failed to unmute user: " + err.message, "error");
@@ -3391,7 +3391,7 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
         // Remove Friend
         if (friendSnap.exists()) {
             dangerSection.appendChild(makeActionRow('Remove Friend', '\u{1F494}', true, async () => {
-                document.getElementById('user-view-modal').style.display = 'none';
+                closeAnimatedModal(document.getElementById('user-view-modal'));
                 await removeFriend(myUid, targetUid);
             }));
         }
@@ -3399,7 +3399,7 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
         // Remove from Group
         if (chatId && amICreator && !targetIsCreator) {
             dangerSection.appendChild(makeActionRow('Kick from Group', '\u{1F6AB}', true, async () => {
-                document.getElementById('user-view-modal').style.display = 'none';
+                closeAnimatedModal(document.getElementById('user-view-modal'));
                 const confirmed = await showConfirm("Remove Member", `Are you sure you want to remove ${userData.displayName || "User"} from this group?`);
                 if (confirmed) {
                     await removeMemberFromGroup(chatId, targetUid);
@@ -3463,7 +3463,7 @@ function openGroupRoleModal(targetUid, chatId, currentRole = 'member', targetNam
                 await update(ref(db, `members/${chatId}/${targetUid}`), { role: role.id });
                 updateMessageBadgesForUser(targetUid, role.id);
                 showNotification(`Role updated to ${role.label} for ${targetName}`, 'success');
-                modal.style.display = 'none';
+                closeAnimatedModal(modal);
             } catch (err) {
                 console.error("Failed to update role:", err);
                 showNotification("Failed to update role: " + err.message, "error");
@@ -3481,7 +3481,7 @@ const closeRoleModalBtn = document.getElementById('close-group-role-modal-btn');
 if (closeRoleModalBtn) {
     closeRoleModalBtn.onclick = () => {
         const modal = document.getElementById('group-role-modal');
-        if (modal) modal.style.display = 'none';
+        if (modal) closeAnimatedModal(modal);
     };
 }
 
@@ -3545,7 +3545,7 @@ function initApp(myUid) {
         const requests = snapshot.val(); // Re-fetch after potential updates
         if (!requests) {
             badge.style.display = 'none';
-            document.getElementById('friend-requests-modal').style.display = 'none';
+            closeAnimatedModal(document.getElementById('friend-requests-modal'));
             return;
         }
         const count = Object.keys(requests).length;
@@ -3819,7 +3819,7 @@ document.getElementById('submit-code-btn').onclick = async () => {
 
         addFriend(auth.currentUser.uid, targetUid);
         document.getElementById('friend-code-input').value = '';
-        document.getElementById('add-friend-modal').style.display = 'none';
+        closeAnimatedModal(document.getElementById('add-friend-modal'));
 
     } catch (err) {
         console.error(err);
@@ -5230,8 +5230,8 @@ async function openPollResultsModal(messageId, pollData) {
 }
 
 document.getElementById('close-poll-results-modal').onclick = () => {
-    document.getElementById('poll-results-modal').style.display = 'none';
-}
+    closeAnimatedModal(document.getElementById('poll-results-modal'));
+};
 
 async function togglePollVote(messageId, optionIndex) {
     if (!currentChatId || !auth.currentUser) return;
@@ -5588,7 +5588,7 @@ if (confirmMuteBtn) {
 
         const success = await applyMute(currentChatId, currentMuteTarget, duration, reason, currentChatMemberData);
         if (success) {
-            document.getElementById('mute-modal').style.display = 'none';
+            closeAnimatedModal(document.getElementById('mute-modal'));
             currentMuteTarget = null;
             currentMuteTargetName = null;
         }
@@ -5598,8 +5598,7 @@ if (confirmMuteBtn) {
 const cancelMuteBtn = document.getElementById('cancel-mute-btn');
 if (cancelMuteBtn) {
     cancelMuteBtn.onclick = () => {
-        const muteModal = document.getElementById('mute-modal');
-        if (muteModal) muteModal.style.display = 'none';
+        closeAnimatedModal(document.getElementById('mute-modal'));
     };
 }
 
@@ -5649,7 +5648,7 @@ async function deleteGroup(chatId) { // This function now deletes an entire logi
     try {
         await update(ref(db), updates);
         exitChat();
-        document.getElementById('edit-group-modal').style.display = 'none';
+        closeAnimatedModal(document.getElementById('edit-group-modal'));
         showNotification("Group and all its channels deleted successfully.", "success");
     } catch (err) {
         console.error("Error deleting group:", err);
@@ -6107,7 +6106,7 @@ async function sendMessage() {
     }
     exitReplyMode();
     document.getElementById('emoji-picker').style.display = 'none';
-    document.getElementById('sticker-picker-modal').style.display = 'none'; // Close picker after sending
+    closeAnimatedModal(document.getElementById('sticker-picker-modal')); // Close picker after sending
 
     // Add current message to history AFTER successful send (to avoid adding failed messages)
     userRecentMessages.push({ text: txt, timestamp: currentTime });
@@ -6159,8 +6158,7 @@ function setupInputAreaListeners() {
     const selectFlagGame = document.getElementById('select-flag-game');
     if (selectFlagGame) {
         selectFlagGame.onclick = () => {
-            const glm = document.getElementById('games-library-modal');
-            if (glm) glm.style.display = 'none';
+            closeAnimatedModal(document.getElementById('games-library-modal'));
             const fgm = document.getElementById('flag-game-lobby-modal');
             if (fgm) fgm.style.display = 'flex';
             setupGameLobby();
@@ -6170,8 +6168,7 @@ function setupInputAreaListeners() {
     const cancelGameBtn = document.getElementById('cancel-game-btn');
     if (cancelGameBtn) {
         cancelGameBtn.onclick = () => {
-            const fgm = document.getElementById('flag-game-lobby-modal');
-            if (fgm) fgm.style.display = 'none';
+            closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
             if (currentChatId && auth.currentUser) {
                 remove(ref(db, `games/${currentChatId}/players/${auth.currentUser.uid}`));
             }
@@ -6197,7 +6194,7 @@ function setupInputAreaListeners() {
 
     if (closePollModal) {
         closePollModal.onclick = () => {
-            if (pollModal) pollModal.style.display = 'none';
+            closeAnimatedModal(document.getElementById('poll-modal'));
         };
     } else {
         console.error("Element with ID 'close-poll-modal' not found.");
@@ -6234,7 +6231,7 @@ function setupInputAreaListeners() {
             updates[`/chats/${currentChatId}/timestamp`] = serverTimestamp();
 
             await update(ref(db), updates);
-            if (pollModal) pollModal.style.display = 'none';
+            closeAnimatedModal(document.getElementById('poll-modal'));
         };
     } else {
         console.error("Element with ID 'confirm-poll-btn' not found.");
@@ -6634,7 +6631,7 @@ document.getElementById('confirm-creation-btn').onclick = async () => {
         openChat(chatId, name);
     }
 
-    document.getElementById('creation-modal').style.display = 'none';
+    closeAnimatedModal(document.getElementById('creation-modal'));
     document.getElementById('creation-name-input').value = '';
 };
 
@@ -6676,13 +6673,13 @@ document.getElementById('confirm-subchannel-btn').onclick = async () => {
     });
 
     await update(ref(db), updates);
-    document.getElementById('subchannel-modal').style.display = 'none';
+    closeAnimatedModal(document.getElementById('subchannel-modal'));
     document.getElementById('subchannel-name-input').value = '';
     openChat(chatId, name);
 };
 
 document.getElementById('close-subchannel-modal').onclick = () => {
-    document.getElementById('subchannel-modal').style.display = 'none';
+    closeAnimatedModal(document.getElementById('subchannel-modal'));
 };
 
 
@@ -7629,7 +7626,7 @@ document.addEventListener('click', (e) => {
     });
 
     async function openAdminPanelModal() {
-        document.getElementById('profile-modal').style.display = 'none'; // Close profile modal
+        closeAnimatedModal(document.getElementById('profile-modal')); // Close profile modal
         document.getElementById('admin-panel-modal').style.display = 'flex';
         setActiveAdminTab('users');
 
@@ -7901,13 +7898,13 @@ function openEditGroupModal(chatId, currentName, currentDescription, groupCreato
     };
 
     document.getElementById('delete-group-btn').onclick = () => {
-        document.getElementById('edit-group-modal').style.display = 'none';
+        closeAnimatedModal(document.getElementById('edit-group-modal'));
         deleteGroup(chatId);
     };
 }
 
 document.getElementById('close-edit-group-modal').onclick = () => {
-    document.getElementById('edit-group-modal').style.display = 'none';
+    closeAnimatedModal(document.getElementById('edit-group-modal'));
     document.getElementById('edit-group-modal').removeAttribute('data-chatId');
     document.getElementById('edit-group-modal').removeAttribute('data-creatorId');
     document.getElementById('edit-group-modal').removeAttribute('data-newPic');
@@ -7966,7 +7963,7 @@ document.getElementById('save-group-details-btn').onclick = async () => {
         }
 
         await update(ref(db), updates);
-        document.getElementById('edit-group-modal').style.display = 'none';
+        closeAnimatedModal(document.getElementById('edit-group-modal'));
     } catch (err) {
         console.error(err);
         showNotification("Failed to save group details", "error");
@@ -8054,7 +8051,7 @@ document.getElementById('add-members-to-group-btn').onclick = () => {
         return;
     }
 
-    document.getElementById('edit-group-modal').style.display = 'none'; // Close edit modal
+    closeAnimatedModal(document.getElementById('edit-group-modal')); // Close edit modal
     document.getElementById('add-members-to-group-modal').dataset.chatId = chatId; // Store chatId
     selectedNewGroupMembers = []; // Reset selection only when opening the modal
     document.getElementById('add-members-to-group-modal').style.display = 'flex';
@@ -8062,7 +8059,7 @@ document.getElementById('add-members-to-group-btn').onclick = () => {
 };
 
 document.getElementById('close-add-members-modal').onclick = () => {
-    document.getElementById('add-members-to-group-modal').style.display = 'none';
+    closeAnimatedModal(document.getElementById('add-members-to-group-modal'));
     document.getElementById('add-members-to-group-modal').removeAttribute('data-chatId');
 };
 
@@ -8089,7 +8086,7 @@ document.getElementById('confirm-add-members-btn').onclick = async () => {
     try {
         await update(ref(db), updates);
         showNotification("Members added successfully!", "success");
-        document.getElementById('add-members-to-group-modal').style.display = 'none';
+        closeAnimatedModal(document.getElementById('add-members-to-group-modal'));
         // Optionally, re-open the edit group modal or refresh the chat members list
         // For now, we'll just close the add members modal.
     } catch (err) {
@@ -8188,7 +8185,7 @@ function createStickerCard(stickerId, stickerMeta) {
 }
 
 document.getElementById('close-sticker-picker').onclick = () => {
-    document.getElementById('sticker-picker-modal').style.display = 'none';
+    closeAnimatedModal(document.getElementById('sticker-picker-modal'));
 };
 
 // --- Sticker Request System ---
@@ -8265,7 +8262,7 @@ document.getElementById('approve-sticker-request-btn').onclick = async () => {
         console.error("Error approving sticker request:", error);
         showNotification("Failed to approve request.", "error");
     } finally {
-        document.getElementById('sticker-request-notification-modal').style.display = 'none';
+        closeAnimatedModal(document.getElementById('sticker-request-notification-modal'));
         currentStickerRequest = null;
     }
 };
@@ -8283,13 +8280,13 @@ document.getElementById('deny-sticker-request-btn').onclick = async () => {
         console.error("Error denying sticker request:", error);
         showNotification("Failed to deny request.", "error");
     } finally {
-        document.getElementById('sticker-request-notification-modal').style.display = 'none';
+        closeAnimatedModal(document.getElementById('sticker-request-notification-modal'));
         currentStickerRequest = null;
     }
 };
 
 document.getElementById('close-sticker-request-notification-modal').onclick = () => {
-    document.getElementById('sticker-request-notification-modal').style.display = 'none';
+    closeAnimatedModal(document.getElementById('sticker-request-notification-modal'));
     currentStickerRequest = null;
 };
 
@@ -8902,7 +8899,7 @@ if (emojiBtn && emojiPicker) {
 const closePackPreviewBtn = document.getElementById('close-pack-preview-modal');
 if (closePackPreviewBtn) {
     closePackPreviewBtn.onclick = () => {
-        document.getElementById('sticker-pack-preview-modal').style.display = 'none';
+        closeAnimatedModal(document.getElementById('sticker-pack-preview-modal'));
         currentPackPreviewId = null;
     };
 }
@@ -8910,7 +8907,7 @@ if (closePackPreviewBtn) {
 const closeCreatePackBtn = document.getElementById('close-create-pack-modal');
 if (closeCreatePackBtn) {
     closeCreatePackBtn.onclick = () => {
-        document.getElementById('create-pack-modal').style.display = 'none';
+        closeAnimatedModal(document.getElementById('create-pack-modal'));
         document.getElementById('new-pack-name-input').value = '';
     };
 }
@@ -8926,7 +8923,7 @@ if (confirmCreatePackBtn) {
         }
         const packId = await createStickerPack(name);
         if (packId) {
-            document.getElementById('create-pack-modal').style.display = 'none';
+            closeAnimatedModal(document.getElementById('create-pack-modal'));
             input.value = '';
             if (document.getElementById('emoji-picker')?.style.display !== 'none') {
                 renderPickerStickers();
@@ -8961,7 +8958,7 @@ document.getElementById('open-payment-modal-btn').onclick = () => {
 };
 
 document.getElementById('close-payment-modal').onclick = () => {
-    document.getElementById('payment-modal').style.display = 'none';
+    closeAnimatedModal(document.getElementById('payment-modal'));
 };
 // ---- Sidebar quick search (UI helper; filters rendered friend/chat rows) ----
 (function () {
@@ -8988,3 +8985,17 @@ if (document.readyState === 'loading') {
 } else {
     initMessageContextMenu();
 }
+
+// Make modals opened via style.display='flex' visible with the new animated CSS
+new MutationObserver((mutations) => {
+    for (const m of mutations) {
+        const el = m.target;
+        if (el.classList && el.classList.contains('modal') &&
+            el.style.display === 'flex' &&
+            !el.classList.contains('modal-visible') &&
+            !el.classList.contains('modal-closing')) {
+            requestAnimationFrame(() => el.classList.add('modal-visible'));
+        }
+    }
+}).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['style'] });
+
