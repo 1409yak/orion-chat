@@ -19,6 +19,7 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Lobby Management:* Games lacked host reassignment and stale lobby cleanup. Solution: Added peer-to-peer host reassignment for the oldest remaining player, 5-minute empty lobby expiration, and a strict 2-player minimum to start.
 - *UI Polish:* Replaced emoji paperclip with a minimalist SVG vector and overhauled poll message styling for a cleaner, cohesive aesthetic.
 - *Invisible Modal Freezes:* Legacy modals opened via `display: flex` lacked the new opacity classes, creating transparent full-screen UI blocks. Solution: Injected a global MutationObserver to automatically append `modal-visible` to dynamically opened modals.
 - *Unresponsive Paperclip:* Static event listeners severed during DOM refresh. Solution: Implemented global Event Delegation to dynamically route clicks for the paperclip and attachment options.

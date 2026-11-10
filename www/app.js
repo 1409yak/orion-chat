@@ -493,18 +493,32 @@ async function setupGameLobby() {
         return;
     }
     const fgm = document.getElementById('flag-game-lobby-modal');
-    if (fgm) fgm.style.display = 'flex';
+    if (fgm) openAnimatedModal(fgm);
+
     const gameRef = ref(db, `games/${currentChatId}`);
+    const myUid = auth.currentUser.uid;
     
     const gameSnap = await get(gameRef);
+    const gameData = gameSnap.val();
     const isCreator = !gameSnap.exists();
 
-    // If creator, send the invite link to the chat automatically
+    // Handle 5-minute empty lobby closure
+    if (gameData && gameData.emptySince && (Date.now() - gameData.emptySince > 5 * 60 * 1000)) {
+        showNotification("This game lobby is closed.", "error");
+        if (gameData.inviteMsgId) {
+            update(ref(db, `messages/${currentChatId}/${gameData.inviteMsgId}`), { expired: true });
+        }
+        remove(gameRef);
+        closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
+        return;
+    }
+
+    // If creator, setup initial game state and send invite message
     if (isCreator) {
         const mKey = push(ref(db, `messages/${currentChatId}`)).key;
         const myName = document.getElementById('current-user-name').innerText;
         await set(ref(db, `messages/${currentChatId}/${mKey}`), {
-            sender_id: auth.currentUser.uid,
+            sender_id: myUid,
             sender_name: myName,
             text: "is hosting a game of World Flags!",
             gameInvite: true,
@@ -513,31 +527,34 @@ async function setupGameLobby() {
             sender_badge: (isCurrentUserPremium && currentMyBadge) ? currentMyBadge : null
         });
 
-        // Initialize game record with the invite message ID
         await set(gameRef, {
             inviteMsgId: mKey,
-            status: 'lobby'
+            status: 'lobby',
+            hostId: myUid
         });
 
-        // Update chat metadata
         await update(ref(db, `chats/${currentChatId}`), {
-            last_message: `${myName} started a game!`,
-            hostId: auth.currentUser.uid, // Explicitly track host
+            last_message: `\u{1F3AE} ${myName} started a game!`,
             timestamp: serverTimestamp()
         });
     }
 
     // Join the lobby
-    const playerInfo = {
+    const playerRef = ref(db, `games/${currentChatId}/players/${myUid}`);
+    await set(playerRef, {
         name: document.getElementById('current-user-name').innerText,
         gold: 0,
         joinedAt: serverTimestamp()
-    };
-    await update(ref(db, `games/${currentChatId}/players/${auth.currentUser.uid}`), playerInfo);
+    });
+    await update(gameRef, { emptySince: null });
+    onDisconnect(playerRef).remove();
     
     onValue(gameRef, async (snap) => {
         const data = snap.val();
-        if (!data) return;
+        if (!data) {
+            closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
+            return;
+        }
         
         if (data.status === 'active' && !gameStartedLocally) {
             gameStartedLocally = true;
@@ -546,29 +563,44 @@ async function setupGameLobby() {
         }
 
         const players = data.players || {};
+        const playerUids = Object.keys(players);
+        
+        // Host Transfer Logic: If host is missing, oldest player claims host
+        if (playerUids.length > 0 && (!data.hostId || !players[data.hostId])) {
+            let oldestUid = playerUids[0];
+            let oldestTime = players[oldestUid].joinedAt || Date.now();
+            for (const uid of playerUids) {
+                const pTime = players[uid].joinedAt || Date.now();
+                if (pTime < oldestTime) {
+                    oldestUid = uid;
+                    oldestTime = pTime;
+                }
+            }
+            if (oldestUid === myUid) {
+                update(gameRef, { hostId: myUid });
+            }
+        }
+
         const list = document.getElementById('lobby-players-list');
         if (list) {
             list.innerHTML = '';
-            Object.values(players).forEach(p => {
+            playerUids.forEach(uid => {
                 const div = document.createElement('div');
                 div.className = 'selection-item';
-                div.innerText = `\u{1F3AE} ${p.name}`;
+                const isHost = uid === data.hostId;
+                div.innerText = `\u{1F3AE} ${players[uid].name} ${isHost ? '\u{1F451}' : ''}`;
                 list.appendChild(div);
             });
         }
 
         const startBtn = document.getElementById('start-game-btn');
         if (startBtn) {
-            // Strictly check against creator/host
-            const chatSnap = await get(ref(db, `chats/${currentChatId}`));
-            const hostId = chatSnap.val()?.hostId;
-            const isHost = auth.currentUser.uid === hostId;
-            
+            const isHost = myUid === data.hostId;
             const durationGroup = document.getElementById('game-duration-slider').closest('.field-group');
             if (durationGroup) durationGroup.style.display = isHost ? 'block' : 'none';
             
             startBtn.style.display = isHost ? 'block' : 'none';
-            startBtn.disabled = Object.keys(players).length < 2;
+            startBtn.disabled = playerUids.length < 2; // Minimum 2 players
             startBtn.onclick = () => {
                 const duration = parseInt(document.getElementById('game-duration-slider').value);
                 update(gameRef, {
@@ -2269,12 +2301,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.32';
+const CURRENT_APP_VERSION = '1.1.33';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.32';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.33';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2436,7 +2468,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.32';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.33';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4703,13 +4735,13 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         bubble.classList.add('game-invite-bubble');
         const inviteText = document.createElement('div');
         inviteText.style.fontWeight = '700';
-        inviteText.innerText = msg.expired ? "\u{1F6A9} GAME EXPIRED" : "\u{1F6A9} WORLD FLAGS LOBBY";
+        inviteText.innerText = msg.expired ? "\u{1F6A9} GAME CLOSED" : "\u{1F6A9} WORLD FLAGS LOBBY";
         bubble.appendChild(inviteText);
 
         const joinBtn = document.createElement('button');
         joinBtn.className = msg.expired ? 'glass-btn-secondary' : 'glass-btn-primary';
         joinBtn.style.marginTop = '10px';
-        joinBtn.innerText = msg.expired ? 'Finished' : 'Join Game';
+        joinBtn.innerText = msg.expired ? 'Closed' : 'Join Game';
         joinBtn.disabled = !!msg.expired;
         joinBtn.onclick = () => {
             if (msg.expired) return;
@@ -6167,10 +6199,17 @@ function setupInputAreaListeners() {
 
     const cancelGameBtn = document.getElementById('cancel-game-btn');
     if (cancelGameBtn) {
-        cancelGameBtn.onclick = () => {
+        cancelGameBtn.onclick = async () => {
             closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
             if (currentChatId && auth.currentUser) {
-                remove(ref(db, `games/${currentChatId}/players/${auth.currentUser.uid}`));
+                const myUid = auth.currentUser.uid;
+                await remove(ref(db, `games/${currentChatId}/players/${myUid}`));
+
+                // Track empty lobbies for 5-min closure
+                const pSnap = await get(ref(db, `games/${currentChatId}/players`));
+                if (!pSnap.exists() || Object.keys(pSnap.val()).length === 0) {
+                    await update(ref(db, `games/${currentChatId}`), { emptySince: serverTimestamp() });
+                }
             }
         };
     }
