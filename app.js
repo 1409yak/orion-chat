@@ -2301,12 +2301,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.33';
+const CURRENT_APP_VERSION = '1.1.34';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.33';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.34';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2468,7 +2468,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.33';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.34';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -8148,14 +8148,31 @@ async function stopScanner() {
     }
 }
 
-document.getElementById('toggle-scanner-btn').onclick = () => {
+document.getElementById('toggle-scanner-btn').onclick = async () => {
     if (!html5QrCode) {
+        // 1. Request Native OS Camera Permission First
+        try {
+            if (window.Capacitor && window.Capacitor.isNativePlatform?.()) {
+                const { Camera } = await import('https://cdn.jsdelivr.net/npm/@capacitor/camera/+esm');
+                let perm = await Camera.checkPermissions();
+                if (perm.camera !== 'granted') {
+                    perm = await Camera.requestPermissions();
+                }
+                if (perm.camera !== 'granted') {
+                    showNotification("Camera permission is required to scan QR codes.", "error");
+                    return; // Stop if user denied the native prompt
+                }
+            }
+        } catch (err) {
+            console.warn("[QR Scanner] Native permission bridge failed or unavailable:", err);
+        }
+
+        // 2. Start Web Scanner
         html5QrCode = new Html5Qrcode("reader");
         const config = { fps: 10, qrbox: { width: 250, height: 250 } };
         html5QrCode.start({ facingMode: "environment" }, config, async (decodedText) => {
-            // Stop immediately to prevent duplicate alerts
             await stopScanner();
-            document.getElementById('add-friend-modal').style.display = 'none';
+            closeAnimatedModal(document.getElementById('add-friend-modal'));
             
             if (decodedText) {
                 const code = decodedText.trim().toUpperCase();
