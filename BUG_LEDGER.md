@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *TikTok Silent Failure:* Mobile short-links failed to embed silently due to CORS redirect restrictions. Solution: Implemented dual regex to harden full-link iframes with `encrypted-media` tags and render a graceful fallback UI message for mobile short-links.
+
 - *Embed Misses:* YouTube Shorts and some TikTok desktop links were bypassed by strict regex. Solution: Added `/shorts/` explicitly to the YouTube filter and loosened the TikTok regex. (Note: Mobile TikTok short-links remain un-embeddable client-side due to CORS redirect blocks).
 
 - *Feature Enhancement:* Links to TikTok and Instagram were just plain text. Solution: Parsed specific URL parameters and injected native iframe embeds directly into the chat flow.

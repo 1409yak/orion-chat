@@ -1152,11 +1152,11 @@ function sanitizeMojibakeEmoji(str) {
 
 // Helper to detect links and YouTube IDs
 function linkifyAndEmbed(rawText) {
-    if (!rawText) return { html: "", youtubeId: null, tiktokId: null, instagramId: null, imageUrls: [], joinChatIds: [] };
+    if (!rawText) return { html: "", youtubeId: null, tiktokId: null, tiktokShort: false, instagramId: null, imageUrls: [], joinChatIds: [] };
     const safeRaw = typeof rawText === 'string' ? rawText : String(rawText);
     let text = sanitizeMojibakeEmoji(safeRaw);
     if (text && text.startsWith('data:image/')) {
-        return { html: "", youtubeId: null, tiktokId: null, instagramId: null, imageUrls: [text], joinChatIds: [] };
+        return { html: "", youtubeId: null, tiktokId: null, tiktokShort: false, instagramId: null, imageUrls: [text], joinChatIds: [] };
     }
 
     let escaped = escapeHTML(text);
@@ -1164,13 +1164,15 @@ function linkifyAndEmbed(rawText) {
     const urlRegex = /https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*)/g;
     // Improved YouTube regex to catch shorts, embed, and various watch formats
     const ytRegex = /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([\w-]{11})/i;
-    const tiktokRegex = /tiktok\.com\/.*(?:video|v)\/(\d+)/i;
+    const tiktokFullRegex = /tiktok\.com\/@[\w.-]+\/video\/(\d+)/i;
+    const tiktokShortRegex = /(?:vm\.tiktok\.com\/?|vt\.tiktok\.com\/?|tiktok\.com\/t\/)([\w-]+)/i;
     const igRegex = /instagram\.com\/(?:p|reel)\/([a-zA-Z0-9_-]+)/i;
     const imgRegex = /\.(jpeg|jpg|gif|png|webp|svg|bmp)(?:\/[^?#.]*)?(?:\?.*)?$/i;
     const joinIdRegex = /#join=([a-zA-Z0-9_-]+)/;
 
     let youtubeId = null;
     let tiktokId = null;
+    let tiktokShort = false; // New flag for mobile links
     let instagramId = null;
     let imageUrls = [];
     let joinChatIds = [];
@@ -1188,9 +1190,15 @@ function linkifyAndEmbed(rawText) {
             return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link-inline" onclick="event.stopPropagation()">${url}</a>`;
         }
 
-        const ttMatch = url.match(tiktokRegex);
-        if (ttMatch) {
-            if (!tiktokId) tiktokId = ttMatch[1];
+        const ttFullMatch = url.match(tiktokFullRegex);
+        if (ttFullMatch) {
+            if (!tiktokId) tiktokId = ttFullMatch[1];
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link-inline" onclick="event.stopPropagation()">${url}</a>`;
+        }
+
+        const ttShortMatch = url.match(tiktokShortRegex);
+        if (ttShortMatch) {
+            tiktokShort = true;
             return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link-inline" onclick="event.stopPropagation()">${url}</a>`;
         }
 
@@ -1213,7 +1221,7 @@ function linkifyAndEmbed(rawText) {
         return `<div class="channel-update-card"><span class="update-badge">v${version} Available</span><button type="button" class="channel-install-btn" onclick="window.triggerOtaUpdate('${version}')">⚡ Install Update & Reload</button></div>`;
     });
 
-    return { html: html.trim(), youtubeId, tiktokId, instagramId, imageUrls, joinChatIds };
+    return { html: html.trim(), youtubeId, tiktokId, tiktokShort, instagramId, imageUrls, joinChatIds };
 }
 
 // New helper function to insert messages into the DOM in chronological order
@@ -2317,12 +2325,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.40';
+const CURRENT_APP_VERSION = '1.1.41';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.40';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.41';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2484,7 +2492,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.40';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.41';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4914,7 +4922,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     htmlContent = htmlContent.replace(/@everyone\b/gi, `<span class="mention-pill">@everyone</span>`);
 
     // Only show text node if there's actual text remaining or if there are no other embeds to show
-    if (htmlContent || (formatted.imageUrls.length === 0 && !formatted.youtubeId && !formatted.tiktokId && !formatted.instagramId && formatted.joinChatIds.length === 0)) {
+    if (htmlContent || (formatted.imageUrls.length === 0 && !formatted.youtubeId && !formatted.tiktokId && !formatted.tiktokShort && !formatted.instagramId && formatted.joinChatIds.length === 0)) {
         const textNode = document.createElement('div');
         textNode.innerHTML = htmlContent;
         msgContent.appendChild(textNode);
@@ -4994,7 +5002,13 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     if (formatted.tiktokId) {
         const ttWrap = document.createElement('div');
         ttWrap.className = 'tt-embed-wrapper';
-        ttWrap.innerHTML = `<iframe src="https://www.tiktok.com/embed/v2/${formatted.tiktokId}"  style="border:0; width:100%; height:580px; border-radius:12px; background:#000;"  allowfullscreen> </iframe>`;
+        ttWrap.innerHTML = `<iframe src="https://www.tiktok.com/embed/v2/${formatted.tiktokId}?lang=en-US"  style="border:0; width:100%; height:580px; border-radius:12px; background:#000;"  allow="encrypted-media;" allowfullscreen> </iframe>`;
+        msgContent.appendChild(ttWrap);
+    } else if (formatted.tiktokShort) {
+        const ttWrap = document.createElement('div');
+        ttWrap.className = 'tt-embed-wrapper';
+        ttWrap.style.cssText = 'padding: 12px; background: rgba(255,255,255,0.04); border-radius: 12px; font-size: 11.5px; opacity: 0.7; margin-top: 10px; border: 1px solid var(--glass-border); text-align: center;';
+        ttWrap.innerText = '📱 TikTok mobile links cannot be embedded directly. Click the link above to watch.';
         msgContent.appendChild(ttWrap);
     }
 
