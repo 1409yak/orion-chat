@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Feature Enhancement:* Links to TikTok and Instagram were just plain text. Solution: Parsed specific URL parameters and injected native iframe embeds directly into the chat flow.
+
 - *Missing Samsung Keyboard Support:* Native keyboard stickers were being ignored by the text input. Solution: Added a `paste` event listener to `#message-input` to intercept rich image blobs and route them instantly through `handleMediaUpload`.
 
 - *Nag Screen:* Premium/Admin users were still receiving the Support Us popup. Solution: Added `display: none` by default and bound the banner's visibility logic directly to the `fetchMyProfile` tier evaluation.

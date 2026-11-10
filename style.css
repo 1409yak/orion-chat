@@ -504,6 +504,13 @@ body {
     height: 100%;
 }
 
+.tt-embed-wrapper, .ig-embed-wrapper {
+    margin-top: 10px;
+    border-radius: 12px;
+    overflow: hidden;
+    max-width: 400px; /* Prevents vertical videos from taking up the whole screen on PC */
+}
+
 /* Image Embeds */
 .image-embed-wrapper {
     margin-top: 8px;

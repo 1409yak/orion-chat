@@ -1152,11 +1152,11 @@ function sanitizeMojibakeEmoji(str) {
 
 // Helper to detect links and YouTube IDs
 function linkifyAndEmbed(rawText) {
-    if (!rawText) return { html: "", youtubeId: null, imageUrls: [], joinChatIds: [] };
+    if (!rawText) return { html: "", youtubeId: null, tiktokId: null, instagramId: null, imageUrls: [], joinChatIds: [] };
     const safeRaw = typeof rawText === 'string' ? rawText : String(rawText);
     let text = sanitizeMojibakeEmoji(safeRaw);
     if (text && text.startsWith('data:image/')) {
-        return { html: "", youtubeId: null, imageUrls: [text], joinChatIds: [] };
+        return { html: "", youtubeId: null, tiktokId: null, instagramId: null, imageUrls: [text], joinChatIds: [] };
     }
 
     let escaped = escapeHTML(text);
@@ -1164,10 +1164,14 @@ function linkifyAndEmbed(rawText) {
     const urlRegex = /https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*)/g;
     // Improved YouTube regex to catch shorts, embed, and various watch formats
     const ytRegex = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    const tiktokRegex = /tiktok\.com\/(?:@[\w.-]+\/video\/|v\/)(\d+)/i;
+    const igRegex = /instagram\.com\/(?:p|reel)\/([a-zA-Z0-9_-]+)/i;
     const imgRegex = /\.(jpeg|jpg|gif|png|webp|svg|bmp)(?:\/[^?#.]*)?(?:\?.*)?$/i;
     const joinIdRegex = /#join=([a-zA-Z0-9_-]+)/;
 
     let youtubeId = null;
+    let tiktokId = null;
+    let instagramId = null;
     let imageUrls = [];
     let joinChatIds = [];
 
@@ -1184,6 +1188,18 @@ function linkifyAndEmbed(rawText) {
             return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link-inline" onclick="event.stopPropagation()">${url}</a>`;
         }
 
+        const ttMatch = url.match(tiktokRegex);
+        if (ttMatch) {
+            if (!tiktokId) tiktokId = ttMatch[1];
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link-inline" onclick="event.stopPropagation()">${url}</a>`;
+        }
+
+        const igMatch = url.match(igRegex);
+        if (igMatch) {
+            if (!instagramId) instagramId = igMatch[1];
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link-inline" onclick="event.stopPropagation()">${url}</a>`;
+        }
+
         if (imgRegex.test(url)) {
             imageUrls.push(url);
             return ""; // Hide the link text as requested
@@ -1197,7 +1213,7 @@ function linkifyAndEmbed(rawText) {
         return `<div class="channel-update-card"><span class="update-badge">v${version} Available</span><button type="button" class="channel-install-btn" onclick="window.triggerOtaUpdate('${version}')">⚡ Install Update & Reload</button></div>`;
     });
 
-    return { html: html.trim(), youtubeId, imageUrls, joinChatIds };
+    return { html: html.trim(), youtubeId, tiktokId, instagramId, imageUrls, joinChatIds };
 }
 
 // New helper function to insert messages into the DOM in chronological order
@@ -2301,12 +2317,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.38';
+const CURRENT_APP_VERSION = '1.1.39';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.38';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.39';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2468,7 +2484,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.38';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.39';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4898,7 +4914,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     htmlContent = htmlContent.replace(/@everyone\b/gi, `<span class="mention-pill">@everyone</span>`);
 
     // Only show text node if there's actual text remaining or if there are no other embeds to show
-    if (htmlContent || (formatted.imageUrls.length === 0 && !formatted.youtubeId && formatted.joinChatIds.length === 0)) {
+    if (htmlContent || (formatted.imageUrls.length === 0 && !formatted.youtubeId && !formatted.tiktokId && !formatted.instagramId && formatted.joinChatIds.length === 0)) {
         const textNode = document.createElement('div');
         textNode.innerHTML = htmlContent;
         msgContent.appendChild(textNode);
@@ -4973,6 +4989,25 @@ function renderMessage(msg, isConsecutive = false, messageId) {
             </iframe>
         `;
         msgContent.appendChild(ytWrap);
+    }
+
+    if (formatted.tiktokId) {
+        const ttWrap = document.createElement('div');
+        ttWrap.className = 'tt-embed-wrapper';
+        ttWrap.innerHTML = `<iframe src="https://www.tiktok.com/embed/v2/${formatted.tiktokId}"  style="border:0; width:100%; height:580px; border-radius:12px; background:#000;"  allowfullscreen> </iframe>`;
+        msgContent.appendChild(ttWrap);
+    }
+
+    if (formatted.instagramId) {
+        const igWrap = document.createElement('div');
+        igWrap.className = 'ig-embed-wrapper';
+        igWrap.innerHTML = `
+            <iframe src="https://www.instagram.com/p/${formatted.instagramId}/embed" 
+                    style="border:0; width:100%; height:540px; border-radius:12px; background:#fff;" 
+                    allowfullscreen>
+            </iframe>
+        `;
+        msgContent.appendChild(igWrap);
     }
     
     formatted.joinChatIds.forEach(id => {
