@@ -1,6 +1,6 @@
 {
-  "version": "1.1.39",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.39/bundle.zip",
-  "checksum": "aa2658e6e667b0c05d57104de11ab9b2670dfa42be6ece43645f1125609806bf",
-  "notes": "Integrated social media videos"
+  "version": "1.1.40",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.40/bundle.zip",
+  "checksum": "bca95d521e12916662d10fbb34ef952ae02f18230967689d97c1bcd364adbebe",
+  "notes": "Fixing small bugs"
 }
