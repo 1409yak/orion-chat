@@ -2301,12 +2301,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.35';
+const CURRENT_APP_VERSION = '1.1.36';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.35';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.36';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2468,7 +2468,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.35';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.36';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -8144,61 +8144,18 @@ async function stopScanner() {
             console.warn("Scanner stop error:", err);
         }
         html5QrCode = null;
-        document.getElementById('toggle-scanner-btn').innerText = "Open Camera";
     }
+    const btn = document.getElementById('toggle-scanner-btn');
+    if (btn) btn.innerText = "📷 Open Camera";
 }
 
-document.getElementById('toggle-scanner-btn').onclick = async () => {
-    if (!html5QrCode) {
-        // 1. Request Native OS Camera Permission First
-        try {
-            if (window.Capacitor && window.Capacitor.isNativePlatform?.()) {
-                const { Camera } = await import('https://cdn.jsdelivr.net/npm/@capacitor/camera/+esm');
-                let perm = await Camera.checkPermissions();
-                if (perm.camera !== 'granted') {
-                    perm = await Camera.requestPermissions();
-                }
-                if (perm.camera !== 'granted') {
-                    showNotification("Camera permission is required to scan QR codes.", "error");
-                    return; // Stop if user denied the native prompt
-                }
-            }
-        } catch (err) {
-            console.warn("[QR Scanner] Native permission bridge failed or unavailable:", err);
-        }
-
-        // 2. Start Web Scanner
-        html5QrCode = new Html5Qrcode("reader");
-        const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-        html5QrCode.start({ facingMode: "environment" }, config, async (decodedText) => {
-            await stopScanner();
-            closeAnimatedModal(document.getElementById('add-friend-modal'));
-            
-            if (decodedText) {
-                const code = decodedText.trim().toUpperCase();
-                const q = query(ref(db, 'users'), orderByChild('friendId'), equalTo(code));
-                const snap = await get(q);
-                if (snap.exists()) {
-                    addFriend(auth.currentUser.uid, Object.keys(snap.val())[0]);
-                } else {
-                    showNotification("User not found for this QR code.", "error");
-                }
-            }
-        }).catch(err => {
-            console.error(err);
-            showNotification("Camera error: " + err, "error");
-        });
-        document.getElementById('toggle-scanner-btn').innerText = "Stop Camera";
-    } else {
-        stopScanner();
-    }
-};
-
-const scanFileBtn = document.getElementById('scan-qr-file-btn');
+const qrScannerBtn = document.getElementById('toggle-scanner-btn');
 const qrFileInput = document.getElementById('qr-file-input');
 
-if (scanFileBtn && qrFileInput) {
-    scanFileBtn.onclick = () => qrFileInput.click();
+if (qrScannerBtn && qrFileInput) {
+    qrScannerBtn.onclick = () => {
+        qrFileInput.click(); // Triggers native Android camera
+    };
 
     qrFileInput.onchange = async (e) => {
         const file = e.target.files[0];
@@ -8209,11 +8166,14 @@ if (scanFileBtn && qrFileInput) {
         }
 
         try {
+            qrScannerBtn.innerText = "Scanning...";
             const decodedText = await html5QrCode.scanFile(file, true);
+            
             if (decodedText) {
                 const code = decodedText.trim().toUpperCase();
                 const q = query(ref(db, 'users'), orderByChild('friendId'), equalTo(code));
                 const snap = await get(q);
+                
                 if (snap.exists()) {
                     addFriend(auth.currentUser.uid, Object.keys(snap.val())[0]);
                     closeAnimatedModal(document.getElementById('add-friend-modal'));
@@ -8223,9 +8183,10 @@ if (scanFileBtn && qrFileInput) {
             }
         } catch (err) {
             console.error("[QR Scanner] File scan error:", err);
-            showNotification("No readable QR code found in image.", "error");
+            showNotification("No readable QR code found in photo.", "error");
         } finally {
             qrFileInput.value = '';
+            qrScannerBtn.innerText = "📷 Open Camera";
         }
     };
 }

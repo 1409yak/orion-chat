@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Live QR Scanner Blocked:* Missing native plugin caused Android to permanently block `getUserMedia`. Solution: Ripped out live video feed and replaced `#toggle-scanner-btn` logic with `Html5Qrcode.scanFile()` utilizing a native `<input type="file" capture="environment">`.
+
 - *QR Camera Native Plugin Missing:* Android base APK lacked compiled @capacitor/camera code. Solution: Provided Html5Qrcode.scanFile fallback via standard file/camera capture input.
 
 - *QR Scanner Permission Denied:* WebView threw `NotAllowedError` because native OS permissions weren't granted. Solution: Dynamically imported `@capacitor/camera` to trigger the Android native camera permission prompt before initializing the HTML5 web scanner.
