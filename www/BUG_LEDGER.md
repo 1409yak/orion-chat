@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Asset Optimization:* Replaced legacy raster `orion.png` with scalable `orion.svg` for the favicon, auth screen, and empty chat state.
+
 - *Game Stability & UI:* Accidental touches outside the game container closed the modal and kicked players. Dynamically injected game emojis rendered as missing glyphs. Solution: Added game modals to the global click-outside exclusion list and explicitly called `twemoji.parse()` on dynamically generated chest/victim buttons.
 
 - *Dead Lobby Trap:* Trying to start a new game immediately after finishing one would trap the user in the dead lobby. Solution: Marked games as `status: 'finished'` at 00:00, extended the podium timeout to 5 minutes, and explicitly purged any `finished` games when a user requests a new lobby from the menu.

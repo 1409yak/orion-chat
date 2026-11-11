@@ -11,6 +11,7 @@ const filesToCopy = [
     'app.js',
     'style.css',
     'orion.png',
+    'orion.svg',
     'payqr.png',
     'version.json',
     'firebase-messaging-sw.js'
