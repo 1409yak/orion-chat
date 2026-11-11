@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Game Engine Exploit:* Players could submit invalid 5-letter gibberish strings (e.g., 'AAAAA') in Word Rush to brute-force color hints. Solution: Added a pre-submission `fetch` validation against `api.dictionaryapi.dev`, blocking progression and throwing an error toast if a 404 is returned.
+
 - *Feature Integration:* Added 'Word Rush' (multiplayer Wordle). Implemented localized grid rendering, strict tile color validation (consuming characters to prevent duplicate yellow hints), async completion state, and ranked podium sorting based on win status, attempts, and timestamp.
 
 - *Asset Configuration:* Reverted web UI elements back to `orion.png` for consistency, while utilizing `orion.svg` exclusively for the native Android launcher icon.

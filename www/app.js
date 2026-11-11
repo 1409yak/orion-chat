@@ -838,12 +838,14 @@ let currentGuess = '';
 let guessHistory = [];
 let wordleTarget = '';
 let wordleFinished = false;
+let isSubmittingWordle = false;
 
 function startWordleGame(gameData) {
     wordleTarget = String(gameData.targetWord || '').toUpperCase();
     currentGuess = '';
     guessHistory = [];
     wordleFinished = false;
+    isSubmittingWordle = false;
 
     const board = document.getElementById('wordle-board');
     board.innerHTML = '';
@@ -924,7 +926,7 @@ function startWordleGame(gameData) {
 }
 
 function handleWordleInput(key) {
-    if (wordleFinished || guessHistory.length >= 6) return;
+    if (wordleFinished || isSubmittingWordle || guessHistory.length >= 6) return;
     if (key === 'BACKSPACE') {
         currentGuess = currentGuess.slice(0, -1);
     } else if (/^[A-Z]$/.test(key) && currentGuess.length < 5) {
@@ -946,60 +948,75 @@ function updateKeyboardKeyColor(letter, color, priority) {
 }
 
 async function submitWordleGuess() {
-    if (wordleFinished || guessHistory.length >= 6) return;
+    if (wordleFinished || isSubmittingWordle || guessHistory.length >= 6) return;
     if (currentGuess.length !== 5) return showNotification("Word must be 5 letters", "error");
 
-    const targetArr = wordleTarget.split('');
-    const guessArr = currentGuess.split('');
-    const rowIdx = guessHistory.length;
-    const rowCells = document.getElementById('wordle-board').children[rowIdx].children;
-
-    // Color logic: Pass 1 exact matches (consume letters to prevent duplicate yellows)
-    let correctCount = 0;
-    guessArr.forEach((letter, i) => {
-        if (letter === targetArr[i]) {
-            rowCells[i].style.backgroundColor = '#4caf50'; // Green
-            rowCells[i].style.borderColor = '#4caf50';
-            targetArr[i] = null; // Consume
-            correctCount++;
-            updateKeyboardKeyColor(letter, '#4caf50', 3);
+    isSubmittingWordle = true;
+    try {
+        // Dictionary API Validation
+        try {
+            const res = await fetch(`https://api.dictionaryapi.dev/api/v2/entries/en/${currentGuess}`);
+            if (!res.ok && res.status === 404) {
+                return showNotification("Not in word list!", "error");
+            }
+        } catch (err) {
+            console.warn("[Word Rush] Dictionary API offline, bypassing check.");
         }
-    });
-    // Pass 2 present-elsewhere or absent
-    guessArr.forEach((letter, i) => {
-        if (letter !== wordleTarget[i] && targetArr.includes(letter)) {
-            rowCells[i].style.backgroundColor = '#ff9800'; // Yellow
-            rowCells[i].style.borderColor = '#ff9800';
-            targetArr[targetArr.indexOf(letter)] = null; // Consume
-            updateKeyboardKeyColor(letter, '#ff9800', 2);
-        } else if (letter !== wordleTarget[i]) {
-            rowCells[i].style.backgroundColor = '#444'; // Gray
-            rowCells[i].style.borderColor = '#444';
-            updateKeyboardKeyColor(letter, '#444', 1);
-        }
-    });
 
-    guessHistory.push(currentGuess);
-    currentGuess = '';
+        const targetArr = wordleTarget.split('');
+        const guessArr = currentGuess.split('');
+        const rowIdx = guessHistory.length;
+        const rowCells = document.getElementById('wordle-board').children[rowIdx].children;
 
-    const won = correctCount === 5;
-    const lost = guessHistory.length === 6;
-    if (won || lost) {
-        wordleFinished = true;
-    }
-
-    // Sync progress
-    if (currentChatId && auth.currentUser) {
-        const myRef = ref(db, `games/${currentChatId}/players/${auth.currentUser.uid}`);
-        await update(myRef, {
-            attempts: guessHistory.length,
-            won: won,
-            finishedAt: (won || lost) ? Date.now() : null
+        // Color logic: Pass 1 exact matches (consume letters to prevent duplicate yellows)
+        let correctCount = 0;
+        guessArr.forEach((letter, i) => {
+            if (letter === targetArr[i]) {
+                rowCells[i].style.backgroundColor = '#4caf50'; // Green
+                rowCells[i].style.borderColor = '#4caf50';
+                targetArr[i] = null; // Consume
+                correctCount++;
+                updateKeyboardKeyColor(letter, '#4caf50', 3);
+            }
         });
-    }
+        // Pass 2 present-elsewhere or absent
+        guessArr.forEach((letter, i) => {
+            if (letter !== wordleTarget[i] && targetArr.includes(letter)) {
+                rowCells[i].style.backgroundColor = '#ff9800'; // Yellow
+                rowCells[i].style.borderColor = '#ff9800';
+                targetArr[targetArr.indexOf(letter)] = null; // Consume
+                updateKeyboardKeyColor(letter, '#ff9800', 2);
+            } else if (letter !== wordleTarget[i]) {
+                rowCells[i].style.backgroundColor = '#444'; // Gray
+                rowCells[i].style.borderColor = '#444';
+                updateKeyboardKeyColor(letter, '#444', 1);
+            }
+        });
 
-    if (won) showNotification("You guessed it! Waiting for others...", "success");
-    if (lost && !won) showNotification(`Game Over. The word was ${wordleTarget}`, "error");
+        guessHistory.push(currentGuess);
+        currentGuess = '';
+
+        const won = correctCount === 5;
+        const lost = guessHistory.length === 6;
+        if (won || lost) {
+            wordleFinished = true;
+        }
+
+        // Sync progress
+        if (currentChatId && auth.currentUser) {
+            const myRef = ref(db, `games/${currentChatId}/players/${auth.currentUser.uid}`);
+            await update(myRef, {
+                attempts: guessHistory.length,
+                won: won,
+                finishedAt: (won || lost) ? Date.now() : null
+            });
+        }
+
+        if (won) showNotification("You guessed it! Waiting for others...", "success");
+        if (lost && !won) showNotification(`Game Over. The word was ${wordleTarget}`, "error");
+    } finally {
+        isSubmittingWordle = false;
+    }
 }
 
 function updateWordleBoard() {
@@ -2690,12 +2707,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.48';
+const CURRENT_APP_VERSION = '1.1.49';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.48';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.49';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2857,7 +2874,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.48';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.49';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
