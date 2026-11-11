@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Asset Configuration:* Reverted web UI elements back to `orion.png` for consistency, while utilizing `orion.svg` exclusively for the native Android launcher icon.
+
 - *Asset Optimization:* Replaced legacy raster `orion.png` with scalable `orion.svg` for the favicon, auth screen, and empty chat state.
 
 - *Game Stability & UI:* Accidental touches outside the game container closed the modal and kicked players. Dynamically injected game emojis rendered as missing glyphs. Solution: Added game modals to the global click-outside exclusion list and explicitly called `twemoji.parse()` on dynamically generated chest/victim buttons.

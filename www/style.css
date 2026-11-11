@@ -3984,7 +3984,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:fo
 
 /* Empty state before a chat is opened */
 #messages-container:empty { display: flex; align-items: center; justify-content: center; flex-direction: column; gap: 14px; text-align: center; }
-#messages-container:empty::before { content: ""; width: 84px; height: 84px; background: url("orion.svg") center/contain no-repeat; opacity: .85; filter: drop-shadow(0 8px 24px rgba(112,0,255,.5)); }
+#messages-container:empty::before { content: ""; width: 84px; height: 84px; background: url("orion.png") center/contain no-repeat; opacity: .85; filter: drop-shadow(0 8px 24px rgba(112,0,255,.5)); }
 #messages-container:empty::after { content: "Pick a conversation or add a friend to start chatting"; max-width: 260px; font-size: 14px; line-height: 1.5; color: rgba(255,255,255,.6); }
 
 /* Composer: roomy, rounded, obvious send */
