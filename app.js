@@ -2326,12 +2326,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.42';
+const CURRENT_APP_VERSION = '1.1.43';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.42';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.43';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2493,7 +2493,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.42';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.43';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -7330,7 +7330,14 @@ document.addEventListener('click', (e) => {
 
     // --- Liquid Glass / Optimisation toggles ---
     const lgToggle = document.getElementById('toggle-liquid-glass');
-    if (lgToggle) lgToggle.onchange = () => {
+    if (lgToggle) lgToggle.onchange = (e) => {
+        if (!isCurrentUserPremium) {
+            e.preventDefault();
+            lgToggle.checked = false; // Revert visually
+            showNotification("Liquid Glass is an Orion Premium feature. Support Orion to unlock!", "info");
+            document.getElementById('payment-modal').style.display = 'flex';
+            return;
+        }
         uiPrefs.set('lg', lgToggle.checked);
         if (lgToggle.checked && uiPrefs.get('perf')) {
             uiPrefs.set('perf', false);
@@ -7340,8 +7347,16 @@ document.addEventListener('click', (e) => {
         syncUiPrefToggles();
         showNotification(lgToggle.checked ? "Liquid Glass theme enabled." : "Minimalist Modern theme enabled.", "info");
     };
+
     const lgAnimToggle = document.getElementById('toggle-lg-anim');
-    if (lgAnimToggle) lgAnimToggle.onchange = () => {
+    if (lgAnimToggle) lgAnimToggle.onchange = (e) => {
+        if (!isCurrentUserPremium) {
+            e.preventDefault();
+            lgAnimToggle.checked = !uiPrefs.get('lgstill'); // Revert visually
+            showNotification("Liquid Glass animations are an Orion Premium feature.", "info");
+            document.getElementById('payment-modal').style.display = 'flex';
+            return;
+        }
         uiPrefs.set('lgstill', !lgAnimToggle.checked);
         applyUiPrefs();
     };

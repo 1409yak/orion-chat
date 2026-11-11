@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Sidebar Theming & Paywall Leak:* Liquid Glass toggles were clickable by Basic users, and the sidebar felt disconnected from the active theme. Solution: Intercepted toggle events to enforce Premium status, and injected `color-mix()` CSS to blend `--accent` into the sidebar's background and borders globally.
+
 - *UI & Theme Overhaul:* Non-liquid glass destroyed themes, AMOLED wasn't true black, and action/game menus overflowed on mobile. Solution: Implemented fallback CSS variables (`--solid-bg`), forced #000000 on AMOLED, bounded the action menu to window width via JS, and added responsive grid/text clamping to game buttons.
 
 - *TikTok Silent Failure:* Mobile short-links failed to embed silently due to CORS redirect restrictions. Solution: Implemented dual regex to harden full-link iframes with `encrypted-media` tags and render a graceful fallback UI message for mobile short-links.

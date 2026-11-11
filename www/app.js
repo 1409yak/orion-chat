@@ -1152,22 +1152,28 @@ function sanitizeMojibakeEmoji(str) {
 
 // Helper to detect links and YouTube IDs
 function linkifyAndEmbed(rawText) {
-    if (!rawText) return { html: "", youtubeId: null, imageUrls: [], joinChatIds: [] };
+    if (!rawText) return { html: "", youtubeId: null, tiktokId: null, tiktokShort: false, instagramId: null, imageUrls: [], joinChatIds: [] };
     const safeRaw = typeof rawText === 'string' ? rawText : String(rawText);
     let text = sanitizeMojibakeEmoji(safeRaw);
     if (text && text.startsWith('data:image/')) {
-        return { html: "", youtubeId: null, imageUrls: [text], joinChatIds: [] };
+        return { html: "", youtubeId: null, tiktokId: null, tiktokShort: false, instagramId: null, imageUrls: [text], joinChatIds: [] };
     }
 
     let escaped = escapeHTML(text);
     // More robust URL regex that avoids capturing trailing punctuation
     const urlRegex = /https?:\/\/(?:www\.)?[-a-zA-Z0-9@:%._\+~#=]{1,256}\.[a-zA-Z0-9()]{1,6}\b(?:[-a-zA-Z0-9()@:%_\+.~#?&//=]*)/g;
     // Improved YouTube regex to catch shorts, embed, and various watch formats
-    const ytRegex = /(?:youtube\.com\/(?:[^\/\n\s]+\/\S+\/|(?:v|e(?:mbed)?)\/|\S*?[?&]v=)|youtu\.be\/)([a-zA-Z0-9_-]{11})/;
+    const ytRegex = /(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|shorts\/|watch\?v=|watch\?.+&v=))([\w-]{11})/i;
+    const tiktokFullRegex = /tiktok\.com\/@[\w.-]+\/video\/(\d+)/i;
+    const tiktokShortRegex = /(?:vm\.tiktok\.com\/?|vt\.tiktok\.com\/?|tiktok\.com\/t\/)([\w-]+)/i;
+    const igRegex = /instagram\.com\/(?:p|reel)\/([a-zA-Z0-9_-]+)/i;
     const imgRegex = /\.(jpeg|jpg|gif|png|webp|svg|bmp)(?:\/[^?#.]*)?(?:\?.*)?$/i;
     const joinIdRegex = /#join=([a-zA-Z0-9_-]+)/;
 
     let youtubeId = null;
+    let tiktokId = null;
+    let tiktokShort = false; // New flag for mobile links
+    let instagramId = null;
     let imageUrls = [];
     let joinChatIds = [];
 
@@ -1184,6 +1190,24 @@ function linkifyAndEmbed(rawText) {
             return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link-inline" onclick="event.stopPropagation()">${url}</a>`;
         }
 
+        const ttFullMatch = url.match(tiktokFullRegex);
+        if (ttFullMatch) {
+            if (!tiktokId) tiktokId = ttFullMatch[1];
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link-inline" onclick="event.stopPropagation()">${url}</a>`;
+        }
+
+        const ttShortMatch = url.match(tiktokShortRegex);
+        if (ttShortMatch) {
+            tiktokShort = true;
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link-inline" onclick="event.stopPropagation()">${url}</a>`;
+        }
+
+        const igMatch = url.match(igRegex);
+        if (igMatch) {
+            if (!instagramId) instagramId = igMatch[1];
+            return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link-inline" onclick="event.stopPropagation()">${url}</a>`;
+        }
+
         if (imgRegex.test(url)) {
             imageUrls.push(url);
             return ""; // Hide the link text as requested
@@ -1197,7 +1221,7 @@ function linkifyAndEmbed(rawText) {
         return `<div class="channel-update-card"><span class="update-badge">v${version} Available</span><button type="button" class="channel-install-btn" onclick="window.triggerOtaUpdate('${version}')">⚡ Install Update & Reload</button></div>`;
     });
 
-    return { html: html.trim(), youtubeId, imageUrls, joinChatIds };
+    return { html: html.trim(), youtubeId, tiktokId, tiktokShort, instagramId, imageUrls, joinChatIds };
 }
 
 // New helper function to insert messages into the DOM in chronological order
@@ -2103,6 +2127,7 @@ document.addEventListener('click', (e) => {
     document.querySelectorAll('.msg-action-menu').forEach(menu => {
         if (!menu.parentElement.contains(e.target)) {
             menu.style.display = 'none';
+            menu.style.transform = '';
             const parentWrap = menu.closest('.msg-wrapper');
             if (parentWrap) {
                 parentWrap.style.zIndex = '';
@@ -2301,12 +2326,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.38';
+const CURRENT_APP_VERSION = '1.1.43';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.38';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.43';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2468,7 +2493,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.38';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.43';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4898,7 +4923,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     htmlContent = htmlContent.replace(/@everyone\b/gi, `<span class="mention-pill">@everyone</span>`);
 
     // Only show text node if there's actual text remaining or if there are no other embeds to show
-    if (htmlContent || (formatted.imageUrls.length === 0 && !formatted.youtubeId && formatted.joinChatIds.length === 0)) {
+    if (htmlContent || (formatted.imageUrls.length === 0 && !formatted.youtubeId && !formatted.tiktokId && !formatted.tiktokShort && !formatted.instagramId && formatted.joinChatIds.length === 0)) {
         const textNode = document.createElement('div');
         textNode.innerHTML = htmlContent;
         msgContent.appendChild(textNode);
@@ -4974,6 +4999,31 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         `;
         msgContent.appendChild(ytWrap);
     }
+
+    if (formatted.tiktokId) {
+        const ttWrap = document.createElement('div');
+        ttWrap.className = 'tt-embed-wrapper';
+        ttWrap.innerHTML = `<iframe src="https://www.tiktok.com/embed/v2/${formatted.tiktokId}?lang=en-US"  style="border:0; width:100%; height:580px; border-radius:12px; background:#000;"  allow="encrypted-media;" allowfullscreen> </iframe>`;
+        msgContent.appendChild(ttWrap);
+    } else if (formatted.tiktokShort) {
+        const ttWrap = document.createElement('div');
+        ttWrap.className = 'tt-embed-wrapper';
+        ttWrap.style.cssText = 'padding: 12px; background: rgba(255,255,255,0.04); border-radius: 12px; font-size: 11.5px; opacity: 0.7; margin-top: 10px; border: 1px solid var(--glass-border); text-align: center;';
+        ttWrap.innerText = '📱 TikTok mobile links cannot be embedded directly. Click the link above to watch.';
+        msgContent.appendChild(ttWrap);
+    }
+
+    if (formatted.instagramId) {
+        const igWrap = document.createElement('div');
+        igWrap.className = 'ig-embed-wrapper';
+        igWrap.innerHTML = `
+            <iframe src="https://www.instagram.com/p/${formatted.instagramId}/embed" 
+                    style="border:0; width:100%; height:540px; border-radius:12px; background:#fff;" 
+                    allowfullscreen>
+            </iframe>
+        `;
+        msgContent.appendChild(igWrap);
+    }
     
     formatted.joinChatIds.forEach(id => {
         renderJoinCard(id, msgContent);
@@ -5036,6 +5086,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         const isOpening = actionMenu.style.display === 'none' || !actionMenu.style.display;
         document.querySelectorAll('.msg-action-menu').forEach(m => { 
             m.style.display = 'none'; 
+            m.style.transform = '';
             const p = m.closest('.msg-wrapper');
             if (p) {
                 p.style.zIndex = '';
@@ -5067,8 +5118,21 @@ function renderMessage(msg, isConsecutive = false, messageId) {
             wrap.style.position = 'relative';
             bubble.style.zIndex = '100';
             bubble.style.position = 'relative';
+
+            // Horizontal Viewport Boundary Clamp (prevent off-screen overflow on mobile)
+            actionMenu.style.transform = 'none';
+            const menuRect = actionMenu.getBoundingClientRect();
+            const padding = 10;
+            if (menuRect.right > window.innerWidth - padding) {
+                const shiftLeft = menuRect.right - (window.innerWidth - padding);
+                actionMenu.style.transform = `translateX(-${shiftLeft}px)`;
+            } else if (menuRect.left < padding) {
+                const shiftRight = padding - menuRect.left;
+                actionMenu.style.transform = `translateX(${shiftRight}px)`;
+            }
         } else {
             actionMenu.style.display = 'none';
+            actionMenu.style.transform = '';
             wrap.style.zIndex = '';
             wrap.style.position = '';
             bubble.style.zIndex = '';
@@ -5437,6 +5501,7 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
         const isOpening = actionMenu.style.display === 'none' || !actionMenu.style.display;
         document.querySelectorAll('.msg-action-menu').forEach(m => { 
             m.style.display = 'none'; 
+            m.style.transform = '';
             const p = m.closest('.msg-wrapper');
             if (p) {
                 p.style.zIndex = '';
@@ -5468,8 +5533,21 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
             wrap.style.position = 'relative';
             bubble.style.zIndex = '100';
             bubble.style.position = 'relative';
+
+            // Horizontal Viewport Boundary Clamp (prevent off-screen overflow on mobile)
+            actionMenu.style.transform = 'none';
+            const menuRect = actionMenu.getBoundingClientRect();
+            const padding = 10;
+            if (menuRect.right > window.innerWidth - padding) {
+                const shiftLeft = menuRect.right - (window.innerWidth - padding);
+                actionMenu.style.transform = `translateX(-${shiftLeft}px)`;
+            } else if (menuRect.left < padding) {
+                const shiftRight = padding - menuRect.left;
+                actionMenu.style.transform = `translateX(${shiftRight}px)`;
+            }
         } else {
             actionMenu.style.display = 'none';
+            actionMenu.style.transform = '';
             wrap.style.zIndex = '';
             wrap.style.position = '';
             bubble.style.zIndex = '';
@@ -7252,7 +7330,14 @@ document.addEventListener('click', (e) => {
 
     // --- Liquid Glass / Optimisation toggles ---
     const lgToggle = document.getElementById('toggle-liquid-glass');
-    if (lgToggle) lgToggle.onchange = () => {
+    if (lgToggle) lgToggle.onchange = (e) => {
+        if (!isCurrentUserPremium) {
+            e.preventDefault();
+            lgToggle.checked = false; // Revert visually
+            showNotification("Liquid Glass is an Orion Premium feature. Support Orion to unlock!", "info");
+            document.getElementById('payment-modal').style.display = 'flex';
+            return;
+        }
         uiPrefs.set('lg', lgToggle.checked);
         if (lgToggle.checked && uiPrefs.get('perf')) {
             uiPrefs.set('perf', false);
@@ -7262,8 +7347,16 @@ document.addEventListener('click', (e) => {
         syncUiPrefToggles();
         showNotification(lgToggle.checked ? "Liquid Glass theme enabled." : "Minimalist Modern theme enabled.", "info");
     };
+
     const lgAnimToggle = document.getElementById('toggle-lg-anim');
-    if (lgAnimToggle) lgAnimToggle.onchange = () => {
+    if (lgAnimToggle) lgAnimToggle.onchange = (e) => {
+        if (!isCurrentUserPremium) {
+            e.preventDefault();
+            lgAnimToggle.checked = !uiPrefs.get('lgstill'); // Revert visually
+            showNotification("Liquid Glass animations are an Orion Premium feature.", "info");
+            document.getElementById('payment-modal').style.display = 'flex';
+            return;
+        }
         uiPrefs.set('lgstill', !lgAnimToggle.checked);
         applyUiPrefs();
     };

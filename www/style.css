@@ -9,6 +9,8 @@
     --game-gold: #ffd700;
     --game-success: #00ff88;
     --game-danger: #ff4b2b;
+    --solid-bg: #16161c;
+    --solid-panel: #181820;
 }
 
 * {
@@ -59,7 +61,18 @@ body {
 
 /* Sidebar & Main */
 #app-container { display: flex; width: 100%; height: 100%; padding: 20px; box-sizing: border-box; gap: 20px; }
-.glass-sidebar { width: 320px; display: flex; flex-direction: column; border-radius: 24px; background: var(--glass); backdrop-filter: blur(40px); border: 1px solid var(--glass-border); overflow: hidden; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3); }
+.glass-sidebar {
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 24px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, var(--glass)), var(--glass));
+    backdrop-filter: blur(40px);
+    border: 1px solid var(--glass-border);
+    border-right: 1px solid color-mix(in srgb, var(--accent) 20%, var(--glass-border));
+    overflow: hidden;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
 .glass-main { flex: 1; display: flex; flex-direction: column; border-radius: 24px; background: var(--glass); backdrop-filter: blur(40px); border: 1px solid var(--glass-border); overflow: hidden; position: relative; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3); }
 .sidebar-scroll { 
     flex: 1; 
@@ -504,6 +517,13 @@ body {
     height: 100%;
 }
 
+.tt-embed-wrapper, .ig-embed-wrapper {
+    margin-top: 10px;
+    border-radius: 12px;
+    overflow: hidden;
+    max-width: 400px; /* Prevents vertical videos from taking up the whole screen on PC */
+}
+
 /* Image Embeds */
 .image-embed-wrapper {
     margin-top: 8px;
@@ -722,12 +742,14 @@ input {
     padding: 5px;
     display: flex;
     flex-direction: column;
-    white-space: nowrap;
+    white-space: normal;
     gap: 5px;
     z-index: 500; /* Increased z-index to ensure it's above other elements */
     min-width: 100px;
+    max-width: calc(100vw - 40px);
+    box-sizing: border-box;
     box-shadow: 0 5px 20px rgba(0,0,0,0.4);
-    margin-left: 10%; /* This might need adjustment depending on the button's position */
+    margin-left: 0;
 }
 
 #plus-menu, .plus-popup {
@@ -754,6 +776,9 @@ input {
     padding: 10px 14px;
     font-size: 15px;
     font-weight: 600;
+    white-space: normal;
+    word-break: break-word;
+    box-sizing: border-box;
     transition: background 0.2s;
 }
 
@@ -1701,7 +1726,18 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
 
 /* App Containers */
 #app-container { display: flex; width: 100vw; height: 100vh; padding: 20px; box-sizing: border-box; gap: 20px; }
-.glass-sidebar { width: 320px; display: flex; flex-direction: column; border-radius: 24px; background: var(--glass); backdrop-filter: blur(25px); border: 1px solid var(--glass-border); overflow: hidden; }
+.glass-sidebar {
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 24px;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, var(--glass)), var(--glass));
+    backdrop-filter: blur(40px);
+    border: 1px solid var(--glass-border);
+    border-right: 1px solid color-mix(in srgb, var(--accent) 20%, var(--glass-border));
+    overflow: hidden;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
+}
 .glass-main { flex: 1; display: flex; flex-direction: column; border-radius: 24px; background: var(--glass); backdrop-filter: blur(25px); border: 1px solid var(--glass-border); overflow: hidden; position: relative; }
 
 /* Profile Button */
@@ -2163,14 +2199,14 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
         transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
         will-change: transform;
         border-radius: 0 !important;
-        border-right: 1px solid var(--glass-border) !important;
+        border-right: 1px solid color-mix(in srgb, var(--accent) 40%, var(--glass-border)) !important;
         border-top: none !important;
         border-left: none !important;
         border-bottom: none !important;
         box-shadow: 4px 0 28px rgba(0, 0, 0, 0.55) !important;
         display: flex !important;
         flex-direction: column !important;
-        background: rgba(14, 18, 42, 0.98) !important;
+        background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, rgba(14, 18, 42, 0.98)), rgba(14, 18, 42, 0.98)) !important;
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
     }
@@ -2767,11 +2803,11 @@ img.emoji {
 }
 
 /* Seasonal Color Adjustments */
-body.theme-winter { background: linear-gradient(135deg, #102a43 0%, #243b53 100%); --accent: #a5f3fc; --mention-active-text: #000; --mention-menu-bg: rgba(16, 42, 67, 0.9); --mention-bg: rgba(165, 243, 252, 0.15); --mention-border: #a5f3fc; --game-gold: #a5f3fc; }
-body.theme-autumn { background: linear-gradient(135deg, #3d1b0b 0%, #5e2c04 100%); --accent: #ff9e00; --mention-active-text: #000; --mention-menu-bg: rgba(61, 27, 11, 0.9); --mention-bg: rgba(255, 158, 0, 0.15); --mention-border: #ff9e00; --game-gold: #ff9e00; }
-body.theme-spring { background: linear-gradient(135deg, #1d3a1d 0%, #2d5a27 100%); --accent: #ffb7c5; --mention-active-text: #000; --mention-menu-bg: rgba(29, 58, 29, 0.9); --mention-bg: rgba(255, 183, 197, 0.15); --mention-border: #ffb7c5; --game-gold: #ffb7c5; }
-body.theme-summer { background: linear-gradient(135deg, #073b4c 0%, #118ab2 100%); --accent: #ffd700; --mention-active-text: #000; --mention-menu-bg: rgba(7, 59, 76, 0.9); --mention-bg: rgba(255, 255, 0, 0.1); --mention-border: #ffd700; --game-gold: #ffd700; }
-body.theme-space { background: #000000; --accent: #ffffff; --mention-active-text: #000; --mention-menu-bg: rgba(15, 15, 15, 0.9); --mention-bg: rgba(255, 255, 255, 0.15); --mention-border: #ffffff; --game-gold: #ffffff; }
+body.theme-winter { background: linear-gradient(135deg, #102a43 0%, #243b53 100%); --accent: #a5f3fc; --solid-bg: #102a43; --solid-panel: #163654; --mention-active-text: #000; --mention-menu-bg: rgba(16, 42, 67, 0.9); --mention-bg: rgba(165, 243, 252, 0.15); --mention-border: #a5f3fc; --game-gold: #a5f3fc; }
+body.theme-autumn { background: linear-gradient(135deg, #3d1b0b 0%, #5e2c04 100%); --accent: #ff9e00; --solid-bg: #3d1b0b; --solid-panel: #4a2412; --mention-active-text: #000; --mention-menu-bg: rgba(61, 27, 11, 0.9); --mention-bg: rgba(255, 158, 0, 0.15); --mention-border: #ff9e00; --game-gold: #ff9e00; }
+body.theme-spring { background: linear-gradient(135deg, #1d3a1d 0%, #2d5a27 100%); --accent: #ffb7c5; --solid-bg: #1d3a1d; --solid-panel: #274b27; --mention-active-text: #000; --mention-menu-bg: rgba(29, 58, 29, 0.9); --mention-bg: rgba(255, 183, 197, 0.15); --mention-border: #ffb7c5; --game-gold: #ffb7c5; }
+body.theme-summer { background: linear-gradient(135deg, #073b4c 0%, #118ab2 100%); --accent: #ffd700; --solid-bg: #073b4c; --solid-panel: #0a4d63; --mention-active-text: #000; --mention-menu-bg: rgba(7, 59, 76, 0.9); --mention-bg: rgba(255, 255, 0, 0.1); --mention-border: #ffd700; --game-gold: #ffd700; }
+body.theme-space { background: #000000; --accent: #ffffff; --solid-bg: #000000; --solid-panel: #0a0a0f; --mention-active-text: #000; --mention-menu-bg: rgba(15, 15, 15, 0.9); --mention-bg: rgba(255, 255, 255, 0.15); --mention-border: #ffffff; --game-gold: #ffffff; }
 
 /* Theme Overrides for Mentions */
 body.theme-hacker { 
@@ -2790,27 +2826,31 @@ body.theme-retro {
     --accent: #000080; /* Classic Windows blue */
     --mention-active-text: #fff; /* White text on blue bubble */
     --mention-menu-bg: #c0c0c0; /* Classic Windows gray */
+    --solid-bg: #c0c0c0;
+    --solid-panel: #c0c0c0;
     --game-gold: #000080;
 }
 
-body.theme-forest { background: linear-gradient(135deg, #0b251a 0%, #1b4332 100%); --accent: #4a9170c7; --mention-active-text: #000; --mention-menu-bg: rgba(11, 37, 26, 0.9); --mention-bg: rgba(0, 255, 136, 0.1); --mention-border: #00753fc7; }
-body.theme-ocean { background: linear-gradient(135deg, #001219 0%, #0077b6 100%); --accent: #00d4ff; --mention-active-text: #000; --mention-menu-bg: rgba(0, 18, 25, 0.9); --mention-bg: rgba(0, 212, 255, 0.1); --mention-border: #00d4ff; }
-body.theme-rainy-night { background: linear-gradient(135deg, #0f0c29 0%, #24243e 100%); --accent: #b967ff; --mention-menu-bg: rgba(15, 12, 41, 0.9); --mention-bg: rgba(112, 0, 255, 0.15); --mention-border: #b967ff; }
-body.theme-sunset { background: linear-gradient(135deg, #ff4d00 0%, #ff9e00 30%, #7b2cbf 100%); --accent: #ff4b2b; --mention-menu-bg: rgba(123, 44, 191, 0.9); --mention-bg: rgba(255, 75, 43, 0.15); --mention-border: #ff4b2b; }
-body.theme-mountain { background: linear-gradient(135deg, #2c3e50 0%, #4a4e69 100%); --accent: #9ea1d4; --mention-menu-bg: rgba(44, 62, 80, 0.9); --mention-bg: rgba(158, 161, 212, 0.15); --mention-border: #9ea1d4; }
+body.theme-forest { background: linear-gradient(135deg, #0b251a 0%, #1b4332 100%); --accent: #4a9170c7; --solid-bg: #0b251a; --solid-panel: #123727; --mention-active-text: #000; --mention-menu-bg: rgba(11, 37, 26, 0.9); --mention-bg: rgba(0, 255, 136, 0.1); --mention-border: #00753fc7; }
+body.theme-ocean { background: linear-gradient(135deg, #001219 0%, #0077b6 100%); --accent: #00d4ff; --solid-bg: #001219; --solid-panel: #002538; --mention-active-text: #000; --mention-menu-bg: rgba(0, 18, 25, 0.9); --mention-bg: rgba(0, 212, 255, 0.1); --mention-border: #00d4ff; }
+body.theme-rainy-night { background: linear-gradient(135deg, #0f0c29 0%, #24243e 100%); --accent: #b967ff; --solid-bg: #0f0c29; --solid-panel: #1b1742; --mention-menu-bg: rgba(15, 12, 41, 0.9); --mention-bg: rgba(112, 0, 255, 0.15); --mention-border: #b967ff; }
+body.theme-sunset { background: linear-gradient(135deg, #ff4d00 0%, #ff9e00 30%, #7b2cbf 100%); --accent: #ff4b2b; --solid-bg: #2b0b3d; --solid-panel: #3d1254; --mention-menu-bg: rgba(123, 44, 191, 0.9); --mention-bg: rgba(255, 75, 43, 0.15); --mention-border: #ff4b2b; }
+body.theme-mountain { background: linear-gradient(135deg, #2c3e50 0%, #4a4e69 100%); --accent: #9ea1d4; --solid-bg: #2c3e50; --solid-panel: #394f66; --mention-menu-bg: rgba(44, 62, 80, 0.9); --mention-bg: rgba(158, 161, 212, 0.15); --mention-border: #9ea1d4; }
 body.theme-aurora { 
     background: linear-gradient(270deg, #0f0c29, #302b63, #24243e, #00ff88);
     background-size: 800% 800%;
     animation: aurora-bg 15s ease infinite;
     --accent: #00ff88;
+    --solid-bg: #0f0c29;
+    --solid-panel: #19143d;
     --mention-active-text: #000;
     --mention-menu-bg: rgba(15, 12, 41, 0.9);
     --mention-bg: rgba(0, 255, 136, 0.15);
     --mention-border: #00ff88;
     --game-gold: #00ff88;
 }
-body.theme-desert { background: linear-gradient(135deg, #bc6c25 0%, #dda15e 100%); --accent: #dda15e; --mention-menu-bg: rgba(61, 37, 11, 0.9); --mention-bg: rgba(221, 161, 94, 0.15); --mention-border: #dda15e; }
-body.theme-tropical { background: linear-gradient(135deg, #00b4d8 0%, #90e0ef 100%); --accent: #00b4d8; --mention-menu-bg: rgba(0, 18, 25, 0.9); --mention-bg: rgba(0, 180, 216, 0.15); --mention-border: #00b4d8; }
+body.theme-desert { background: linear-gradient(135deg, #bc6c25 0%, #dda15e 100%); --accent: #dda15e; --solid-bg: #2e1a09; --solid-panel: #3d230d; --mention-menu-bg: rgba(61, 37, 11, 0.9); --mention-bg: rgba(221, 161, 94, 0.15); --mention-border: #dda15e; }
+body.theme-tropical { background: linear-gradient(135deg, #00b4d8 0%, #90e0ef 100%); --accent: #00b4d8; --solid-bg: #002230; --solid-panel: #003348; --mention-menu-bg: rgba(0, 18, 25, 0.9); --mention-bg: rgba(0, 180, 216, 0.15); --mention-border: #00b4d8; }
 
 /* Modern Themes */
 body.theme-cyberpunk { 
@@ -2819,6 +2859,8 @@ body.theme-cyberpunk {
     --glass: rgba(255, 0, 255, 0.08);
     --glass-bright: rgba(255, 0, 255, 0.15);
     --glass-border: rgba(255, 0, 255, 0.3);
+    --solid-bg: #0a0012;
+    --solid-panel: #10001a;
     --mention-bg: rgba(255, 0, 255, 0.2);
     --mention-border: #ff00ff;
     --mention-active-text: #fff;
@@ -2827,8 +2869,8 @@ body.theme-cyberpunk {
 }
 body.theme-cyberpunk .glass-card, body.theme-cyberpunk .input-wrapper { border-color: #00f2ff; box-shadow: 0 0 15px rgba(0, 242, 255, 0.3); } /* Keep existing */
 body.theme-cyberpunk .send-icon-btn { background: #00f2ff; color: #000; } /* Keep existing */
-body.theme-amoled { background: #000; --glass: #000; --glass-bright: rgba(255, 255, 255, 0.05); --glass-border: #222; --accent: #888; --mention-active-text: #fff; --mention-menu-bg: rgba(0, 0, 0, 0.95); --mention-bg: rgba(255, 255, 255, 0.1); --mention-border: #555; }
-body.theme-vaporwave { background: linear-gradient(135deg, #ff71ce 0%, #01cdfe 100%); --accent: #b967ff; --mention-active-text: #fff; --mention-menu-bg: rgba(185, 103, 255, 0.15); --mention-bg: rgba(255, 113, 206, 0.2); --mention-border: #ff71ce; }
+body.theme-amoled { background: #000; --glass: #000; --glass-bright: rgba(255, 255, 255, 0.05); --glass-border: #333; --accent: #888; --solid-bg: #000000; --solid-panel: #000000; --mention-active-text: #fff; --mention-menu-bg: rgba(0, 0, 0, 0.95); --mention-bg: rgba(255, 255, 255, 0.1); --mention-border: #555; }
+body.theme-vaporwave { background: linear-gradient(135deg, #ff71ce 0%, #01cdfe 100%); --accent: #b967ff; --solid-bg: #1f0b2e; --solid-panel: #2d1042; --mention-active-text: #fff; --mention-menu-bg: rgba(185, 103, 255, 0.15); --mention-bg: rgba(255, 113, 206, 0.2); --mention-border: #ff71ce; }
 body.theme-retro { background: #c0c0c0; color: #000; --text: #000; }
 body.theme-retro .glass-card { background: #c0c0c0; border: 2px outset #fff; border-radius: 0; backdrop-filter: none; }
 body.theme-retro .glass-input-area { background: #c0c0c0; border-top: 2px outset #fff; }
@@ -2836,8 +2878,8 @@ body.theme-retro .input-wrapper { border-radius: 0; background: #fff; border: 2p
 body.theme-retro #message-input { color: #000; }
 body.theme-retro .send-icon-btn { border-radius: 0; border: 2px outset #fff; background: #c0c0c0; color: #000; }
 body.theme-retro .emoji-trigger-btn { color: #000; }
-body.theme-frutiger { background: linear-gradient(135deg, #3a7bd5 0%, #3a6073 100%); --accent: #3a7bd5; --mention-active-text: #000; --mention-menu-bg: rgba(58, 123, 213, 0.8); --mention-bg: rgba(255, 255, 255, 0.3); --mention-border: #fff; }
-body.theme-synthwave { background: linear-gradient(180deg, #2b0b3d 0%, #000000 100%); --accent: #f92aad; --mention-active-text: #fff; --mention-menu-bg: rgba(249, 42, 173, 0.15); --mention-bg: rgba(249, 42, 173, 0.2); --mention-border: #f92aad; }
+body.theme-frutiger { background: linear-gradient(135deg, #3a7bd5 0%, #3a6073 100%); --accent: #3a7bd5; --solid-bg: #182838; --solid-panel: #22374d; --mention-active-text: #000; --mention-menu-bg: rgba(58, 123, 213, 0.8); --mention-bg: rgba(255, 255, 255, 0.3); --mention-border: #fff; }
+body.theme-synthwave { background: linear-gradient(180deg, #2b0b3d 0%, #000000 100%); --accent: #f92aad; --solid-bg: #1a0628; --solid-panel: #200830; --mention-active-text: #fff; --mention-menu-bg: rgba(249, 42, 173, 0.15); --mention-bg: rgba(249, 42, 173, 0.2); --mention-border: #f92aad; }
 
 /* Creative Themes */
 body.theme-hacker { 
@@ -2848,6 +2890,8 @@ body.theme-hacker {
     --glass: rgba(0, 0, 0, 0.92); /* Deep Amoled black for panels */
     --glass-bright: rgba(15, 15, 15, 0.98);
     --glass-border: rgba(0, 255, 0, 0.15); /* Subtle green border instead of a bright one */
+    --solid-bg: #000000;
+    --solid-panel: #050a05;
     text-shadow: 0 0 2px rgba(0, 255, 0, 0.3); /* Reduced text glow */
 }
 body.theme-hacker .blob { opacity: 0.05; } /* Keep existing */
@@ -2877,12 +2921,12 @@ body.theme-hacker .msg-action-menu button {
     border-radius: 0;
 }
 body.theme-hacker .sent .chat-link-inline { color: #006400; } /* Keep existing */
-body.theme-pixel { image-rendering: pixelated; --accent: #ff9e00; --mention-active-text: #000; --mention-menu-bg: rgba(255, 158, 0, 0.1); --mention-bg: rgba(255, 158, 0, 0.2); --mention-border: #ff9e00; }
-body.theme-pastel { background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); --accent: #a18cd1; color: #444; --text: #444; --mention-active-text: #444; --mention-menu-bg: rgba(161, 140, 209, 0.3); --mention-bg: rgba(161, 140, 209, 0.2); --mention-border: #a18cd1; --mention-text: #444; }
-body.theme-sci-fi { background: radial-gradient(circle at center, #1b2735 0%, #090a0f 100%); --accent: #00f2ff; --mention-active-text: #fff; --mention-menu-bg: rgba(0, 242, 255, 0.1); --mention-bg: rgba(0, 242, 255, 0.2); --mention-border: #00f2ff; }
+body.theme-pixel { image-rendering: pixelated; --accent: #ff9e00; --solid-bg: #181410; --solid-panel: #241e18; --mention-active-text: #000; --mention-menu-bg: rgba(255, 158, 0, 0.1); --mention-bg: rgba(255, 158, 0, 0.2); --mention-border: #ff9e00; }
+body.theme-pastel { background: linear-gradient(135deg, #ff9a9e 0%, #fecfef 100%); --accent: #a18cd1; --solid-bg: #2d242a; --solid-panel: #3a2e36; color: #444; --text: #444; --mention-active-text: #444; --mention-menu-bg: rgba(161, 140, 209, 0.3); --mention-bg: rgba(161, 140, 209, 0.2); --mention-border: #a18cd1; --mention-text: #444; }
+body.theme-sci-fi { background: radial-gradient(circle at center, #1b2735 0%, #090a0f 100%); --accent: #00f2ff; --solid-bg: #090a0f; --solid-panel: #121520; --mention-active-text: #fff; --mention-menu-bg: rgba(0, 242, 255, 0.1); --mention-bg: rgba(0, 242, 255, 0.2); --mention-border: #00f2ff; }
 
 /* Accessibility Themes */
-body.theme-high-contrast { background: #000; color: #fff; --accent: #ffff00; --glass: #000; --glass-border: #fff; --mention-active-text: #000; --mention-menu-bg: #000; --mention-bg: #fff; --mention-border: #ffff00; --mention-text: #000; }
+body.theme-high-contrast { background: #000; color: #fff; --accent: #ffff00; --glass: #000; --glass-border: #fff; --solid-bg: #000000; --solid-panel: #000000; --mention-active-text: #000; --mention-menu-bg: #000; --mention-bg: #fff; --mention-border: #ffff00; --mention-text: #000; }
 body.theme-high-contrast .input-wrapper { border: 2px solid #fff; background: #000; }
 
 @keyframes aurora-bg {
@@ -3537,18 +3581,23 @@ body.theme-high-contrast .input-wrapper { border: 2px solid #fff; background: #0
 }
 
 .chest-box {
-    font-size: 60px;
+    font-size: clamp(32px, 8vw, 56px);
     background: var(--glass-bright);
     border: 2px solid var(--game-gold);
-    border-radius: 24px;
-    padding: 30px;
+    border-radius: 20px;
+    padding: clamp(12px, 3vw, 24px) clamp(8px, 2vw, 16px);
     cursor: pointer;
     transition: 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
     box-shadow: 0 10px 30px rgba(0,0,0,0.3), inset 0 0 20px color-mix(in srgb, var(--game-gold), transparent 85%);
     user-select: none;
+    box-sizing: border-box;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 0;
 }
 .chest-box:hover {
-    transform: scale(1.1) rotate(5deg);
+    transform: scale(1.08) rotate(4deg);
     background: color-mix(in srgb, var(--game-gold), transparent 80%);
 }
 
@@ -3556,16 +3605,66 @@ body.theme-high-contrast .input-wrapper { border: 2px solid #fff; background: #0
     background: var(--glass);
     border: 1px solid var(--accent);
     color: white;
-    padding: 20px;
+    padding: 14px 10px;
     border-radius: 15px;
     font-weight: 600;
     cursor: pointer;
     transition: 0.2s;
     box-shadow: 0 4px 15px color-mix(in srgb, var(--accent), transparent 90%);
+    word-wrap: break-word;
+    overflow-wrap: break-word;
+    hyphens: auto;
+    font-size: clamp(11px, 4vw, 14px);
+    box-sizing: border-box;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
 }
 .game-option-btn:hover {
     background: color-mix(in srgb, var(--accent), transparent 80%);
     transform: translateY(-3px);
+}
+
+/* Responsive Game Grids (World Flags & Chests) */
+#flag-options {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 12px;
+    width: 100%;
+    box-sizing: border-box;
+}
+
+#chests-container {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 12px;
+    width: 100%;
+    max-width: 100%;
+    box-sizing: border-box;
+}
+
+@media (max-width: 380px) {
+    #flag-options {
+        grid-template-columns: 1fr !important;
+        gap: 8px !important;
+    }
+}
+
+@media (max-width: 350px) {
+    #chests-container {
+        gap: 6px !important;
+    }
+    .chest-box {
+        font-size: 28px !important;
+        padding: 10px 4px !important;
+        border-radius: 14px !important;
+    }
+    .game-option-btn {
+        padding: 10px 6px !important;
+        font-size: 11px !important;
+    }
 }
 
 .game-invite-bubble {
@@ -4541,7 +4640,7 @@ body.liquid-glass:not(.lg-still) .badge-card:hover {
 
 /* Minimalist Modern Theme overrides for OTA */
 body:not(.liquid-glass):not(.theme-liquid-glass) .ota-update-banner {
-    background: #181820;
+    background: var(--solid-panel, #181820);
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 12px 36px rgba(0, 0, 0, 0.6);
     backdrop-filter: none;
@@ -4616,17 +4715,18 @@ body.theme-liquid-glass .ota-update-banner {
 /* Applied to Standard/Default Theme when Liquid Glass is turned off */
 
 body:not(.liquid-glass):not(.theme-liquid-glass) .glass-sidebar {
-    background: #121216;
-    border: 1px solid rgba(255, 255, 255, 0.08);
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, var(--solid-panel, #121216)), var(--solid-bg, #121216)) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-right: 1px solid color-mix(in srgb, var(--accent) 30%, rgba(255, 255, 255, 0.08)) !important;
     border-radius: 16px;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
 }
 
 @media (max-width: 768px) {
     body:not(.liquid-glass):not(.theme-liquid-glass) .glass-sidebar {
-        background: #121216 !important;
+        background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, var(--solid-panel, #121216)), var(--solid-bg, #121216)) !important;
         border-radius: 0 16px 16px 0 !important;
-        border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-right: 1px solid color-mix(in srgb, var(--accent) 30%, rgba(255, 255, 255, 0.08)) !important;
         border-top: none !important;
         border-bottom: none !important;
         border-left: none !important;
@@ -4634,7 +4734,7 @@ body:not(.liquid-glass):not(.theme-liquid-glass) .glass-sidebar {
 }
 
 body:not(.liquid-glass):not(.theme-liquid-glass) .glass-main {
-    background: #16161c;
+    background: var(--solid-bg, #16161c);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 16px;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
@@ -4642,14 +4742,14 @@ body:not(.liquid-glass):not(.theme-liquid-glass) .glass-main {
 
 @media (max-width: 768px) {
     body:not(.liquid-glass):not(.theme-liquid-glass) .glass-main {
-        background: #16161c !important;
+        background: var(--solid-bg, #16161c) !important;
         border-radius: 0 !important;
         border: none !important;
     }
 }
 
 body:not(.liquid-glass):not(.theme-liquid-glass) .chat-header-glass {
-    background: #121216;
+    background: var(--solid-bg, #121216);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
@@ -4713,8 +4813,9 @@ body:not(.liquid-glass):not(.theme-liquid-glass) .sidebar-search input {
 
 body:not(.liquid-glass):not(.theme-liquid-glass) .glass-card,
 body:not(.liquid-glass):not(.theme-liquid-glass) .modal .modal-content,
+body:not(.liquid-glass):not(.theme-liquid-glass) .modal-content,
 body:not(.liquid-glass):not(.theme-liquid-glass) .group-info-card {
-    background: #181820;
+    background: var(--solid-panel, #181820);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 14px;
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.55);
@@ -4769,7 +4870,7 @@ body:not(.liquid-glass):not(.theme-liquid-glass) .input-wrapper {
 }
 
 body:not(.liquid-glass):not(.theme-liquid-glass) .glass-input-area {
-    background: #121215;
+    background: var(--solid-bg, #121215);
     border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
 
@@ -5060,7 +5161,7 @@ body:not(.liquid-glass):not(.theme-liquid-glass) .glass-input-area {
 }
 
 body:not(.liquid-glass):not(.theme-liquid-glass) .message-context-sheet {
-    background: #181920;
+    background: var(--solid-panel, #181920);
     border: 1px solid rgba(255, 255, 255, 0.1);
     box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
 }
