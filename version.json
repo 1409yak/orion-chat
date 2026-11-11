@@ -1,6 +1,6 @@
 {
-  "version": "1.1.46",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.46/bundle.zip",
-  "checksum": "116a80718c629b9970adbfcfeb73a39235899a2e04aeaf8b8e75c7de84d69418",
-  "notes": "UI & Asset optimizations"
+  "version": "1.1.47",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.47/bundle.zip",
+  "checksum": "7f46abcab70247a8d7502ef708e7b4867ac4901b3e601e5ef994c556048dee3f",
+  "notes": "Revert web UI to PNG and update native Android launcher icon"
 }
