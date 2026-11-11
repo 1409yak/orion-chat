@@ -1,6 +1,6 @@
 {
-  "version": "1.1.42",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.42/bundle.zip",
-  "checksum": "4071e7a97399943f9c2717b0bea59990e6475c82f0f52b6f0f0b4ef8ab9bf00f",
-  "notes": "Theme fixes, AMOLED pure black, and UI overflow optimizations"
+  "version": "1.1.43",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.43/bundle.zip",
+  "checksum": "0f6fd329a84201ab32871419b729487a57aa8869502437827feb3e231dd3be05",
+  "notes": "Theme integration and UI fixes"
 }
