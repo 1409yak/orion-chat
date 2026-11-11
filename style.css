@@ -3570,9 +3570,23 @@ body.theme-high-contrast .input-wrapper { border: 2px solid #fff; background: #0
 }
 
 /* --- Game Specific Styles --- */
-#flag-game-screen {
+#flag-game-screen,
+#wordle-game-screen {
     background: rgba(0, 0, 0, 0.7) !important;
     backdrop-filter: blur(50px) saturate(200%) !important;
+}
+
+.wordle-cell {
+    transition: background-color 0.25s ease, border-color 0.25s ease, transform 0.15s ease;
+    color: #fff;
+    user-select: none;
+}
+
+#wordle-keyboard .kb-key {
+    min-width: 0;
+    padding: 12px 2px;
+    border-radius: 8px;
+    user-select: none;
 }
 
 .game-ui-container h2, .game-ui-container h3, .game-ui-container h4 {

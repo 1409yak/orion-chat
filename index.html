@@ -543,7 +543,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.47</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.48</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>
@@ -836,11 +836,16 @@
     <div id="games-library-modal" class="modal">
         <div class="glass-card modal-content">
             <h3>Games Library</h3>
-            <div class="theme-grid" style="grid-template-columns: 1fr; gap: 15px; margin-top: 20px;">
+            <div class="theme-grid" style="grid-template-columns: repeat(auto-fit, minmax(140px, 1fr)); gap: 15px; margin-top: 20px;">
                 <div class="theme-card" id="select-flag-game" style="aspect-ratio: auto; padding: 20px; flex-direction: column; gap: 10px;">
                     <div style="font-size: 40px;">🚩</div>
                     <strong>World Flags</strong>
                     <small style="opacity: 0.7;">Guess flags and collect gold!</small>
+                </div>
+                <div class="theme-card" id="select-wordle-game" style="aspect-ratio: auto; padding: 20px; flex-direction: column; gap: 10px;">
+                    <div style="font-size: 40px;">📝</div>
+                    <strong>Word Rush</strong>
+                    <small style="opacity: 0.7;">Guess the 5-letter word!</small>
                 </div>
             </div>
             <div class="modal-actions-vertical">
@@ -852,7 +857,7 @@
     <!-- Flag Game Lobby/Settings -->
     <div id="flag-game-lobby-modal" class="modal">
         <div class="glass-card modal-content">
-            <h3>Game Settings: World Flags</h3>
+            <h3 id="game-lobby-title">Game Settings: World Flags</h3>
             <div class="field-group" style="margin-top: 20px;">
                 <label>Duration (Minutes)</label>
                 <input type="range" id="game-duration-slider" min="1" max="10" value="5" oninput="document.getElementById('duration-val').innerText = this.value">
@@ -893,12 +898,26 @@
             <div id="podium-area" style="display: none; flex-direction: column; align-items: center; justify-content: center; gap: 20px;">
                 <h2 style="color: #ffd700; font-size: 42px; margin: 0; text-shadow: 0 0 20px rgba(255, 215, 0, 0.4);">🏆 FINAL STANDINGS 🏆</h2>
                 <div id="podium-list" style="width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 12px;"></div>
+                <button type="button" id="close-podium-btn" class="glass-btn-secondary" style="margin-top: 8px; min-width: 140px;">Close</button>
             </div>
 
             <div id="game-leaderboard" style="margin-top: 40px; background: var(--glass); padding: 20px; border-radius: 20px;">
                 <h4 style="margin: 0 0 10px 0;">Standings</h4>
                 <div id="leaderboard-content"></div>
             </div>
+        </div>
+    </div>
+
+    <!-- Active Word Rush (Wordle) Game Screen -->
+    <div id="wordle-game-screen" class="modal">
+        <div class="glass-card game-ui-container wordle-container" style="width: 100%; max-width: 480px; padding: 20px; text-align: center; display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <h3 style="margin: 0;">📝 Word Rush</h3>
+                <button type="button" id="close-wordle-btn" class="glass-btn-secondary" style="padding: 6px 12px; font-size: 14px;" aria-label="Close">✕</button>
+            </div>
+            <div id="wordle-opponent-status" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;"></div>
+            <div id="wordle-board" style="display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 330px; margin: 0 auto;"></div>
+            <div id="wordle-keyboard" style="display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 440px; margin: 6px auto 0;"></div>
         </div>
     </div>
 

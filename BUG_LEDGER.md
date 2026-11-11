@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Feature Integration:* Added 'Word Rush' (multiplayer Wordle). Implemented localized grid rendering, strict tile color validation (consuming characters to prevent duplicate yellow hints), async completion state, and ranked podium sorting based on win status, attempts, and timestamp.
+
 - *Asset Configuration:* Reverted web UI elements back to `orion.png` for consistency, while utilizing `orion.svg` exclusively for the native Android launcher icon.
 
 - *Asset Optimization:* Replaced legacy raster `orion.png` with scalable `orion.svg` for the favicon, auth screen, and empty chat state.

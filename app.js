@@ -485,13 +485,30 @@ let gameStartedLocally = false;
 let canSkipPrize = false;
 let prizeTimeout = null;
 let availableFlags = [];
+let lobbyGameUnsub = null;
+let wordleGameUnsub = null;
+let podiumCloseTimeout = null;
 
 // --- GAME LOGIC ---
-async function setupGameLobby() {
+async function setupGameLobby(gameType = 'flags') {
     if (!currentChatId) {
         showNotification("Please select a chat to play games.", "info");
         return;
     }
+
+    if (podiumCloseTimeout) {
+        clearTimeout(podiumCloseTimeout);
+        podiumCloseTimeout = null;
+    }
+    if (lobbyGameUnsub) {
+        lobbyGameUnsub();
+        lobbyGameUnsub = null;
+    }
+    if (wordleGameUnsub) {
+        wordleGameUnsub();
+        wordleGameUnsub = null;
+    }
+    gameStartedLocally = false;
 
     const gameRef = ref(db, `games/${currentChatId}`);
     const myUid = auth.currentUser.uid;
@@ -517,6 +534,12 @@ async function setupGameLobby() {
         isCreator = true;
     }
 
+    const effectiveType = (!isCreator && gameData && gameData.type) ? gameData.type : gameType;
+    const lobbyTitle = document.getElementById('game-lobby-title');
+    if (lobbyTitle) {
+        lobbyTitle.innerText = effectiveType === 'wordle' ? 'Game Settings: Word Rush' : 'Game Settings: World Flags';
+    }
+
     const fgm = document.getElementById('flag-game-lobby-modal');
     if (fgm) openAnimatedModal(fgm);
 
@@ -527,8 +550,9 @@ async function setupGameLobby() {
         await set(ref(db, `messages/${currentChatId}/${mKey}`), {
             sender_id: myUid,
             sender_name: myName,
-            text: "is hosting a game of World Flags!",
+            text: effectiveType === 'wordle' ? "is hosting a game of Word Rush!" : "is hosting a game of World Flags!",
             gameInvite: true,
+            gameType: effectiveType,
             createdAt: serverTimestamp(),
             timestamp: serverTimestamp(),
             sender_badge: (isCurrentUserPremium && currentMyBadge) ? currentMyBadge : null
@@ -537,6 +561,7 @@ async function setupGameLobby() {
         await set(gameRef, {
             inviteMsgId: mKey,
             status: 'lobby',
+            type: effectiveType,
             hostId: myUid
         });
 
@@ -556,17 +581,35 @@ async function setupGameLobby() {
     await update(gameRef, { emptySince: null });
     onDisconnect(playerRef).remove();
     
-    onValue(gameRef, async (snap) => {
+    lobbyGameUnsub = onValue(gameRef, async (snap) => {
         const data = snap.val();
         if (!data) {
             closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
+            if (lobbyGameUnsub) {
+                lobbyGameUnsub();
+                lobbyGameUnsub = null;
+            }
             return;
         }
         
-        if (data.status === 'active' && !gameStartedLocally) {
+        if ((data.status === 'active' || data.status === 'playing') && !gameStartedLocally) {
             gameStartedLocally = true;
-            startLocalGameUI(data);
+            if (lobbyGameUnsub) {
+                lobbyGameUnsub();
+                lobbyGameUnsub = null;
+            }
+            if (data.type === 'wordle') {
+                closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
+                startWordleGame(data);
+            } else {
+                startLocalGameUI(data);
+            }
             return;
+        }
+
+        const lobbyType = data.type || effectiveType;
+        if (lobbyTitle) {
+            lobbyTitle.innerText = lobbyType === 'wordle' ? 'Game Settings: Word Rush' : 'Game Settings: World Flags';
         }
 
         const players = data.players || {};
@@ -604,17 +647,29 @@ async function setupGameLobby() {
         if (startBtn) {
             const isHost = myUid === data.hostId;
             const durationGroup = document.getElementById('game-duration-slider').closest('.field-group');
-            if (durationGroup) durationGroup.style.display = isHost ? 'block' : 'none';
+            if (durationGroup) durationGroup.style.display = (isHost && lobbyType !== 'wordle') ? 'block' : 'none';
             
             startBtn.style.display = isHost ? 'block' : 'none';
             startBtn.disabled = playerUids.length < 2; // Minimum 2 players
-            startBtn.onclick = () => {
-                const duration = parseInt(document.getElementById('game-duration-slider').value);
-                update(gameRef, {
-                    status: 'active',
-                    duration: duration,
-                    endTime: Date.now() + (duration * 60000)
-                });
+            startBtn.onclick = async () => {
+                if (lobbyType === 'wordle') {
+                    const wordList = ['APPLE', 'TRAIN', 'GHOST', 'PLANT', 'WATER', 'BRAIN', 'HEART', 'LIGHT', 'SOUND', 'NIGHT', 'SPACE', 'DREAM'];
+                    const targetWord = wordList[Math.floor(Math.random() * wordList.length)];
+                    await update(gameRef, {
+                        status: 'playing',
+                        type: 'wordle',
+                        targetWord: targetWord,
+                        startedAt: Date.now()
+                    });
+                } else {
+                    const duration = parseInt(document.getElementById('game-duration-slider').value);
+                    await update(gameRef, {
+                        status: 'active',
+                        type: 'flags',
+                        duration: duration,
+                        endTime: Date.now() + (duration * 60000)
+                    });
+                }
             };
         }
     });
@@ -635,6 +690,7 @@ function startLocalGameUI(gameData) {
     document.getElementById('flag-game-screen').style.display = 'flex';
     
     // Ensure initial visibility is correct
+    document.getElementById('game-timer').style.display = 'block';
     document.getElementById('question-area').style.display = 'block';
     document.getElementById('chest-area').style.display = 'none';
     document.getElementById('podium-area').style.display = 'none';
@@ -666,20 +722,7 @@ function startLocalGameUI(gameData) {
             showPodium();
             showNotification("Game Over!", "info");
             
-            // Keep the podium up for 5 minutes before auto-closing and cleaning up
-            setTimeout(() => {
-                const screen = document.getElementById('flag-game-screen');
-                if (screen && screen.style.display !== 'none') {
-                    closeAnimatedModal(screen);
-                }
-                if (currentChatId) {
-                    get(ref(db, `games/${currentChatId}`)).then(snap => {
-                        if (snap.exists() && snap.val().status === 'finished') {
-                            remove(ref(db, `games/${currentChatId}`));
-                        }
-                    });
-                }
-            }, 5 * 60 * 1000); // 5 minutes
+            schedulePodiumCleanup();
         }
     }, 1000);
 
@@ -709,7 +752,31 @@ function startLocalGameUI(gameData) {
     });
 }
 
-async function showPodium() {
+function schedulePodiumCleanup() {
+    if (podiumCloseTimeout) clearTimeout(podiumCloseTimeout);
+    podiumCloseTimeout = setTimeout(() => {
+        podiumCloseTimeout = null;
+        const screen = document.getElementById('flag-game-screen');
+        if (screen && screen.style.display !== 'none') {
+            closeAnimatedModal(screen);
+        }
+        if (currentChatId) {
+            get(ref(db, `games/${currentChatId}`)).then(snap => {
+                if (snap.exists() && snap.val().status === 'finished') {
+                    remove(ref(db, `games/${currentChatId}`));
+                }
+            });
+        }
+    }, 5 * 60 * 1000); // 5 minutes
+}
+
+async function showPodium(customPlayers = null) {
+    const screen = document.getElementById('flag-game-screen');
+    if (screen && screen.style.display === 'none' || (screen && !screen.style.display)) {
+        openAnimatedModal(screen);
+    }
+    const timerEl = document.getElementById('game-timer');
+    if (timerEl) timerEl.style.display = customPlayers ? 'none' : 'block';
     document.getElementById('question-area').style.display = 'none';
     document.getElementById('chest-area').style.display = 'none';
     document.getElementById('game-leaderboard').style.display = 'none';
@@ -717,9 +784,15 @@ async function showPodium() {
     const podiumList = document.getElementById('podium-list');
     podiumArea.style.display = 'flex';
 
-    const snap = await get(ref(db, `games/${currentChatId}/players`));
-    const players = snap.val() || {};
-    const sorted = Object.values(players).sort((a, b) => b.gold - a.gold);
+    let sorted;
+    const isWordle = Array.isArray(customPlayers);
+    if (isWordle) {
+        sorted = customPlayers;
+    } else {
+        const snap = await get(ref(db, `games/${currentChatId}/players`));
+        const players = snap.val() || {};
+        sorted = Object.values(players).sort((a, b) => b.gold - a.gold);
+    }
 
     podiumList.innerHTML = sorted.map((p, i) => {
         let medal = "";
@@ -728,16 +801,280 @@ async function showPodium() {
         else if (i === 2) medal = "\u{1F949}";
         else medal = `${i + 1}th`;
 
+        const scoreLabel = isWordle
+            ? (p.won ? `${p.attempts || 0}/6 \u{2B50}` : 'X/6')
+            : `${p.gold} Gold`;
+
         return `
             <div class="podium-card ${i < 3 ? 'top-three' : ''}">
-                <span style="font-weight: 800; font-size: 18px;">${medal} ${escapeHTML(p.name)}</span>
-                <span class="podium-gold">${p.gold} Gold</span>
+                <span style="font-weight: 800; font-size: 18px;">${medal} ${escapeHTML(p.name || 'Player')}</span>
+                <span class="podium-gold">${scoreLabel}</span>
             </div>
         `;
     }).join('');
     
+    const closePodiumBtn = document.getElementById('close-podium-btn');
+    if (closePodiumBtn) {
+        closePodiumBtn.onclick = async () => {
+            if (podiumCloseTimeout) {
+                clearTimeout(podiumCloseTimeout);
+                podiumCloseTimeout = null;
+            }
+            closeAnimatedModal(document.getElementById('flag-game-screen'));
+            if (currentChatId) {
+                const snap = await get(ref(db, `games/${currentChatId}`));
+                if (snap.exists() && snap.val().status === 'finished') {
+                    await remove(ref(db, `games/${currentChatId}`));
+                }
+            }
+        };
+    }
+
     twemoji.parse(podiumList);
 }
+
+// --- WORD RUSH (MULTIPLAYER WORDLE) ENGINE ---
+let currentGuess = '';
+let guessHistory = [];
+let wordleTarget = '';
+let wordleFinished = false;
+
+function startWordleGame(gameData) {
+    wordleTarget = String(gameData.targetWord || '').toUpperCase();
+    currentGuess = '';
+    guessHistory = [];
+    wordleFinished = false;
+
+    const board = document.getElementById('wordle-board');
+    board.innerHTML = '';
+    for (let i = 0; i < 6; i++) {
+        const row = document.createElement('div');
+        row.style.cssText = 'display: grid; grid-template-columns: repeat(5, 1fr); gap: 6px;';
+        for (let j = 0; j < 5; j++) {
+            const cell = document.createElement('div');
+            cell.className = 'wordle-cell';
+            cell.style.cssText = 'border: 2px solid var(--glass-border); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 24px; font-weight: bold; text-transform: uppercase; aspect-ratio: 1;';
+            row.appendChild(cell);
+        }
+        board.appendChild(row);
+    }
+
+    // Simple QWERTY generation
+    const kb = document.getElementById('wordle-keyboard');
+    kb.innerHTML = '';
+    const rows = ['QWERTYUIOP', 'ASDFGHJKL', 'ZXCVBNM'];
+    rows.forEach((r, idx) => {
+        const rowDiv = document.createElement('div');
+        rowDiv.style.cssText = 'display: flex; gap: 4px; justify-content: center;';
+        r.split('').forEach(letter => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.innerText = letter;
+            btn.dataset.key = letter;
+            btn.className = 'glass-btn-secondary kb-key';
+            btn.style.cssText = 'flex: 1; padding: 12px 0; font-weight: bold; font-size: 14px;';
+            btn.onclick = () => handleWordleInput(letter);
+            rowDiv.appendChild(btn);
+        });
+        if (idx === 2) {
+            const enter = document.createElement('button');
+            enter.type = 'button';
+            enter.innerText = 'ENTER';
+            enter.className = 'glass-btn-secondary';
+            enter.style.cssText = 'flex: 2; padding: 12px 4px; font-weight: bold; font-size: 12px; min-width: 0; border-radius: 8px;';
+            enter.onclick = () => submitWordleGuess();
+            rowDiv.prepend(enter);
+
+            const del = document.createElement('button');
+            del.type = 'button';
+            del.innerText = '\u232B';
+            del.className = 'glass-btn-secondary';
+            del.style.cssText = 'flex: 1.5; padding: 12px 4px; font-weight: bold; font-size: 14px; min-width: 0; border-radius: 8px;';
+            del.onclick = () => handleWordleInput('BACKSPACE');
+            rowDiv.appendChild(del);
+        }
+        kb.appendChild(rowDiv);
+    });
+
+    const closeBtn = document.getElementById('close-wordle-btn');
+    if (closeBtn) {
+        closeBtn.onclick = async () => {
+            if (wordleGameUnsub) {
+                wordleGameUnsub();
+                wordleGameUnsub = null;
+            }
+            gameStartedLocally = false;
+            wordleFinished = true;
+            closeAnimatedModal(document.getElementById('wordle-game-screen'));
+            if (currentChatId && auth.currentUser) {
+                const myUid = auth.currentUser.uid;
+                await remove(ref(db, `games/${currentChatId}/players/${myUid}`));
+                const pSnap = await get(ref(db, `games/${currentChatId}/players`));
+                if (!pSnap.exists() || Object.keys(pSnap.val()).length === 0) {
+                    await update(ref(db, `games/${currentChatId}`), { emptySince: serverTimestamp() });
+                }
+            }
+        };
+    }
+
+    const screen = document.getElementById('wordle-game-screen');
+    openAnimatedModal(screen);
+    if (window.twemoji) twemoji.parse(screen);
+    listenToWordleProgress();
+}
+
+function handleWordleInput(key) {
+    if (wordleFinished || guessHistory.length >= 6) return;
+    if (key === 'BACKSPACE') {
+        currentGuess = currentGuess.slice(0, -1);
+    } else if (/^[A-Z]$/.test(key) && currentGuess.length < 5) {
+        currentGuess += key;
+    }
+    updateWordleBoard();
+}
+
+function updateKeyboardKeyColor(letter, color, priority) {
+    const keyBtn = document.querySelector(`#wordle-keyboard .kb-key[data-key="${letter}"]`);
+    if (!keyBtn) return;
+    const prevPriority = parseInt(keyBtn.dataset.priority || '0', 10);
+    if (priority > prevPriority) {
+        keyBtn.dataset.priority = String(priority);
+        keyBtn.style.backgroundColor = color;
+        keyBtn.style.borderColor = color;
+        keyBtn.style.color = '#fff';
+    }
+}
+
+async function submitWordleGuess() {
+    if (wordleFinished || guessHistory.length >= 6) return;
+    if (currentGuess.length !== 5) return showNotification("Word must be 5 letters", "error");
+
+    const targetArr = wordleTarget.split('');
+    const guessArr = currentGuess.split('');
+    const rowIdx = guessHistory.length;
+    const rowCells = document.getElementById('wordle-board').children[rowIdx].children;
+
+    // Color logic: Pass 1 exact matches (consume letters to prevent duplicate yellows)
+    let correctCount = 0;
+    guessArr.forEach((letter, i) => {
+        if (letter === targetArr[i]) {
+            rowCells[i].style.backgroundColor = '#4caf50'; // Green
+            rowCells[i].style.borderColor = '#4caf50';
+            targetArr[i] = null; // Consume
+            correctCount++;
+            updateKeyboardKeyColor(letter, '#4caf50', 3);
+        }
+    });
+    // Pass 2 present-elsewhere or absent
+    guessArr.forEach((letter, i) => {
+        if (letter !== wordleTarget[i] && targetArr.includes(letter)) {
+            rowCells[i].style.backgroundColor = '#ff9800'; // Yellow
+            rowCells[i].style.borderColor = '#ff9800';
+            targetArr[targetArr.indexOf(letter)] = null; // Consume
+            updateKeyboardKeyColor(letter, '#ff9800', 2);
+        } else if (letter !== wordleTarget[i]) {
+            rowCells[i].style.backgroundColor = '#444'; // Gray
+            rowCells[i].style.borderColor = '#444';
+            updateKeyboardKeyColor(letter, '#444', 1);
+        }
+    });
+
+    guessHistory.push(currentGuess);
+    currentGuess = '';
+
+    const won = correctCount === 5;
+    const lost = guessHistory.length === 6;
+    if (won || lost) {
+        wordleFinished = true;
+    }
+
+    // Sync progress
+    if (currentChatId && auth.currentUser) {
+        const myRef = ref(db, `games/${currentChatId}/players/${auth.currentUser.uid}`);
+        await update(myRef, {
+            attempts: guessHistory.length,
+            won: won,
+            finishedAt: (won || lost) ? Date.now() : null
+        });
+    }
+
+    if (won) showNotification("You guessed it! Waiting for others...", "success");
+    if (lost && !won) showNotification(`Game Over. The word was ${wordleTarget}`, "error");
+}
+
+function updateWordleBoard() {
+    if (guessHistory.length >= 6) return;
+    const board = document.getElementById('wordle-board');
+    if (!board || !board.children[guessHistory.length]) return;
+    const rowCells = board.children[guessHistory.length].children;
+    for (let i = 0; i < 5; i++) {
+        rowCells[i].innerText = currentGuess[i] || '';
+    }
+}
+
+function listenToWordleProgress() {
+    if (!currentChatId) return;
+    if (wordleGameUnsub) {
+        wordleGameUnsub();
+        wordleGameUnsub = null;
+    }
+    const gameRef = ref(db, `games/${currentChatId}`);
+    wordleGameUnsub = onValue(gameRef, (snap) => {
+        const data = snap.val();
+        if (!data || data.status === 'finished') return;
+
+        const players = Object.values(data.players || {});
+        const statusDiv = document.getElementById('wordle-opponent-status');
+        if (statusDiv) {
+            statusDiv.innerHTML = players.map(p =>
+                `<div style="font-size:12px; padding:4px 8px; border-radius:12px; background:${p.finishedAt ? (p.won ? '#4caf50' : '#f44336') : 'rgba(255,255,255,0.1)'}">
+                    ${escapeHTML((p.name || 'Player').split(' ')[0])}: ${p.attempts || 0}/6
+                </div>`
+            ).join('');
+        }
+
+        // Check if ALL active players have finished
+        const allFinished = players.length > 0 && players.every(p => p.finishedAt);
+        if (allFinished && data.status !== 'finished') {
+            if (wordleGameUnsub) {
+                wordleGameUnsub();
+                wordleGameUnsub = null;
+            }
+            gameStartedLocally = false;
+            // Rank: Winners first (sorted by fewest attempts, then fastest time), then losers
+            players.sort((a, b) => {
+                if (a.won !== b.won) return a.won ? -1 : 1;
+                if (a.attempts !== b.attempts) return a.attempts - b.attempts;
+                return a.finishedAt - b.finishedAt;
+            });
+
+            update(gameRef, { status: 'finished' });
+            if (data.inviteMsgId) {
+                update(ref(db, `messages/${currentChatId}/${data.inviteMsgId}`), { expired: true });
+            }
+            closeAnimatedModal(document.getElementById('wordle-game-screen'));
+            showPodium(players); // Hook into existing podium UI
+            schedulePodiumCleanup();
+        }
+    });
+}
+
+// Physical keyboard support while Word Rush modal is open
+document.addEventListener('keydown', (e) => {
+    const screen = document.getElementById('wordle-game-screen');
+    if (!screen || screen.style.display !== 'flex' || wordleFinished) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key === 'Enter') {
+        e.preventDefault();
+        submitWordleGuess();
+    } else if (e.key === 'Backspace') {
+        e.preventDefault();
+        handleWordleInput('BACKSPACE');
+    } else if (/^[a-zA-Z]$/.test(e.key)) {
+        e.preventDefault();
+        handleWordleInput(e.key.toUpperCase());
+    }
+});
 
 function nextFlagRound() {
     if (availableFlags.length === 0) {
@@ -2353,12 +2690,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.47';
+const CURRENT_APP_VERSION = '1.1.48';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.47';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.48';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2520,7 +2857,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.47';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.48';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4801,9 +5138,10 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     // Handle Game Invite Link
     if (msg.gameInvite) {
         bubble.classList.add('game-invite-bubble');
+        const inviteType = msg.gameType || 'flags';
         const inviteText = document.createElement('div');
         inviteText.style.fontWeight = '700';
-        inviteText.innerText = msg.expired ? "\u{1F6A9} GAME CLOSED" : "\u{1F6A9} WORLD FLAGS LOBBY";
+        inviteText.innerText = msg.expired ? "\u{1F6A9} GAME CLOSED" : (inviteType === 'wordle' ? "\u{1F4DD} WORD RUSH LOBBY" : "\u{1F6A9} WORLD FLAGS LOBBY");
         bubble.appendChild(inviteText);
 
         const joinBtn = document.createElement('button');
@@ -4814,7 +5152,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         joinBtn.onclick = () => {
             if (msg.expired) return;
             document.getElementById('flag-game-lobby-modal').style.display = 'flex';
-            setupGameLobby();
+            setupGameLobby(inviteType);
         };
         bubble.appendChild(joinBtn);
     }
@@ -6314,13 +6652,28 @@ function setupInputAreaListeners() {
             closeAnimatedModal(document.getElementById('games-library-modal'));
             const fgm = document.getElementById('flag-game-lobby-modal');
             if (fgm) fgm.style.display = 'flex';
-            setupGameLobby();
+            setupGameLobby('flags');
+        };
+    }
+
+    const selectWordleGame = document.getElementById('select-wordle-game');
+    if (selectWordleGame) {
+        selectWordleGame.onclick = () => {
+            closeAnimatedModal(document.getElementById('games-library-modal'));
+            const fgm = document.getElementById('flag-game-lobby-modal');
+            if (fgm) fgm.style.display = 'flex';
+            setupGameLobby('wordle');
         };
     }
 
     const cancelGameBtn = document.getElementById('cancel-game-btn');
     if (cancelGameBtn) {
         cancelGameBtn.onclick = async () => {
+            if (lobbyGameUnsub) {
+                lobbyGameUnsub();
+                lobbyGameUnsub = null;
+            }
+            gameStartedLocally = false;
             closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
             if (currentChatId && auth.currentUser) {
                 const myUid = auth.currentUser.uid;
@@ -7079,7 +7432,8 @@ document.addEventListener('click', (e) => {
             e.target.id !== 'profile-modal' &&
             e.target.id !== 'confirm-modal' &&
             e.target.id !== 'flag-game-screen' &&
-            e.target.id !== 'flag-game-lobby-modal') {
+            e.target.id !== 'flag-game-lobby-modal' &&
+            e.target.id !== 'wordle-game-screen') {
             closeAnimatedModal(e.target);
         }
     }
