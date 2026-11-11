@@ -1,6 +1,6 @@
 {
-  "version": "1.1.47",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.47/bundle.zip",
-  "checksum": "7f46abcab70247a8d7502ef708e7b4867ac4901b3e601e5ef994c556048dee3f",
-  "notes": "Revert web UI to PNG and update native Android launcher icon"
+  "version": "1.1.48",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.48/bundle.zip",
+  "checksum": "939884bcd085f72f6888d86af1bc1e278bd15d0eff98b8911bca5c0d2cf45070",
+  "notes": "Integrated new multiplayer word game"
 }
