@@ -492,26 +492,33 @@ async function setupGameLobby() {
         showNotification("Please select a chat to play games.", "info");
         return;
     }
-    const fgm = document.getElementById('flag-game-lobby-modal');
-    if (fgm) openAnimatedModal(fgm);
 
     const gameRef = ref(db, `games/${currentChatId}`);
     const myUid = auth.currentUser.uid;
     
     const gameSnap = await get(gameRef);
-    const gameData = gameSnap.val();
-    const isCreator = !gameSnap.exists();
+    let gameData = gameSnap.val();
+    let isCreator = !gameSnap.exists();
 
     // Handle 5-minute empty lobby closure
     if (gameData && gameData.emptySince && (Date.now() - gameData.emptySince > 5 * 60 * 1000)) {
-        showNotification("This game lobby is closed.", "error");
         if (gameData.inviteMsgId) {
-            update(ref(db, `messages/${currentChatId}/${gameData.inviteMsgId}`), { expired: true });
+            await update(ref(db, `messages/${currentChatId}/${gameData.inviteMsgId}`), { expired: true });
         }
-        remove(gameRef);
-        closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
-        return;
+        await remove(gameRef);
+        gameData = null;
+        isCreator = true;
     }
+
+    // Check for previously finished games and purge them
+    if (gameData && gameData.status === 'finished') {
+        await remove(gameRef);
+        gameData = null;
+        isCreator = true;
+    }
+
+    const fgm = document.getElementById('flag-game-lobby-modal');
+    if (fgm) openAnimatedModal(fgm);
 
     // If creator, setup initial game state and send invite message
     if (isCreator) {
@@ -647,14 +654,32 @@ function startLocalGameUI(gameData) {
         if (remaining <= 0 && gameStartedLocally) {
             clearInterval(gameTimerInterval);
             gameStartedLocally = false;
+
+            // Immediately mark game as finished and expire the invite message
+            if (currentChatId) {
+                update(ref(db, `games/${currentChatId}`), { status: 'finished' });
+                if (gameData && gameData.inviteMsgId) {
+                    update(ref(db, `messages/${currentChatId}/${gameData.inviteMsgId}`), { expired: true });
+                }
+            }
             
             showPodium();
-            
             showNotification("Game Over!", "info");
+            
+            // Keep the podium up for 5 minutes before auto-closing and cleaning up
             setTimeout(() => {
-                closeAnimatedModal(document.getElementById('flag-game-screen'));
-                if (currentChatId) remove(ref(db, `games/${currentChatId}`));
-            }, 5000);
+                const screen = document.getElementById('flag-game-screen');
+                if (screen && screen.style.display !== 'none') {
+                    closeAnimatedModal(screen);
+                }
+                if (currentChatId) {
+                    get(ref(db, `games/${currentChatId}`)).then(snap => {
+                        if (snap.exists() && snap.val().status === 'finished') {
+                            remove(ref(db, `games/${currentChatId}`));
+                        }
+                    });
+                }
+            }, 5 * 60 * 1000); // 5 minutes
         }
     }, 1000);
 
@@ -2326,12 +2351,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.43';
+const CURRENT_APP_VERSION = '1.1.44';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.43';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.44';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2493,7 +2518,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.43';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.44';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();

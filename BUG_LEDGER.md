@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Dead Lobby Trap:* Trying to start a new game immediately after finishing one would trap the user in the dead lobby. Solution: Marked games as `status: 'finished'` at 00:00, extended the podium timeout to 5 minutes, and explicitly purged any `finished` games when a user requests a new lobby from the menu.
+
 - *Sidebar Theming & Paywall Leak:* Liquid Glass toggles were clickable by Basic users, and the sidebar felt disconnected from the active theme. Solution: Intercepted toggle events to enforce Premium status, and injected `color-mix()` CSS to blend `--accent` into the sidebar's background and borders globally.
 
 - *UI & Theme Overhaul:* Non-liquid glass destroyed themes, AMOLED wasn't true black, and action/game menus overflowed on mobile. Solution: Implemented fallback CSS variables (`--solid-bg`), forced #000000 on AMOLED, bounded the action menu to window width via JS, and added responsive grid/text clamping to game buttons.
