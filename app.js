@@ -2127,6 +2127,7 @@ document.addEventListener('click', (e) => {
     document.querySelectorAll('.msg-action-menu').forEach(menu => {
         if (!menu.parentElement.contains(e.target)) {
             menu.style.display = 'none';
+            menu.style.transform = '';
             const parentWrap = menu.closest('.msg-wrapper');
             if (parentWrap) {
                 parentWrap.style.zIndex = '';
@@ -2325,12 +2326,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.41';
+const CURRENT_APP_VERSION = '1.1.42';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.41';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.42';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2492,7 +2493,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.41';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.42';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -5085,6 +5086,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         const isOpening = actionMenu.style.display === 'none' || !actionMenu.style.display;
         document.querySelectorAll('.msg-action-menu').forEach(m => { 
             m.style.display = 'none'; 
+            m.style.transform = '';
             const p = m.closest('.msg-wrapper');
             if (p) {
                 p.style.zIndex = '';
@@ -5116,8 +5118,21 @@ function renderMessage(msg, isConsecutive = false, messageId) {
             wrap.style.position = 'relative';
             bubble.style.zIndex = '100';
             bubble.style.position = 'relative';
+
+            // Horizontal Viewport Boundary Clamp (prevent off-screen overflow on mobile)
+            actionMenu.style.transform = 'none';
+            const menuRect = actionMenu.getBoundingClientRect();
+            const padding = 10;
+            if (menuRect.right > window.innerWidth - padding) {
+                const shiftLeft = menuRect.right - (window.innerWidth - padding);
+                actionMenu.style.transform = `translateX(-${shiftLeft}px)`;
+            } else if (menuRect.left < padding) {
+                const shiftRight = padding - menuRect.left;
+                actionMenu.style.transform = `translateX(${shiftRight}px)`;
+            }
         } else {
             actionMenu.style.display = 'none';
+            actionMenu.style.transform = '';
             wrap.style.zIndex = '';
             wrap.style.position = '';
             bubble.style.zIndex = '';
@@ -5486,6 +5501,7 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
         const isOpening = actionMenu.style.display === 'none' || !actionMenu.style.display;
         document.querySelectorAll('.msg-action-menu').forEach(m => { 
             m.style.display = 'none'; 
+            m.style.transform = '';
             const p = m.closest('.msg-wrapper');
             if (p) {
                 p.style.zIndex = '';
@@ -5517,8 +5533,21 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
             wrap.style.position = 'relative';
             bubble.style.zIndex = '100';
             bubble.style.position = 'relative';
+
+            // Horizontal Viewport Boundary Clamp (prevent off-screen overflow on mobile)
+            actionMenu.style.transform = 'none';
+            const menuRect = actionMenu.getBoundingClientRect();
+            const padding = 10;
+            if (menuRect.right > window.innerWidth - padding) {
+                const shiftLeft = menuRect.right - (window.innerWidth - padding);
+                actionMenu.style.transform = `translateX(-${shiftLeft}px)`;
+            } else if (menuRect.left < padding) {
+                const shiftRight = padding - menuRect.left;
+                actionMenu.style.transform = `translateX(${shiftRight}px)`;
+            }
         } else {
             actionMenu.style.display = 'none';
+            actionMenu.style.transform = '';
             wrap.style.zIndex = '';
             wrap.style.position = '';
             bubble.style.zIndex = '';

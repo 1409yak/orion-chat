@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *UI & Theme Overhaul:* Non-liquid glass destroyed themes, AMOLED wasn't true black, and action/game menus overflowed on mobile. Solution: Implemented fallback CSS variables (`--solid-bg`), forced #000000 on AMOLED, bounded the action menu to window width via JS, and added responsive grid/text clamping to game buttons.
+
 - *TikTok Silent Failure:* Mobile short-links failed to embed silently due to CORS redirect restrictions. Solution: Implemented dual regex to harden full-link iframes with `encrypted-media` tags and render a graceful fallback UI message for mobile short-links.
 
 - *Embed Misses:* YouTube Shorts and some TikTok desktop links were bypassed by strict regex. Solution: Added `/shorts/` explicitly to the YouTube filter and loosened the TikTok regex. (Note: Mobile TikTok short-links remain un-embeddable client-side due to CORS redirect blocks).
