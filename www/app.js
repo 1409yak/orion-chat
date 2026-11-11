@@ -858,6 +858,7 @@ window.pickChest = async (idx, event) => {
                 };
                 chestsContainer.appendChild(btn);
             }
+            if (window.twemoji) twemoji.parse(chestsContainer);
             return; // Logic continues in the victim button click handler
         } else {
             displayLabel = "No one to steal from!";
@@ -903,6 +904,7 @@ function finishChestRound() {
         <div class="chest-box" onclick="pickChest(1, event)">\u{1F381}</div>
         <div class="chest-box" onclick="pickChest(2, event)">\u{1F381}</div>
     `;
+    if (window.twemoji) twemoji.parse(document.getElementById('chests-container'));
     nextFlagRound();
 }
 
@@ -2351,12 +2353,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.44';
+const CURRENT_APP_VERSION = '1.1.45';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.44';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.45';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2518,7 +2520,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.44';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.45';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -7073,7 +7075,11 @@ if (profileModalEl) {
 // Global click-outside handler for secondary modals to ensure clean animated close
 document.addEventListener('click', (e) => {
     if (e.target && e.target.classList && e.target.classList.contains('modal')) {
-        if (e.target.id !== 'premium-panel-modal' && e.target.id !== 'profile-modal' && e.target.id !== 'confirm-modal') {
+        if (e.target.id !== 'premium-panel-modal' &&
+            e.target.id !== 'profile-modal' &&
+            e.target.id !== 'confirm-modal' &&
+            e.target.id !== 'flag-game-screen' &&
+            e.target.id !== 'flag-game-lobby-modal') {
             closeAnimatedModal(e.target);
         }
     }
