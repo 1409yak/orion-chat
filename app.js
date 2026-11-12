@@ -663,25 +663,40 @@ async function setupGameLobby(gameType = 'flags') {
 
     // If creator, setup initial game state and send invite message
     if (isCreator) {
-        const mKey = push(ref(db, `messages/${currentChatId}`)).key;
-        const myName = document.getElementById('current-user-name').innerText;
-        await set(ref(db, `messages/${currentChatId}/${mKey}`), {
+        const myName = document.getElementById('current-user-name')?.innerText || auth.currentUser.displayName || 'Player';
+        // Initialize generic lobby state safely for both Groups and DMs
+        await update(gameRef, {
+            status: 'lobby',
+            type: effectiveType,
+            creator: myUid,
+            hostId: myUid,
+            players: {
+                [myUid]: {
+                    name: myName,
+                    gold: 0,
+                    score: 0,
+                    joinedAt: serverTimestamp()
+                }
+            },
+            createdAt: Date.now()
+        });
+
+        // Send generic invite message without relying on opponentId
+        const msgRef = push(ref(db, `messages/${currentChatId}`));
+        await update(msgRef, {
+            sender: myUid,
             sender_id: myUid,
             sender_name: myName,
-            text: `is hosting a game of ${getGameDisplayTitle(effectiveType)}!`,
+            text: `\u{1F3AE} Created a ${effectiveType} lobby!`,
+            isGameInvite: true,
             gameInvite: true,
             gameType: effectiveType,
+            timestamp: Date.now(),
             createdAt: serverTimestamp(),
-            timestamp: serverTimestamp(),
             sender_badge: (isCurrentUserPremium && currentMyBadge) ? currentMyBadge : null
         });
 
-        await set(gameRef, {
-            inviteMsgId: mKey,
-            status: 'lobby',
-            type: effectiveType,
-            hostId: myUid
-        });
+        await update(gameRef, { inviteMsgId: msgRef.key });
 
         await update(ref(db, `chats/${currentChatId}`), {
             last_message: `\u{1F3AE} ${myName} started a game!`,
@@ -691,9 +706,10 @@ async function setupGameLobby(gameType = 'flags') {
 
     // Join the lobby
     const playerRef = ref(db, `games/${currentChatId}/players/${myUid}`);
-    await set(playerRef, {
-        name: document.getElementById('current-user-name').innerText,
+    await update(playerRef, {
+        name: document.getElementById('current-user-name')?.innerText || auth.currentUser.displayName || 'Player',
         gold: 0,
+        score: 0,
         joinedAt: serverTimestamp()
     });
     await update(gameRef, { emptySince: null });
@@ -773,8 +789,16 @@ async function setupGameLobby(gameType = 'flags') {
             if (doodleSettings) doodleSettings.style.display = (isHost && lobbyType === 'doodle') ? 'flex' : 'none';
             
             startBtn.style.display = isHost ? 'block' : 'none';
-            startBtn.disabled = playerUids.length < 2; // Minimum 2 players
+            startBtn.disabled = !currentChatData?.isGroup && playerUids.length < 2; // Minimum 2 players
             startBtn.onclick = async () => {
+                const freshGameSnap = await get(ref(db, `games/${currentChatId}`));
+                const gData = freshGameSnap.val();
+                const freshPlayersList = Object.keys(gData?.players || {});
+
+                if (freshPlayersList.length < 2 && currentChatData?.isGroup) {
+                    return showNotification("Waiting for at least one more player to join!", "error");
+                }
+
                 if (lobbyType === 'wordle' || lobbyType === 'doodle') {
                     const typeIsDoodle = lobbyType === 'doodle';
                     let rounds = 1;
@@ -3513,12 +3537,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.59';
+const CURRENT_APP_VERSION = '1.1.60';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.59';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.60';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3680,7 +3704,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.59';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.60';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -5982,7 +6006,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     };
 
     // Handle Game Invite Link
-    if (msg.gameInvite) {
+    if (msg.gameInvite || msg.isGameInvite) {
         bubble.classList.add('game-invite-bubble');
         const inviteType = msg.gameType || 'flags';
         const inviteText = document.createElement('div');

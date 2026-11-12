@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Game Engine Crash:* Lobbies failed to open in group chats because the initialization script relied on extracting a single `opponentId`. Solution: Replaced DM-specific opponent lookups with generic group-safe initialization payloads and enforced a 2-player minimum check before starting.
+
 - *Gameplay Enhancement:* Implemented Gartic-style logic for Doodle Dash. Added a native RGB color wheel, live chat feed for guesses, anti-spoiler blind logic hiding correct guessers' messages from active guessers, and a 3-second post-round word reveal screen.
 
 - *UI & Logic Overhaul:* Replaced default browser `<select>` and `<input type="color">` with custom, theme-styled segmented controls and color swatches. Patched Doodle Dash word repetition by tracking a `usedWords` array in Firebase and filtering the available pool during turn advances.
