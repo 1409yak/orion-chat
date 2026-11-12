@@ -486,7 +486,31 @@ function notifyIncomingMessage({ chatId, title, body, fallbackText }) {
         ? `<strong>${escapeHTML(title || 'New Message')}</strong><br>${escapeHTML(body)}`
         : (fallbackText || `New message in ${escapeHTML(title || 'Chat')}`);
 
-    showNotification(messageHtml, 'info');
+    const onToastClick = incomingChatId ? () => {
+        if (typeof openChat === 'function') {
+            openChat(incomingChatId, title || 'Chat');
+        } else if (typeof loadChat === 'function') {
+            loadChat(incomingChatId);
+        } else if (typeof selectChat === 'function') {
+            selectChat(incomingChatId);
+        } else {
+            const sidebarItem = document.getElementById(`link-${incomingChatId}`) ||
+                document.getElementById(`chat-${incomingChatId}`) ||
+                document.querySelector(`[data-id="${incomingChatId}"]`);
+            if (sidebarItem) sidebarItem.click();
+        }
+
+        if (typeof closeSidebarDrawer === 'function') {
+            closeSidebarDrawer();
+        }
+        const sidebar = document.querySelector('.glass-sidebar');
+        if (sidebar && window.innerWidth <= 768) {
+            sidebar.classList.remove('sidebar-open');
+            document.body.classList.remove('sidebar-open');
+        }
+    } : null;
+
+    showNotification(messageHtml, 'info', onToastClick);
     playThemeNotification();
 }
 
@@ -1505,7 +1529,7 @@ function getStickerDisplayName(stickerMeta) {
 }
 
 // Helper for custom notifications
-function showNotification(message, type = 'info') {
+function showNotification(message, type = 'info', onClick = null) {
     const container = document.getElementById('notification-container');
     if (!container) return;
     const notification = document.createElement('div');
@@ -1516,10 +1540,20 @@ function showNotification(message, type = 'info') {
 
     const removeNotify = () => {
         notification.classList.add('fade-out');
-        notification.addEventListener('animationend', () => notification.remove());
+        notification.addEventListener('animationend', () => notification.remove(), { once: true });
     };
     setTimeout(removeNotify, 4000);
-    notification.onclick = removeNotify;
+
+    if (typeof onClick === 'function') {
+        notification.style.cursor = 'pointer';
+        notification.onclick = () => {
+            onClick();
+            notification.style.opacity = '0';
+            setTimeout(() => notification.remove(), 300);
+        };
+    } else {
+        notification.onclick = removeNotify;
+    }
 }
 
 // Helper for custom confirmation dialogs
@@ -3012,12 +3046,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.54';
+const CURRENT_APP_VERSION = '1.1.55';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.54';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.55';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3179,7 +3213,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.54';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.55';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();

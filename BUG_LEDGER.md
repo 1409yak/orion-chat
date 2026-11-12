@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Navigation Enhancement:* In-app notifications for new messages were purely visual. Solution: Upgraded `showNotification` to accept `onClick` callbacks, allowing users to tap a notification toast to instantly switch to the originating chat, complete with mobile drawer auto-close logic.
+
 - *Notification Overhaul:* In-app toasts were firing redundantly for active chats. Solution: Suppressed notifications if `incomingChatId === currentChatId`. Implemented `playThemeNotification()` to route audio files based on the active `body.theme-*` class.
 
 - *Theme Overhaul:* The Retro 2000s theme was a flat, ugly white. Solution: Injected an authentic MSN/XP Luna aesthetic using metallic silver gradients (`#ece9d8`), glossy blue accents (`#0b77e9`), text inversion, and enforced `Tahoma` as the base font.
