@@ -1,6 +1,6 @@
 {
-  "version": "1.1.49",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.49/bundle.zip",
-  "checksum": "7705a5c0301d727ad91592d25121c09c10fef0d381716412efd69f04f020b207",
-  "notes": "Added dictionary validation for games"
+  "version": "1.1.50",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.50/bundle.zip",
+  "checksum": "74d95b25f1c2bef16189059586c92f7b7f76f3d5b64824af2bfa5387b1e9a130",
+  "notes": "Added message pinning feature"
 }
