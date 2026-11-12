@@ -259,14 +259,14 @@ function applyCustomBadge(badgeId) {
 }
 
 function getSenderBadge(msg) {
-    const isDM = !currentChatId || currentChatId.includes('_');
+    const isDM = !currentChatId || !(currentChatData?.isGroup || currentChatData?.isChannel);
     if (isDM) return null; // Never show badges in DMs
     const roleId = currentChatMemberData?.[msg.sender_id]?.role || msg.sender_role || msg.sender_badge;
     return getGroupRoleInfo(roleId);
 }
 
 function updateMessageBadgesForUser(uid, roleId) {
-    const isDM = !currentChatId || currentChatId.includes('_');
+    const isDM = !currentChatId || !(currentChatData?.isGroup || currentChatData?.isChannel);
     const roleInfo = (!isDM && roleId) ? getGroupRoleInfo(roleId) : null;
     document.querySelectorAll(`.msg-wrapper[data-sender-id="${uid}"]`).forEach(wrap => {
         const author = wrap.querySelector('.msg-author');
@@ -312,7 +312,7 @@ function createAuthorElement(msg, onClick) {
     }
 
     // Group-exclusive roles: strictly never show role badge in DMs
-    const isDM = !currentChatId || currentChatId.includes('_');
+    const isDM = !currentChatId || !(currentChatData?.isGroup || currentChatData?.isChannel);
     if (!isDM && msg.sender_id && msg.sender_id !== 'system') {
         let roleId = null;
         if (currentChatMemberData && currentChatMemberData[msg.sender_id]) {
@@ -467,7 +467,8 @@ function notifyIncomingMessage({ chatId, title, body, fallbackText }) {
         return;
     }
 
-    const isDm = incomingChatId && incomingChatId.includes('_');
+    const targetChatData = incomingChatId ? (allChatsStore.get(incomingChatId) || (incomingChatId === currentChatId ? currentChatData : null)) : null;
+    const isDm = incomingChatId ? (targetChatData ? !(targetChatData.isGroup || targetChatData.isChannel || targetChatData.type === 'channel' || incomingChatId === 'channel_orion_updates') : (incomingChatId !== 'channel_orion_updates')) : false;
     if (isDm && notificationPrefs.dmNotifications === 'none') {
         return;
     }
@@ -619,12 +620,27 @@ async function setupGameLobby(gameType = 'flags') {
     isAdvancingDoodleTurn = false;
     gameStartedLocally = false;
 
-    const gameRef = ref(db, `games/${currentChatId}`);
-    const myUid = auth.currentUser.uid;
-    
-    const gameSnap = await get(gameRef);
-    let gameData = gameSnap.val();
-    let isCreator = !gameSnap.exists();
+    try {
+        const gameRef = ref(db, `games/${currentChatId}`);
+        const myUid = auth.currentUser.uid;
+        
+        const gameSnap = await get(gameRef);
+        let gameData = gameSnap.val();
+        let isCreator = !gameSnap.exists();
+
+        const thirtyMins = 30 * 60 * 1000;
+        if (gameData && gameData.status !== 'finished') {
+            if (Date.now() - (gameData.createdAt || gameData.startedAt || 0) < thirtyMins) {
+                if (gameData.status !== 'lobby') {
+                    return showNotification("A game is already active in this chat!", "error");
+                }
+            } else {
+                console.warn("[Game] Overwriting stale game lobby.");
+                await remove(gameRef);
+                gameData = null;
+                isCreator = true;
+            }
+        }
 
     // Handle 5-minute empty lobby closure
     if (gameData && gameData.emptySince && (Date.now() - gameData.emptySince > 5 * 60 * 1000)) {
@@ -841,6 +857,12 @@ async function setupGameLobby(gameType = 'flags') {
             };
         }
     });
+    } catch (err) {
+        console.error('[Game] Lobby initialization failed:', err);
+        showNotification('Could not start game: ' + (err.code || err.message), 'error');
+        const modal = document.getElementById('flag-game-lobby-modal');
+        if (modal) closeAnimatedModal(modal);
+    }
 }
 
 function initFlagGame() {
@@ -3537,12 +3559,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.60';
+const CURRENT_APP_VERSION = '1.1.61';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.60';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.61';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3704,7 +3726,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.60';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.61';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4552,8 +4574,11 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
     nameElem.className = 'uv-name' + (isTargetPremium && userData.nameplate ? ` nameplate-applied ${userData.nameplate}` : '');
     nameElem.innerText = getDisplayName(userData);
     
+    const chatInfo = chatId ? (allChatsStore.get(chatId) || (chatId === currentChatId ? currentChatData : null)) : null;
+    const isGroupChat = !!(chatInfo ? (chatInfo.isGroup || chatInfo.isChannel) : (currentChatData?.isGroup || currentChatData?.isChannel));
+
     // Group-exclusive role badge: strictly only shown in groups
-    if (chatId && !chatId.includes('_')) {
+    if (chatId && isGroupChat) {
         const targetMemberRole = currentChatMemberData?.[targetUid]?.role || 'member';
         const groupRole = getGroupRoleInfo(targetMemberRole);
         if (groupRole && groupRole.badge) {
@@ -4623,7 +4648,7 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
         }
 
         // ── 3. GROUP MODERATION & ROLES SECTION ──
-        if (chatId && !chatId.includes('_') && (amICreator || amIAdmin) && !targetIsCreator) {
+        if (chatId && isGroupChat && (amICreator || amIAdmin) && !targetIsCreator) {
             const modSection = makeSection('Group Roles & Moderation');
             
             // Discord-Style Role Assignment (Creator or Admin)
@@ -5128,12 +5153,16 @@ async function renderChatLink(chatId, data, myUid) {
     let chatPic = data.profilePic;
     const isSubChannel = !!data.groupId;
 
-    if (!data.isGroup && !data.isChannel && data.type !== 'channel' && chatId !== 'channel_orion_updates' && chatId.includes('_')) {
-        const partnerId = chatId.split('_').find(id => id !== myUid);
-        const partnerSnap = await get(ref(db, `users/${partnerId}`));
-        const pData = partnerSnap.val();
-        displayTitle = getDisplayName(pData);
-        chatPic = pData?.profilePic;
+    const isDmChat = !(data.isGroup || data.isChannel || data.type === 'channel' || data.groupId || chatId === 'channel_orion_updates');
+    if (isDmChat) {
+        const parts = chatId.split('_');
+        const partnerId = parts.length === 2 ? parts.find(id => id !== myUid) : null;
+        if (partnerId) {
+            const partnerSnap = await get(ref(db, `users/${partnerId}`));
+            const pData = partnerSnap.val();
+            displayTitle = getDisplayName(pData);
+            chatPic = pData?.profilePic;
+        }
     }
 
     // Function to update the UI of a single chat link
@@ -6380,7 +6409,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     const timeStr = formatSmartTimestamp(msg.timestamp);
     
     let viewCounterHtml = "";
-    const isDM = currentChatId && currentChatId.includes('_');
+    const isDM = !(currentChatData?.isGroup || currentChatData?.isChannel || currentChatId === 'channel_orion_updates');
     const viewCount = msg.viewedBy ? Object.keys(msg.viewedBy).length : (msg.views || 0);
 
     if (viewCount > 0) {
@@ -7367,7 +7396,7 @@ async function sendMessage() {
         createdAt: serverTimestamp(),
         timestamp: serverTimestamp()
     };
-    const isDM = !currentChatId || currentChatId.includes('_');
+    const isDM = !currentChatId || !(chatData?.isGroup || chatData?.isChannel || currentChatData?.isGroup || currentChatData?.isChannel);
     if (!isDM) {
         const myRole = currentChatMemberData?.[auth.currentUser.uid]?.role || 'member';
         const roleInfo = getGroupRoleInfo(myRole);
