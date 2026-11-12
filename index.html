@@ -547,7 +547,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.57</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.58</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>
@@ -872,14 +872,14 @@
                 <input type="range" id="game-duration-slider" min="1" max="10" value="5" oninput="document.getElementById('duration-val').innerText = this.value">
                 <div style="text-align: center; font-weight: 700; color: var(--accent);"><span id="duration-val">5</span> mins</div>
             </div>
-            <div id="doodle-settings" class="field-group" style="display: none; margin-top: 12px;">
-                <label for="doodle-rounds">Rounds:</label>
-                <select id="doodle-rounds" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.08); color: var(--text-main, #fff); font-size: 14px; outline: none;">
-                    <option value="1" style="background: var(--solid-panel, #1e1e26); color: var(--text-main, #fff);">1</option>
-                    <option value="2" style="background: var(--solid-panel, #1e1e26); color: var(--text-main, #fff);">2</option>
-                    <option value="3" selected style="background: var(--solid-panel, #1e1e26); color: var(--text-main, #fff);">3</option>
-                    <option value="5" style="background: var(--solid-panel, #1e1e26); color: var(--text-main, #fff);">5</option>
-                </select>
+            <div id="doodle-settings" class="field-group" style="display: none; flex-direction: column; gap: 8px; align-items: center; margin-top: 12px;">
+                <label>Rounds</label>
+                <div class="doodle-rounds-segmented" style="display: inline-flex; border: 1px solid var(--glass-border); border-radius: 12px; overflow: hidden; background: rgba(255, 255, 255, 0.05);">
+                    <button type="button" class="round-btn" data-val="1">1</button>
+                    <button type="button" class="round-btn" data-val="2">2</button>
+                    <button type="button" class="round-btn active" data-val="3">3</button>
+                    <button type="button" class="round-btn" data-val="5">5</button>
+                </div>
             </div>
             <div class="field-group">
                 <label>Players Waiting</label>
@@ -948,10 +948,24 @@
             </div>
             <div id="doodle-status" style="font-weight: 700; font-size: 15px; color: var(--accent);">Waiting...</div>
             <canvas id="doodle-canvas" style="width: 100%; height: 320px; background: #ffffff; border-radius: 14px; border: 2px solid var(--glass-border); touch-action: none; cursor: crosshair; display: block;"></canvas>
-            <div id="doodle-tools" style="display: none; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
-                <input type="color" id="doodle-color" value="#000000" title="Brush Color" style="width: 44px; height: 38px; border: none; border-radius: 8px; cursor: pointer; background: transparent;">
-                <input type="range" id="doodle-size" min="2" max="20" value="5" title="Brush Size" style="flex: 1; min-width: 100px;">
-                <button type="button" class="glass-btn-secondary" onclick="clearDoodle()" style="padding: 8px 14px;">Clear</button>
+            <div id="doodle-tools" style="display: none; flex-direction: column; gap: 10px;">
+                <input type="hidden" id="doodle-color" value="#000000">
+                <div id="doodle-color-palette" style="display: flex; align-items: center; gap: 10px; overflow-x: auto; padding: 6px 4px; scrollbar-width: none;">
+                    <div class="color-swatch active" data-color="#000000" style="background: #000000;" title="Black"></div>
+                    <div class="color-swatch" data-color="#ef4444" style="background: #ef4444;" title="Red"></div>
+                    <div class="color-swatch" data-color="#f97316" style="background: #f97316;" title="Orange"></div>
+                    <div class="color-swatch" data-color="#eab308" style="background: #eab308;" title="Yellow"></div>
+                    <div class="color-swatch" data-color="#22c55e" style="background: #22c55e;" title="Green"></div>
+                    <div class="color-swatch" data-color="#3b82f6" style="background: #3b82f6;" title="Blue"></div>
+                    <div class="color-swatch" data-color="#a855f7" style="background: #a855f7;" title="Purple"></div>
+                    <div class="color-swatch" data-color="#ec4899" style="background: #ec4899;" title="Pink"></div>
+                    <div class="color-swatch" data-color="#8b4513" style="background: #8b4513;" title="Brown"></div>
+                    <div class="color-swatch" data-color="#ffffff" style="background: #ffffff; color: #222; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: bold;" title="Eraser">⌫</div>
+                </div>
+                <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+                    <input type="range" id="doodle-size" min="2" max="20" value="5" title="Brush Size" style="flex: 1; min-width: 100px;">
+                    <button type="button" class="glass-btn-secondary" onclick="clearDoodle()" style="padding: 8px 14px;">Clear</button>
+                </div>
             </div>
             <div id="doodle-guess-area" style="display: none; align-items: center; gap: 8px;">
                 <input type="text" id="doodle-guess-input" placeholder="Type your guess..." autocomplete="off" style="flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.08); color: var(--text-main, #fff); outline: none;">

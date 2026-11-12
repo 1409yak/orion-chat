@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *UI & Logic Overhaul:* Replaced default browser `<select>` and `<input type="color">` with custom, theme-styled segmented controls and color swatches. Patched Doodle Dash word repetition by tracking a `usedWords` array in Firebase and filtering the available pool during turn advances.
+
 - *Game Overhaul:* Upgraded Doodle Dash from single-round to turn-based multi-round rotation. Added round configuration lobby selector, letter-count hint generation (`_ _ _ _`), timer scaled to word difficulty, and a point scoring system based on answer speed leading to a final podium ranking.
 
 - *Feature Integration:* Added 'Doodle Dash' multiplayer drawing game. Implemented relative-coordinate `pointermove` syncing to Firebase `child_added` nodes, ensuring cross-device aspect ratio scaling and instant state retrieval for late joiners.

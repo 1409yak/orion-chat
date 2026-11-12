@@ -655,7 +655,7 @@ async function setupGameLobby(gameType = 'flags') {
     }
     const initialDoodleSettings = document.getElementById('doodle-settings');
     if (initialDoodleSettings) {
-        initialDoodleSettings.style.display = effectiveType === 'doodle' ? 'block' : 'none';
+        initialDoodleSettings.style.display = effectiveType === 'doodle' ? 'flex' : 'none';
     }
 
     const fgm = document.getElementById('flag-game-lobby-modal');
@@ -770,7 +770,7 @@ async function setupGameLobby(gameType = 'flags') {
             const durationGroup = document.getElementById('game-duration-slider').closest('.field-group');
             if (durationGroup) durationGroup.style.display = (isHost && lobbyType === 'flags') ? 'block' : 'none';
             const doodleSettings = document.getElementById('doodle-settings');
-            if (doodleSettings) doodleSettings.style.display = (isHost && lobbyType === 'doodle') ? 'block' : 'none';
+            if (doodleSettings) doodleSettings.style.display = (isHost && lobbyType === 'doodle') ? 'flex' : 'none';
             
             startBtn.style.display = isHost ? 'block' : 'none';
             startBtn.disabled = playerUids.length < 2; // Minimum 2 players
@@ -779,8 +779,8 @@ async function setupGameLobby(gameType = 'flags') {
                     const typeIsDoodle = lobbyType === 'doodle';
                     let rounds = 1;
                     if (typeIsDoodle) {
-                        const rSelect = document.getElementById('doodle-rounds');
-                        if (rSelect) rounds = parseInt(rSelect.value, 10) || 3;
+                        const activeRoundBtn = document.querySelector('.round-btn.active');
+                        if (activeRoundBtn) rounds = parseInt(activeRoundBtn.getAttribute('data-val'), 10) || 3;
                     }
 
                     const playersList = playerUids.length ? playerUids : [auth.currentUser.uid];
@@ -794,6 +794,7 @@ async function setupGameLobby(gameType = 'flags') {
                         status: 'playing',
                         type: lobbyType,
                         targetWord: targetWord,
+                        usedWords: typeIsDoodle ? [targetWord] : null,
                         startedAt: Date.now(),
 
                         // Doodle Turn Tracking
@@ -1236,6 +1237,22 @@ document.addEventListener('keydown', (e) => {
     }
 });
 
+// Custom Doodle Dash segmented rounds & color palette delegation
+document.addEventListener('click', (e) => {
+    const roundBtn = e.target && e.target.closest ? e.target.closest('.round-btn') : null;
+    if (roundBtn) {
+        document.querySelectorAll('.round-btn').forEach(b => b.classList.remove('active'));
+        roundBtn.classList.add('active');
+    }
+    const swatch = e.target && e.target.closest ? e.target.closest('.color-swatch') : null;
+    if (swatch) {
+        document.querySelectorAll('.color-swatch').forEach(c => c.classList.remove('active'));
+        swatch.classList.add('active');
+        const colorInput = document.getElementById('doodle-color');
+        if (colorInput) colorInput.value = swatch.getAttribute('data-color');
+    }
+});
+
 // --- DOODLE DASH (MULTIPLAYER PICTIONARY) ENGINE ---
 let currentDoodleRound = -1;
 
@@ -1467,7 +1484,11 @@ window.advanceDoodleTurn = async (expectedTurnIndex = null) => {
 
         // Next Turn Setup (clear old strokes before advancing currentTurnIndex)
         const wordList = ['APPLE', 'TRAIN', 'GHOST', 'PLANT', 'WATER', 'BRAIN', 'HEART', 'LIGHT', 'SOUND', 'SPACE', 'DREAM', 'HOUSE', 'MOUSE', 'CLOCK', 'PHONE', 'CHAIR', 'ASTRONAUT', 'HELICOPTER', 'TELESCOPE', 'DINOSAUR', 'VOLCANO', 'PENGUIN', 'PYRAMID'];
-        const targetWord = wordList[Math.floor(Math.random() * wordList.length)];
+        let availableWords = wordList.filter(w => !(g.usedWords || []).includes(w));
+        if (availableWords.length === 0) availableWords = wordList;
+
+        const targetWord = availableWords[Math.floor(Math.random() * availableWords.length)];
+        const updatedUsedWords = [...(g.usedWords || []), targetWord];
         const durationMs = (targetWord.length * 5 + 30) * 1000;
 
         await remove(ref(db, `games/${currentChatId}/doodle/strokes`));
@@ -1477,6 +1498,7 @@ window.advanceDoodleTurn = async (expectedTurnIndex = null) => {
             currentRound: nextRound,
             drawerUid: order[nextIdx] || g.drawerUid,
             targetWord: targetWord,
+            usedWords: updatedUsedWords,
             turnEndTime: Date.now() + durationMs
         });
     } finally {
@@ -3390,12 +3412,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.57';
+const CURRENT_APP_VERSION = '1.1.58';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.57';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.58';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3557,7 +3579,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.57';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.58';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
