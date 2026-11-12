@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *UI & Logic Enhancement:* Fixed left-screen overflow on action menus via `Math.min/max` boundaries. Overhauled pinning to support up to 5 concurrent pins in groups (3 in DMs) via a horizontal CSS snap-scroll container. Pinned messages bypass the 5-day retention limit and are purged upon unpinning if expired.
+
 - *Feature Enhancement:* Added message pinning. Included a dynamic `pinnedMessageId` listener to render a clickable banner header. Enforced group role checks (Admins/Mods only in groups; open access in DMs) for the Pin/Unpin actions.
 
 - *Game Engine Exploit:* Players could submit invalid 5-letter gibberish strings (e.g., 'AAAAA') in Word Rush to brute-force color hints. Solution: Added a pre-submission `fetch` validation against `api.dictionaryapi.dev`, blocking progression and throwing an error toast if a 404 is returned.
