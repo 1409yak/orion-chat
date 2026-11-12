@@ -1,6 +1,6 @@
 {
-  "version": "1.1.55",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.55/bundle.zip",
-  "checksum": "f5343b03e86c783d4ee35a45acbe28b805116030f82d5dfab999e740a5e40f90",
-  "notes": "Clickable notifications for quick navigation"
+  "version": "1.1.56",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.56/bundle.zip",
+  "checksum": "5b03c9879dfabf5c89c89b5cc443a51a0d0f0921d97a227e103f6e94b53bf154",
+  "notes": "Added Doodle Dash multiplayer drawing game"
 }
