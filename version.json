@@ -1,6 +1,6 @@
 {
-  "version": "1.1.54",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.54/bundle.zip",
-  "checksum": "84dd57a2e65860dcfd2d4234ade1f2cf005ff5a9560bf4b94438dfdc88844566",
-  "notes": "Smart notifications and theme sounds"
+  "version": "1.1.55",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.55/bundle.zip",
+  "checksum": "f5343b03e86c783d4ee35a45acbe28b805116030f82d5dfab999e740a5e40f90",
+  "notes": "Clickable notifications for quick navigation"
 }
