@@ -1,6 +1,6 @@
 {
-  "version": "1.1.60",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.60/bundle.zip",
-  "checksum": "052390943021244a05f496fcaf26d50d81bead1e8a1b8f2b90008b4bb0121aa7",
+  "version": "1.1.61",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.61/bundle.zip",
+  "checksum": "eef6e2d15ca170c17f107977ba789412b696503a3456cf5bda01014450d7a8dd",
   "notes": "Fixing bugs"
 }
