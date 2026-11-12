@@ -399,7 +399,7 @@ function applyNotificationSettingsUI() {
     });
 }
 
-// Gentle glass notification chime synthesized via standard Web Audio API
+// Gentle glass notification chime synthesized via standard Web Audio API (fallback)
 function playNotificationChime() {
     if (!notificationPrefs.inAppSounds) return;
     try {
@@ -426,6 +426,68 @@ function playNotificationChime() {
     } catch (e) {
         // Audio context may require interaction gesture, ignore gracefully
     }
+}
+
+// Theme-aware audio notification player
+function playThemeNotification() {
+    if (!notificationPrefs.inAppSounds) return;
+    try {
+        // Detect active theme class (e.g., theme-retro, theme-cyberpunk)
+        const currentTheme = document.body.className.split(' ').find(c => c.startsWith('theme-')) || 'default';
+
+        // Map themes to local audio files
+        const soundMap = {
+            'theme-retro': 'sounds/retro.mp3',
+            'theme-cyberpunk': 'sounds/cyber.mp3',
+            'theme-tropical': 'sounds/marimba.mp3',
+            'theme-amoled': 'sounds/minimal.mp3',
+            'default': 'sounds/default.mp3'
+        };
+
+        const soundFile = soundMap[currentTheme] || soundMap['default'];
+        const audio = new Audio(soundFile);
+        audio.volume = 0.6;
+        audio.play().catch(e => {
+            console.warn("[Audio] Blocked by browser or missing file:", e);
+            playNotificationChime();
+        });
+    } catch (err) {
+        console.error("[Audio] Failed to play theme sound:", err);
+    }
+}
+window.playThemeNotification = playThemeNotification;
+
+const recentIncomingNotifyMap = new Map();
+
+function notifyIncomingMessage({ chatId, title, body, fallbackText }) {
+    const incomingChatId = chatId || null;
+
+    if (incomingChatId && incomingChatId === currentChatId) {
+        // User is actively looking at this chat: do not show a toast or play sound
+        return;
+    }
+
+    const isDm = incomingChatId && incomingChatId.includes('_');
+    if (isDm && notificationPrefs.dmNotifications === 'none') {
+        return;
+    }
+    if (incomingChatId && !isDm && notificationPrefs.groupNotifications === 'mute') {
+        return;
+    }
+
+    if (incomingChatId) {
+        const now = Date.now();
+        const lastAt = recentIncomingNotifyMap.get(incomingChatId) || 0;
+        if (now - lastAt < 2000) return; // Deduplicate FCM + RTDB double triggers
+        recentIncomingNotifyMap.set(incomingChatId, now);
+    }
+
+    const messageHtml = body
+        ? `<strong>${escapeHTML(title || 'New Message')}</strong><br>${escapeHTML(body)}`
+        : (fallbackText || `New message in ${escapeHTML(title || 'Chat')}`);
+
+    showNotification(messageHtml, 'info');
+    playThemeNotification();
 }
 
 // ---- UI preferences (stored per device) ----
@@ -2925,10 +2987,11 @@ async function setupCapacitorPushNotifications(uid) {
         // Foreground push notification received
         await PushNotifications.addListener('pushNotificationReceived', (notification) => {
             console.log('Capacitor push notification received in foreground:', notification);
-            playNotificationChime();
-            const title = notification.title || 'New Message';
-            const body = notification.body || '';
-            showNotification(`<strong>${escapeHTML(title)}</strong><br>${escapeHTML(body)}`, 'info');
+            notifyIncomingMessage({
+                chatId: notification?.data?.chatId,
+                title: notification.title || 'New Message',
+                body: notification.body || ''
+            });
         });
 
         // Notification clicked / action performed by user
@@ -2949,12 +3012,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.53';
+const CURRENT_APP_VERSION = '1.1.54';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.53';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.54';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3116,7 +3179,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.53';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.54';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -3600,19 +3663,13 @@ if ('serviceWorker' in navigator) {
 onMessage(messaging, (payload) => {
     const title = payload.data?.title || "New Message";
     const body = payload.data?.body || "";
-    const chatId = payload.data?.chatId;
-    const isDm = chatId && chatId.includes('_');
+    const incomingChatId = payload.data?.chatId;
 
-    // Filter notification delivery according to user notification settings
-    if (isDm && notificationPrefs.dmNotifications === 'none') {
-        return;
-    }
-    if (!isDm && notificationPrefs.groupNotifications === 'mute') {
-        return;
-    }
-
-    playNotificationChime();
-    showNotification(`<strong>${escapeHTML(title)}</strong><br>${escapeHTML(body)}`, 'info');
+    notifyIncomingMessage({
+        chatId: incomingChatId,
+        title,
+        body
+    });
 });
 
 /* ---------------- AUTH STATE ---------------- */
@@ -4611,13 +4668,24 @@ async function renderChatLink(chatId, data, myUid) {
     const unreadRef = ref(db, `unread/${myUid}/${chatId}`);
     const mentionsRef = ref(db, `mentions/${myUid}/${chatId}`);
 
+    let isFirstUnreadEmit = true;
     const unreadOff = onValue(unreadRef, (unreadSnap) => {
+        const prevIsUnread = localIsUnread;
         localIsUnread = unreadSnap.exists();
-        
+        const isInitial = isFirstUnreadEmit;
+        isFirstUnreadEmit = false;
+
         if (localIsUnread && chatId === currentChatId) {
             remove(unreadRef);
         } else {
             updateChatLinkUI(localIsUnread, localMentionCount);
+            if (!isInitial && !prevIsUnread && localIsUnread) {
+                notifyIncomingMessage({
+                    chatId,
+                    title: displayTitle,
+                    fallbackText: `New message in ${escapeHTML(displayTitle)}`
+                });
+            }
         }
 
         const existing = allChatsStore.get(chatId) || { id: chatId, ...data };
@@ -8205,7 +8273,7 @@ document.addEventListener('click', (e) => {
         toggleSoundsInput.onchange = () => {
             saveNotificationSettings({ inAppSounds: toggleSoundsInput.checked });
             if (toggleSoundsInput.checked) {
-                playNotificationChime();
+                playThemeNotification();
             }
         };
     }
