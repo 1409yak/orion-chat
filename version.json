@@ -1,6 +1,6 @@
 {
-  "version": "1.1.51",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.51/bundle.zip",
-  "checksum": "a5fa8d3b8635cb3794ef7aef69250b53388e2b4bc9ee58733551411368f25c53",
-  "notes": "UI fixes and multi-pinning support"
+  "version": "1.1.52",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.52/bundle.zip",
+  "checksum": "d280c8bc3b62eff4406aa401ea41605872f36b7d22b96a154c8d6e41d8ba4614",
+  "notes": "Sidebar color correction and theme alignment"
 }
