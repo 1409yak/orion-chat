@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Gameplay Enhancement:* Implemented Gartic-style logic for Doodle Dash. Added a native RGB color wheel, live chat feed for guesses, anti-spoiler blind logic hiding correct guessers' messages from active guessers, and a 3-second post-round word reveal screen.
+
 - *UI & Logic Overhaul:* Replaced default browser `<select>` and `<input type="color">` with custom, theme-styled segmented controls and color swatches. Patched Doodle Dash word repetition by tracking a `usedWords` array in Firebase and filtering the available pool during turn advances.
 
 - *Game Overhaul:* Upgraded Doodle Dash from single-round to turn-based multi-round rotation. Added round configuration lobby selector, letter-count hint generation (`_ _ _ _`), timer scaled to word difficulty, and a point scoring system based on answer speed leading to a final podium ranking.

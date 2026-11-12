@@ -547,7 +547,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.58</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.59</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>
@@ -947,10 +947,14 @@
                 <button type="button" id="close-doodle-btn" class="glass-btn-secondary" style="padding: 6px 12px; font-size: 14px;" aria-label="Close">✕</button>
             </div>
             <div id="doodle-status" style="font-weight: 700; font-size: 15px; color: var(--accent);">Waiting...</div>
+            <div id="doodle-chat-box" style="height: 85px; overflow-y: auto; background: rgba(0, 0, 0, 0.2); border: 1px solid var(--glass-border); border-radius: 10px; padding: 6px 10px; text-align: left; font-size: 13px; display: flex; flex-direction: column; gap: 2px;"></div>
             <canvas id="doodle-canvas" style="width: 100%; height: 320px; background: #ffffff; border-radius: 14px; border: 2px solid var(--glass-border); touch-action: none; cursor: crosshair; display: block;"></canvas>
             <div id="doodle-tools" style="display: none; flex-direction: column; gap: 10px;">
                 <input type="hidden" id="doodle-color" value="#000000">
                 <div id="doodle-color-palette" style="display: flex; align-items: center; gap: 10px; overflow-x: auto; padding: 6px 4px; scrollbar-width: none;">
+                    <div class="color-swatch" data-color="#000000" title="Custom RGB Color" style="position: relative; overflow: hidden; background: conic-gradient(red, yellow, lime, aqua, blue, magenta, red); border: 2px solid rgba(255,255,255,0.4);">
+                        <input type="color" id="doodle-rgb-picker" value="#000000" style="position: absolute; inset: -6px; width: 44px; height: 44px; opacity: 0; cursor: pointer;">
+                    </div>
                     <div class="color-swatch active" data-color="#000000" style="background: #000000;" title="Black"></div>
                     <div class="color-swatch" data-color="#ef4444" style="background: #ef4444;" title="Red"></div>
                     <div class="color-swatch" data-color="#f97316" style="background: #f97316;" title="Orange"></div>
