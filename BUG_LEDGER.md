@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *UI Color Clash:* The sidebar retained a hardcoded navy-blue tint (`rgba(14, 18, 42)`) that clashed with non-blue themes. Solution: Stripped out the navy base values and enforced `var(--solid-panel)` mixed dynamically with `var(--accent)` across both desktop and mobile breakpoints.
+
 - *UI & Logic Enhancement:* Fixed left-screen overflow on action menus via `Math.min/max` boundaries. Overhauled pinning to support up to 5 concurrent pins in groups (3 in DMs) via a horizontal CSS snap-scroll container. Pinned messages bypass the 5-day retention limit and are purged upon unpinning if expired.
 
 - *Feature Enhancement:* Added message pinning. Included a dynamic `pinnedMessageId` listener to render a clickable banner header. Enforced group role checks (Admins/Mods only in groups; open access in DMs) for the Pin/Unpin actions.

@@ -66,10 +66,10 @@ body {
     display: flex;
     flex-direction: column;
     border-radius: 24px;
-    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, var(--glass)), var(--glass));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, rgba(18, 18, 22, 0.65)), rgba(18, 18, 22, 0.75));
     backdrop-filter: blur(40px);
     border: 1px solid var(--glass-border);
-    border-right: 1px solid color-mix(in srgb, var(--accent) 20%, var(--glass-border));
+    border-right: 1px solid color-mix(in srgb, var(--accent) 25%, rgba(255, 255, 255, 0.08));
     overflow: hidden;
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
 }
@@ -1731,10 +1731,10 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
     display: flex;
     flex-direction: column;
     border-radius: 24px;
-    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, var(--glass)), var(--glass));
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, rgba(18, 18, 22, 0.65)), rgba(18, 18, 22, 0.75));
     backdrop-filter: blur(40px);
     border: 1px solid var(--glass-border);
-    border-right: 1px solid color-mix(in srgb, var(--accent) 20%, var(--glass-border));
+    border-right: 1px solid color-mix(in srgb, var(--accent) 25%, rgba(255, 255, 255, 0.08));
     overflow: hidden;
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
 }
@@ -1897,7 +1897,7 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
 
         border-left: 1px solid var(--glass-border);
         border-radius: 0 !important;
-        background: rgba(14, 18, 42, 0.98) !important;
+        background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 15%, var(--solid-panel, #0a0a0c)), var(--solid-panel, #0a0a0c)) !important;
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
         padding-top: 10px;
@@ -2199,14 +2199,14 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
         transition: transform 0.28s cubic-bezier(0.16, 1, 0.3, 1) !important;
         will-change: transform;
         border-radius: 0 !important;
-        border-right: 1px solid color-mix(in srgb, var(--accent) 40%, var(--glass-border)) !important;
+        border-right: 1px solid color-mix(in srgb, var(--accent) 40%, rgba(255, 255, 255, 0.1)) !important;
         border-top: none !important;
         border-left: none !important;
         border-bottom: none !important;
         box-shadow: 4px 0 28px rgba(0, 0, 0, 0.55) !important;
         display: flex !important;
         flex-direction: column !important;
-        background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 12%, rgba(14, 18, 42, 0.98)), rgba(14, 18, 42, 0.98)) !important;
+        background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 15%, var(--solid-panel, #0a0a0c)), var(--solid-panel, #0a0a0c)) !important;
         backdrop-filter: none !important;
         -webkit-backdrop-filter: none !important;
     }
@@ -4728,18 +4728,18 @@ body.theme-liquid-glass .ota-update-banner {
 /* Applied to Standard/Default Theme when Liquid Glass is turned off */
 
 body:not(.liquid-glass):not(.theme-liquid-glass) .glass-sidebar {
-    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, var(--solid-panel, #121216)), var(--solid-bg, #121216)) !important;
+    background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, var(--solid-panel, #121214)), var(--solid-panel, #121214)) !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
-    border-right: 1px solid color-mix(in srgb, var(--accent) 30%, rgba(255, 255, 255, 0.08)) !important;
+    border-right: 1px solid color-mix(in srgb, var(--accent) 30%, rgba(255, 255, 255, 0.05)) !important;
     border-radius: 16px;
     box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
 }
 
 @media (max-width: 768px) {
     body:not(.liquid-glass):not(.theme-liquid-glass) .glass-sidebar {
-        background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 4%, var(--solid-panel, #121216)), var(--solid-bg, #121216)) !important;
+        background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, var(--solid-panel, #121214)), var(--solid-panel, #121214)) !important;
         border-radius: 0 16px 16px 0 !important;
-        border-right: 1px solid color-mix(in srgb, var(--accent) 30%, rgba(255, 255, 255, 0.08)) !important;
+        border-right: 1px solid color-mix(in srgb, var(--accent) 30%, rgba(255, 255, 255, 0.05)) !important;
         border-top: none !important;
         border-bottom: none !important;
         border-left: none !important;
