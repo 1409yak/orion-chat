@@ -1,6 +1,6 @@
 {
-  "version": "1.1.50",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.50/bundle.zip",
-  "checksum": "74d95b25f1c2bef16189059586c92f7b7f76f3d5b64824af2bfa5387b1e9a130",
-  "notes": "Added message pinning feature"
+  "version": "1.1.51",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.51/bundle.zip",
+  "checksum": "a5fa8d3b8635cb3794ef7aef69250b53388e2b4bc9ee58733551411368f25c53",
+  "notes": "UI fixes and multi-pinning support"
 }
