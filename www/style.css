@@ -5304,6 +5304,101 @@ body:not(.liquid-glass):not(.theme-liquid-glass) .message-context-sheet {
     font-size: 22px;
 }
 
+/* ---------------- PINNED MESSAGE BANNER ---------------- */
+.pinned-message-banner {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 8px 18px;
+    background: color-mix(in srgb, var(--accent), rgba(18, 20, 32, 0.85) 86%);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border-bottom: 1px solid var(--glass-border);
+    cursor: pointer;
+    flex-shrink: 0;
+    z-index: 45;
+    transition: background 0.18s ease;
+    min-width: 0;
+}
+
+.pinned-message-banner:hover {
+    background: color-mix(in srgb, var(--accent), rgba(24, 26, 40, 0.88) 78%);
+}
+
+.pinned-banner-left {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex: 1;
+    min-width: 0;
+}
+
+.pinned-banner-icon {
+    font-size: 15px;
+    flex-shrink: 0;
+    line-height: 1;
+}
+
+.pinned-banner-content {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+    flex: 1;
+    gap: 1px;
+}
+
+.pinned-banner-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--accent);
+    line-height: 1.2;
+}
+
+.pinned-message-text {
+    font-size: 13px;
+    color: var(--text, #ffffff);
+    opacity: 0.9;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    line-height: 1.3;
+}
+
+.unpin-btn {
+    flex-shrink: 0;
+    padding: 4px 10px;
+    border-radius: 10px;
+    border: 1px solid var(--glass-border);
+    background: rgba(255, 255, 255, 0.08);
+    color: var(--text, #ffffff);
+    font-size: 12px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: inherit;
+    transition: background 0.15s ease, border-color 0.15s ease;
+}
+
+.unpin-btn:hover {
+    background: rgba(255, 255, 255, 0.16);
+    border-color: var(--accent);
+}
+
+body.theme-light .pinned-message-banner {
+    background: color-mix(in srgb, var(--accent), #f4f6fb 90%);
+}
+
+body.theme-light .unpin-btn {
+    background: rgba(0, 0, 0, 0.06);
+}
+
+body.theme-light .unpin-btn:hover {
+    background: rgba(0, 0, 0, 0.12);
+}
+
+
 
 
 

@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Feature Enhancement:* Added message pinning. Included a dynamic `pinnedMessageId` listener to render a clickable banner header. Enforced group role checks (Admins/Mods only in groups; open access in DMs) for the Pin/Unpin actions.
+
 - *Game Engine Exploit:* Players could submit invalid 5-letter gibberish strings (e.g., 'AAAAA') in Word Rush to brute-force color hints. Solution: Added a pre-submission `fetch` validation against `api.dictionaryapi.dev`, blocking progression and throwing an error toast if a 404 is returned.
 
 - *Feature Integration:* Added 'Word Rush' (multiplayer Wordle). Implemented localized grid rendering, strict tile color validation (consuming characters to prevent duplicate yellow hints), async completion state, and ranked podium sorting based on win status, attempts, and timestamp.

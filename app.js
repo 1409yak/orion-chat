@@ -60,6 +60,7 @@ const db = getDatabase(app);
 const messaging = getMessaging(app);
 
 let currentChatId = null;
+let currentChatData = null;
 let currentChatCreatorId = null; // Store globally for profile viewing context
 let selectedGroupMembers = [];
 let selectedNewGroupMembers = []; // For adding members to an existing group
@@ -1795,6 +1796,136 @@ async function ensureOrionUpdatesChannel(myUid) {
 }
 window.ensureOrionUpdatesChannel = ensureOrionUpdatesChannel;
 
+// --- Message Pinning with Role-Based Access ---
+function canCurrentUserPin(chatData = currentChatData) {
+    const myUid = auth.currentUser?.uid;
+    if (!myUid || !currentChatId) return false;
+    const isGroup = !!(chatData?.isGroup || chatData?.isChannel || chatData?.type === 'channel' || chatData?.isSystem);
+    if (!isGroup) return true;
+    if (myUid === (chatData?.creatorId || currentChatCreatorId)) return true;
+    const myRole = currentChatMemberData?.[myUid]?.role || chatData?.members?.[myUid]?.role || 'member';
+    return myRole === 'admin' || myRole === 'mod' || myRole === 'moderator';
+}
+
+function extractPinnedMessagePreview(msgData) {
+    if (!msgData) return '[Attachment]';
+    if (msgData.stickerId) return '[Sticker]';
+    if (msgData.poll?.question) return `[Poll] ${msgData.poll.question}`;
+    if (msgData.imageUrl) return msgData.text && !msgData.text.startsWith('data:image/') ? msgData.text : '[Image]';
+    if (typeof msgData.text === 'string' && msgData.text.trim()) {
+        const trimmed = msgData.text.trim();
+        if (trimmed.startsWith('data:image/') || /^\[IMG\].*\[\/IMG\]$/i.test(trimmed)) {
+            return '[Image]';
+        }
+        return trimmed.replace(/\[IMG\].*?\[\/IMG\]/gi, '[Image]').trim() || '[Attachment]';
+    }
+    return '[Attachment]';
+}
+
+async function pinMessage(msgId) {
+    if (!currentChatId || !msgId) return;
+    if (!canCurrentUserPin()) {
+        showNotification("Only admins or moderators can pin messages in groups.", "error");
+        return;
+    }
+    try {
+        await update(ref(db, `chats/${currentChatId}`), { pinnedMessageId: msgId });
+        showNotification("Message pinned", "success");
+    } catch (err) {
+        console.error("Failed to pin message:", err);
+        showNotification("Failed to pin message", "error");
+    }
+}
+window.pinMessage = pinMessage;
+
+async function unpinMessage() {
+    if (!currentChatId) return;
+    if (!canCurrentUserPin()) {
+        showNotification("Only admins or moderators can unpin messages in groups.", "error");
+        return;
+    }
+    try {
+        await update(ref(db, `chats/${currentChatId}`), { pinnedMessageId: null });
+        showNotification("Message unpinned", "info");
+    } catch (err) {
+        console.error("Failed to unpin message:", err);
+        showNotification("Failed to unpin message", "error");
+    }
+}
+window.unpinMessage = unpinMessage;
+
+function updatePinnedMessageBanner(chatData, expectedChatId = currentChatId) {
+    const banner = document.getElementById('pinned-message-banner');
+    const bannerText = document.getElementById('pinned-message-text');
+    const unpinBtnEl = document.getElementById('unpin-btn');
+    if (!banner || !bannerText || !unpinBtnEl) return;
+
+    if (!chatData?.pinnedMessageId || !expectedChatId) {
+        banner.style.display = 'none';
+        banner.onclick = null;
+        return;
+    }
+
+    const pinnedMsgId = chatData.pinnedMessageId;
+    get(ref(db, `messages/${expectedChatId}/${pinnedMsgId}`)).then(snap => {
+        if (currentChatId !== expectedChatId) return;
+        if (snap.exists()) {
+            const msgData = snap.val();
+            banner.style.display = 'flex';
+            bannerText.innerText = extractPinnedMessagePreview(msgData);
+
+            const hasPerms = canCurrentUserPin(chatData);
+            unpinBtnEl.style.display = hasPerms ? 'inline-flex' : 'none';
+
+            if (window.twemoji) twemoji.parse(banner);
+
+            banner.onclick = () => {
+                const msgEl = document.getElementById(`msg-${pinnedMsgId}`);
+                if (msgEl) {
+                    msgEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    msgEl.classList.add('highlight-flash');
+                    msgEl.style.background = 'rgba(255, 255, 255, 0.1)';
+                    setTimeout(() => {
+                        msgEl.style.background = '';
+                        msgEl.classList.remove('highlight-flash');
+                    }, 1500);
+                } else {
+                    showNotification("Pinned message is older than loaded history.", "info");
+                }
+            };
+        } else {
+            banner.style.display = 'none';
+            banner.onclick = null;
+        }
+    }).catch(err => {
+        console.warn("Failed to load pinned message:", err);
+        if (currentChatId === expectedChatId) {
+            banner.style.display = 'none';
+        }
+    });
+}
+
+function createPinActionMenuButton(messageId, closeMenuFn) {
+    if (!canCurrentUserPin()) return null;
+    const pinBtn = document.createElement('button');
+    pinBtn.className = 'glass-btn-secondary action-menu-btn';
+    pinBtn.innerHTML = '📌 Pin Message';
+    pinBtn.onclick = (e) => {
+        e.stopPropagation();
+        pinMessage(messageId);
+        if (typeof closeMenuFn === 'function') closeMenuFn();
+    };
+    return pinBtn;
+}
+
+const unpinBtn = document.getElementById('unpin-btn');
+if (unpinBtn) {
+    unpinBtn.onclick = (e) => {
+        e.stopPropagation();
+        unpinMessage();
+    };
+}
+
 // --- Telegram-Style Message Context Menu Controller ---
 let activeContextTarget = null;
 
@@ -1808,6 +1939,7 @@ function openMessageContextMenu(messageId, msg, isMe, posX, posY) {
     const canDelete = isMe || isGroupAdmin;
     const canEdit = isMe && !msg.poll && !msg.stickerId;
     const canCopy = !msg.poll && !msg.stickerId && !!msg.text;
+    const canPin = canCurrentUserPin();
 
     activeContextTarget = {
         messageId,
@@ -1815,8 +1947,12 @@ function openMessageContextMenu(messageId, msg, isMe, posX, posY) {
         isMe,
         canDelete,
         canEdit,
-        canCopy
+        canCopy,
+        canPin
     };
+
+    const pinBtn = document.getElementById('ctx-action-pin');
+    if (pinBtn) pinBtn.style.display = canPin ? 'flex' : 'none';
 
     const editBtn = document.getElementById('ctx-action-edit');
     if (editBtn) editBtn.style.display = canEdit ? 'flex' : 'none';
@@ -1979,6 +2115,17 @@ function initMessageContextMenu() {
                     document.body.removeChild(ta);
                     showNotification("Copied to clipboard", "info");
                 }
+            }
+            closeMessageContextMenu();
+        };
+    }
+
+    const pinBtn = document.getElementById('ctx-action-pin');
+    if (pinBtn) {
+        pinBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (activeContextTarget && activeContextTarget.canPin) {
+                pinMessage(activeContextTarget.messageId);
             }
             closeMessageContextMenu();
         };
@@ -2707,12 +2854,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.49';
+const CURRENT_APP_VERSION = '1.1.50';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.49';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.50';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -2874,7 +3021,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.49';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.50';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4559,7 +4706,14 @@ function startChat(me, them, name) {
 async function openChat(chatId, title) {
     dismissKeyboard();
     currentChatId = chatId;
+    currentChatData = null;
     closeSidebarDrawer();
+
+    const initialPinnedBanner = document.getElementById('pinned-message-banner');
+    if (initialPinnedBanner) {
+        initialPinnedBanner.style.display = 'none';
+        initialPinnedBanner.onclick = null;
+    }
 
     document.body.classList.add('chat-open');
     // Close members panel if open when switching chats
@@ -4612,6 +4766,8 @@ async function openChat(chatId, title) {
     activeChatMetaOff = onValue(chatRef, (chatSnap) => {
         const chatData = chatSnap.val();
         if (!chatData) return;
+        currentChatData = chatData;
+        updatePinnedMessageBanner(chatData, chatId);
         viewedMessagesInSession.clear();
 
         const chatTitleElem = document.getElementById('chat-title-text');
@@ -4764,6 +4920,10 @@ async function openChat(chatId, title) {
             currentChatMemberData = msnap.val() || {};
             renderMembersList(msnap, currentChatCreatorId);
             checkMuteStatus();
+            const unpinBtnEl = document.getElementById('unpin-btn');
+            if (unpinBtnEl && currentChatData?.pinnedMessageId) {
+                unpinBtnEl.style.display = canCurrentUserPin(currentChatData) ? 'inline-flex' : 'none';
+            }
         });
     }
 
@@ -5422,17 +5582,27 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     actionMenu.className = 'msg-action-menu';
     actionMenu.style.display = 'none';
     
+    const closeActionMenu = () => {
+        actionMenu.style.display = 'none';
+        actionMenu.style.transform = '';
+        wrap.style.zIndex = '';
+        wrap.style.position = '';
+        bubble.style.zIndex = '';
+        bubble.style.position = '';
+    };
+
     const replyBtn = document.createElement('button');
     replyBtn.innerText = 'Reply';
     replyBtn.className = 'glass-btn-secondary';
     replyBtn.onclick = (e) => {
         e.stopPropagation();
         replyToMessage(messageId, msg.text, msg.sender_name);
-        actionMenu.style.display = 'none';
-        wrap.style.zIndex = '';
-        wrap.style.position = '';
+        closeActionMenu();
     };
     actionMenu.appendChild(replyBtn);
+
+    const pinBtn = createPinActionMenuButton(messageId, closeActionMenu);
+    if (pinBtn) actionMenu.appendChild(pinBtn);
     
     if (isMe) {
         const editBtn = document.createElement('button');
@@ -5441,9 +5611,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         editBtn.onclick = (e) => {
             e.stopPropagation();
             editMessage(messageId, msg.text);
-            actionMenu.style.display = 'none';
-            wrap.style.zIndex = '';
-            wrap.style.position = '';
+            closeActionMenu();
         };
         actionMenu.appendChild(editBtn);
 
@@ -5453,9 +5621,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         deleteBtn.onclick = (e) => {
             e.stopPropagation();
             deleteMessage(messageId);
-            actionMenu.style.display = 'none';
-            wrap.style.zIndex = '';
-            wrap.style.position = '';
+            closeActionMenu();
         };
         actionMenu.appendChild(deleteBtn);
     }
@@ -5849,17 +6015,27 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
     actionMenu.className = 'msg-action-menu';
     actionMenu.style.display = 'none';
     
+    const closeStickerActionMenu = () => {
+        actionMenu.style.display = 'none';
+        actionMenu.style.transform = '';
+        wrap.style.zIndex = '';
+        wrap.style.position = '';
+        bubble.style.zIndex = '';
+        bubble.style.position = '';
+    };
+
     const replyBtn = document.createElement('button');
     replyBtn.innerText = 'Reply';
     replyBtn.className = 'glass-btn-secondary';
     replyBtn.onclick = (e) => {
         e.stopPropagation();
         replyToMessage(messageId, "[Sticker]", msg.sender_name);
-        actionMenu.style.display = 'none';
-        wrap.style.zIndex = '';
-        wrap.style.position = '';
+        closeStickerActionMenu();
     };
     actionMenu.appendChild(replyBtn);
+
+    const stickerPinBtn = createPinActionMenuButton(messageId, closeStickerActionMenu);
+    if (stickerPinBtn) actionMenu.appendChild(stickerPinBtn);
     
     if (isMe) {
         const deleteBtn = document.createElement('button');
@@ -5868,9 +6044,7 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
         deleteBtn.onclick = (e) => {
             e.stopPropagation();
             deleteMessage(messageId);
-            actionMenu.style.display = 'none';
-            wrap.style.zIndex = '';
-            wrap.style.position = '';
+            closeStickerActionMenu();
         };
         actionMenu.appendChild(deleteBtn);
     }
@@ -8925,6 +9099,12 @@ function exitChat() {
     activeMessagesOff = null;
 
     currentChatId = null;
+    currentChatData = null;
+    const pinnedBanner = document.getElementById('pinned-message-banner');
+    if (pinnedBanner) {
+        pinnedBanner.style.display = 'none';
+        pinnedBanner.onclick = null;
+    }
 }
 
 const backBtnEl = document.getElementById('back-to-list');
