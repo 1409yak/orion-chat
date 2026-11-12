@@ -1,6 +1,6 @@
 {
-  "version": "1.1.53",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.53/bundle.zip",
-  "checksum": "4ea6643427435a78083230229a5a7e73c7c72ec98343d4977396a0e6c036f626",
-  "notes": "Retro 2000s theme overhaul"
+  "version": "1.1.54",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.54/bundle.zip",
+  "checksum": "84dd57a2e65860dcfd2d4234ade1f2cf005ff5a9560bf4b94438dfdc88844566",
+  "notes": "Smart notifications and theme sounds"
 }
