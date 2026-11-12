@@ -1,6 +1,6 @@
 {
-  "version": "1.1.52",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.52/bundle.zip",
-  "checksum": "d280c8bc3b62eff4406aa401ea41605872f36b7d22b96a154c8d6e41d8ba4614",
-  "notes": "Sidebar color correction and theme alignment"
+  "version": "1.1.53",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.53/bundle.zip",
+  "checksum": "4ea6643427435a78083230229a5a7e73c7c72ec98343d4977396a0e6c036f626",
+  "notes": "Retro 2000s theme overhaul"
 }
