@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Theme Overhaul:* The Retro 2000s theme was a flat, ugly white. Solution: Injected an authentic MSN/XP Luna aesthetic using metallic silver gradients (`#ece9d8`), glossy blue accents (`#0b77e9`), text inversion, and enforced `Tahoma` as the base font.
+
 - *UI Color Clash:* The sidebar retained a hardcoded navy-blue tint (`rgba(14, 18, 42)`) that clashed with non-blue themes. Solution: Stripped out the navy base values and enforced `var(--solid-panel)` mixed dynamically with `var(--accent)` across both desktop and mobile breakpoints.
 
 - *UI & Logic Enhancement:* Fixed left-screen overflow on action menus via `Math.min/max` boundaries. Overhauled pinning to support up to 5 concurrent pins in groups (3 in DMs) via a horizontal CSS snap-scroll container. Pinned messages bypass the 5-day retention limit and are purged upon unpinning if expired.
