@@ -547,7 +547,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.56</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.57</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>
@@ -871,6 +871,15 @@
                 <label>Duration (Minutes)</label>
                 <input type="range" id="game-duration-slider" min="1" max="10" value="5" oninput="document.getElementById('duration-val').innerText = this.value">
                 <div style="text-align: center; font-weight: 700; color: var(--accent);"><span id="duration-val">5</span> mins</div>
+            </div>
+            <div id="doodle-settings" class="field-group" style="display: none; margin-top: 12px;">
+                <label for="doodle-rounds">Rounds:</label>
+                <select id="doodle-rounds" style="width: 100%; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.08); color: var(--text-main, #fff); font-size: 14px; outline: none;">
+                    <option value="1" style="background: var(--solid-panel, #1e1e26); color: var(--text-main, #fff);">1</option>
+                    <option value="2" style="background: var(--solid-panel, #1e1e26); color: var(--text-main, #fff);">2</option>
+                    <option value="3" selected style="background: var(--solid-panel, #1e1e26); color: var(--text-main, #fff);">3</option>
+                    <option value="5" style="background: var(--solid-panel, #1e1e26); color: var(--text-main, #fff);">5</option>
+                </select>
             </div>
             <div class="field-group">
                 <label>Players Waiting</label>

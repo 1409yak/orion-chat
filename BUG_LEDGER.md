@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Game Overhaul:* Upgraded Doodle Dash from single-round to turn-based multi-round rotation. Added round configuration lobby selector, letter-count hint generation (`_ _ _ _`), timer scaled to word difficulty, and a point scoring system based on answer speed leading to a final podium ranking.
+
 - *Feature Integration:* Added 'Doodle Dash' multiplayer drawing game. Implemented relative-coordinate `pointermove` syncing to Firebase `child_added` nodes, ensuring cross-device aspect ratio scaling and instant state retrieval for late joiners.
 
 - *Navigation Enhancement:* In-app notifications for new messages were purely visual. Solution: Upgraded `showNotification` to accept `onClick` callbacks, allowing users to tap a notification toast to instantly switch to the originating chat, complete with mobile drawer auto-close logic.
