@@ -3662,7 +3662,8 @@ body.theme-high-contrast .input-wrapper { border: 2px solid #fff; background: #0
 
 /* --- Game Specific Styles --- */
 #flag-game-screen,
-#wordle-game-screen {
+#wordle-game-screen,
+#doodle-game-screen {
     background: rgba(0, 0, 0, 0.7) !important;
     backdrop-filter: blur(50px) saturate(200%) !important;
 }

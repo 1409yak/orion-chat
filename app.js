@@ -574,7 +574,22 @@ let prizeTimeout = null;
 let availableFlags = [];
 let lobbyGameUnsub = null;
 let wordleGameUnsub = null;
+let doodleUnsubs = [];
 let podiumCloseTimeout = null;
+
+function cleanupDoodleListeners() {
+    doodleUnsubs.forEach(u => {
+        if (typeof u === 'function') u();
+    });
+    doodleUnsubs = [];
+    const cvs = document.getElementById('doodle-canvas');
+    if (cvs) {
+        cvs.onpointerdown = null;
+        cvs.onpointermove = null;
+        cvs.onpointerup = null;
+        cvs.onpointercancel = null;
+    }
+}
 
 // --- GAME LOGIC ---
 async function setupGameLobby(gameType = 'flags') {
@@ -595,6 +610,7 @@ async function setupGameLobby(gameType = 'flags') {
         wordleGameUnsub();
         wordleGameUnsub = null;
     }
+    cleanupDoodleListeners();
     gameStartedLocally = false;
 
     const gameRef = ref(db, `games/${currentChatId}`);
@@ -622,9 +638,14 @@ async function setupGameLobby(gameType = 'flags') {
     }
 
     const effectiveType = (!isCreator && gameData && gameData.type) ? gameData.type : gameType;
+    const getGameDisplayTitle = (type) => {
+        if (type === 'wordle') return 'Word Rush';
+        if (type === 'doodle') return 'Doodle Dash';
+        return 'World Flags';
+    };
     const lobbyTitle = document.getElementById('game-lobby-title');
     if (lobbyTitle) {
-        lobbyTitle.innerText = effectiveType === 'wordle' ? 'Game Settings: Word Rush' : 'Game Settings: World Flags';
+        lobbyTitle.innerText = `Game Settings: ${getGameDisplayTitle(effectiveType)}`;
     }
 
     const fgm = document.getElementById('flag-game-lobby-modal');
@@ -637,7 +658,7 @@ async function setupGameLobby(gameType = 'flags') {
         await set(ref(db, `messages/${currentChatId}/${mKey}`), {
             sender_id: myUid,
             sender_name: myName,
-            text: effectiveType === 'wordle' ? "is hosting a game of Word Rush!" : "is hosting a game of World Flags!",
+            text: `is hosting a game of ${getGameDisplayTitle(effectiveType)}!`,
             gameInvite: true,
             gameType: effectiveType,
             createdAt: serverTimestamp(),
@@ -688,6 +709,9 @@ async function setupGameLobby(gameType = 'flags') {
             if (data.type === 'wordle') {
                 closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
                 startWordleGame(data);
+            } else if (data.type === 'doodle' && data.status !== 'finished') {
+                closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
+                startDoodleGame(data);
             } else {
                 startLocalGameUI(data);
             }
@@ -696,7 +720,7 @@ async function setupGameLobby(gameType = 'flags') {
 
         const lobbyType = data.type || effectiveType;
         if (lobbyTitle) {
-            lobbyTitle.innerText = lobbyType === 'wordle' ? 'Game Settings: Word Rush' : 'Game Settings: World Flags';
+            lobbyTitle.innerText = `Game Settings: ${getGameDisplayTitle(lobbyType)}`;
         }
 
         const players = data.players || {};
@@ -734,18 +758,19 @@ async function setupGameLobby(gameType = 'flags') {
         if (startBtn) {
             const isHost = myUid === data.hostId;
             const durationGroup = document.getElementById('game-duration-slider').closest('.field-group');
-            if (durationGroup) durationGroup.style.display = (isHost && lobbyType !== 'wordle') ? 'block' : 'none';
+            if (durationGroup) durationGroup.style.display = (isHost && lobbyType === 'flags') ? 'block' : 'none';
             
             startBtn.style.display = isHost ? 'block' : 'none';
             startBtn.disabled = playerUids.length < 2; // Minimum 2 players
             startBtn.onclick = async () => {
-                if (lobbyType === 'wordle') {
-                    const wordList = ['APPLE', 'TRAIN', 'GHOST', 'PLANT', 'WATER', 'BRAIN', 'HEART', 'LIGHT', 'SOUND', 'NIGHT', 'SPACE', 'DREAM'];
+                if (lobbyType === 'wordle' || lobbyType === 'doodle') {
+                    const wordList = ['APPLE', 'TRAIN', 'GHOST', 'PLANT', 'WATER', 'BRAIN', 'HEART', 'LIGHT', 'SOUND', 'SPACE', 'DREAM', 'HOUSE', 'MOUSE', 'CLOCK', 'PHONE', 'CHAIR'];
                     const targetWord = wordList[Math.floor(Math.random() * wordList.length)];
                     await update(gameRef, {
                         status: 'playing',
-                        type: 'wordle',
-                        targetWord: targetWord,
+                        type: lobbyType,
+                        targetWord: (lobbyType === 'wordle' || lobbyType === 'doodle') ? targetWord : null,
+                        drawerUid: lobbyType === 'doodle' ? myUid : null,
                         startedAt: Date.now()
                     });
                 } else {
@@ -889,7 +914,7 @@ async function showPodium(customPlayers = null) {
         else medal = `${i + 1}th`;
 
         const scoreLabel = isWordle
-            ? (p.won ? `${p.attempts || 0}/6 \u{2B50}` : 'X/6')
+            ? (p.scoreLabel || (p.won ? `${p.attempts || 0}/6 \u{2B50}` : 'X/6'))
             : `${p.gold} Gold`;
 
         return `
@@ -1179,6 +1204,193 @@ document.addEventListener('keydown', (e) => {
         handleWordleInput(e.key.toUpperCase());
     }
 });
+
+// --- DOODLE DASH (MULTIPLAYER PICTIONARY) ENGINE ---
+function startDoodleGame(gameData) {
+    if (!currentChatId || !auth.currentUser) return;
+    const screen = document.getElementById('doodle-game-screen');
+    const cvs = document.getElementById('doodle-canvas');
+    if (!screen || !cvs) return;
+
+    const myUid = auth.currentUser.uid;
+    const isDrawer = (myUid === gameData.drawerUid);
+    const drawerName = gameData.players?.[gameData.drawerUid]?.name?.split(' ')[0] || "Someone";
+
+    document.getElementById('doodle-tools').style.display = isDrawer ? 'flex' : 'none';
+    document.getElementById('doodle-guess-area').style.display = isDrawer ? 'none' : 'flex';
+    document.getElementById('doodle-status').innerText = isDrawer
+        ? `Draw: ${gameData.targetWord}`
+        : `Guess what ${drawerName} is drawing!`;
+
+    const guessInput = document.getElementById('doodle-guess-input');
+    if (guessInput) {
+        guessInput.value = '';
+        guessInput.onkeydown = (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                window.submitDoodleGuess();
+            }
+        };
+    }
+
+    // Open modal before reading canvas clientWidth/clientHeight so layout size is non-zero
+    openAnimatedModal(screen);
+    if (window.twemoji) twemoji.parse(screen);
+
+    const ctx = cvs.getContext('2d');
+    cvs.width = cvs.clientWidth || 320;
+    cvs.height = cvs.clientHeight || 320;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillRect(0, 0, cvs.width, cvs.height);
+
+    cleanupDoodleListeners();
+
+    if (isDrawer) {
+        let drawing = false, lx = 0, ly = 0;
+        const getPos = (e) => {
+            const r = cvs.getBoundingClientRect();
+            const evt = e.touches ? e.touches[0] : e;
+            return { x: evt.clientX - r.left, y: evt.clientY - r.top };
+        };
+
+        cvs.onpointerdown = (e) => {
+            if (e.cancelable) e.preventDefault();
+            if (cvs.setPointerCapture && e.pointerId !== undefined) {
+                try { cvs.setPointerCapture(e.pointerId); } catch (_) {}
+            }
+            drawing = true;
+            const p = getPos(e);
+            lx = p.x;
+            ly = p.y;
+        };
+        cvs.onpointerup = () => { drawing = false; };
+        cvs.onpointercancel = () => { drawing = false; };
+        cvs.onpointermove = (e) => {
+            if (!drawing) return;
+            if (e.cancelable) e.preventDefault();
+
+            const p = getPos(e);
+            const col = document.getElementById('doodle-color').value;
+            const size = document.getElementById('doodle-size').value;
+
+            ctx.beginPath();
+            ctx.moveTo(lx, ly);
+            ctx.lineTo(p.x, p.y);
+            ctx.strokeStyle = col;
+            ctx.lineWidth = size;
+            ctx.stroke();
+
+            push(ref(db, `games/${currentChatId}/doodle/strokes`), {
+                x0: lx / cvs.width,
+                y0: ly / cvs.height,
+                x1: p.x / cvs.width,
+                y1: p.y / cvs.height,
+                c: col,
+                s: size
+            });
+            lx = p.x;
+            ly = p.y;
+        };
+    }
+
+    let doodleEnded = false;
+    const closeDoodleBtn = document.getElementById('close-doodle-btn');
+    if (closeDoodleBtn) {
+        closeDoodleBtn.onclick = async () => {
+            doodleEnded = true;
+            cleanupDoodleListeners();
+            gameStartedLocally = false;
+            closeAnimatedModal(screen);
+            if (currentChatId && auth.currentUser) {
+                await remove(ref(db, `games/${currentChatId}/players/${myUid}`));
+                const pSnap = await get(ref(db, `games/${currentChatId}/players`));
+                if (!pSnap.exists() || Object.keys(pSnap.val()).length === 0) {
+                    await update(ref(db, `games/${currentChatId}`), { emptySince: serverTimestamp() });
+                }
+            }
+        };
+    }
+
+    const unSubStrokes = onChildAdded(ref(db, `games/${currentChatId}/doodle/strokes`), snap => {
+        if (isDrawer) return;
+        const val = snap.val();
+        if (!val) return;
+        ctx.beginPath();
+        ctx.moveTo(val.x0 * cvs.width, val.y0 * cvs.height);
+        ctx.lineTo(val.x1 * cvs.width, val.y1 * cvs.height);
+        ctx.strokeStyle = val.c;
+        ctx.lineWidth = val.s;
+        ctx.stroke();
+    });
+
+    const unSubClear = onValue(ref(db, `games/${currentChatId}/doodle/clearAt`), snap => {
+        if (snap.exists()) {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, cvs.width, cvs.height);
+        }
+    });
+
+    const unSubStatus = onValue(ref(db, `games/${currentChatId}/status`), async (snap) => {
+        if (snap.val() === 'finished' && !doodleEnded) {
+            doodleEnded = true;
+            cleanupDoodleListeners();
+            gameStartedLocally = false;
+            closeAnimatedModal(screen);
+
+            const gameSnap = await get(ref(db, `games/${currentChatId}`));
+            const gData = gameSnap.val() || {};
+            if (gData.inviteMsgId) {
+                await update(ref(db, `messages/${currentChatId}/${gData.inviteMsgId}`), { expired: true });
+            }
+
+            const players = Object.entries(gData.players || {}).map(([uid, p]) => ({
+                ...p,
+                uid,
+                scoreLabel: p.won
+                    ? 'Winner \u{1F3A8}'
+                    : (uid === gData.drawerUid ? 'Artist \u{270F}\u{FE0F}' : 'Guessed')
+            }));
+            players.sort((a, b) => (a.won === b.won ? 0 : (a.won ? -1 : 1)));
+            showPodium(players);
+            schedulePodiumCleanup();
+        }
+    });
+
+    doodleUnsubs.push(unSubStrokes, unSubClear, unSubStatus);
+}
+
+window.clearDoodle = async () => {
+    if (!currentChatId) return;
+    await remove(ref(db, `games/${currentChatId}/doodle/strokes`));
+    await update(ref(db, `games/${currentChatId}/doodle`), { clearAt: Date.now() });
+};
+
+window.submitDoodleGuess = async () => {
+    if (!currentChatId || !auth.currentUser) return;
+    const input = document.getElementById('doodle-guess-input');
+    const guess = input ? input.value.trim().toUpperCase() : '';
+    if (!guess) return;
+
+    const gameSnap = await get(ref(db, `games/${currentChatId}`));
+    const gData = gameSnap.val();
+    if (!gData || !gData.targetWord || gData.status === 'finished') return;
+
+    if (guess === String(gData.targetWord).toUpperCase()) {
+        await update(ref(db, `games/${currentChatId}/players/${auth.currentUser.uid}`), {
+            won: true,
+            finishedAt: Date.now(),
+            attempts: 1
+        });
+        await update(ref(db, `games/${currentChatId}`), { status: 'finished' });
+        showNotification("You guessed it!", "success");
+        if (input) input.value = '';
+    } else {
+        showNotification("Wrong guess, try again!", "error");
+        if (input) input.value = '';
+    }
+};
 
 function nextFlagRound() {
     if (availableFlags.length === 0) {
@@ -3046,12 +3258,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.55';
+const CURRENT_APP_VERSION = '1.1.56';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.55';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.56';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3213,7 +3425,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.55';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.56';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -5520,7 +5732,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         const inviteType = msg.gameType || 'flags';
         const inviteText = document.createElement('div');
         inviteText.style.fontWeight = '700';
-        inviteText.innerText = msg.expired ? "\u{1F6A9} GAME CLOSED" : (inviteType === 'wordle' ? "\u{1F4DD} WORD RUSH LOBBY" : "\u{1F6A9} WORLD FLAGS LOBBY");
+        inviteText.innerText = msg.expired ? "\u{1F6A9} GAME CLOSED" : (inviteType === 'wordle' ? "\u{1F4DD} WORD RUSH LOBBY" : (inviteType === 'doodle' ? "\u{1F3A8} DOODLE DASH LOBBY" : "\u{1F6A9} WORLD FLAGS LOBBY"));
         bubble.appendChild(inviteText);
 
         const joinBtn = document.createElement('button');
@@ -6993,6 +7205,16 @@ function setupInputAreaListeners() {
         };
     }
 
+    const selectDoodleGame = document.getElementById('select-doodle-game');
+    if (selectDoodleGame) {
+        selectDoodleGame.onclick = () => {
+            closeAnimatedModal(document.getElementById('games-library-modal'));
+            const fgm = document.getElementById('flag-game-lobby-modal');
+            if (fgm) fgm.style.display = 'flex';
+            setupGameLobby('doodle');
+        };
+    }
+
     const cancelGameBtn = document.getElementById('cancel-game-btn');
     if (cancelGameBtn) {
         cancelGameBtn.onclick = async () => {
@@ -7760,7 +7982,8 @@ document.addEventListener('click', (e) => {
             e.target.id !== 'confirm-modal' &&
             e.target.id !== 'flag-game-screen' &&
             e.target.id !== 'flag-game-lobby-modal' &&
-            e.target.id !== 'wordle-game-screen') {
+            e.target.id !== 'wordle-game-screen' &&
+            e.target.id !== 'doodle-game-screen') {
             closeAnimatedModal(e.target);
         }
     }

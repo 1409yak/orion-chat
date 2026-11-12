@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Feature Integration:* Added 'Doodle Dash' multiplayer drawing game. Implemented relative-coordinate `pointermove` syncing to Firebase `child_added` nodes, ensuring cross-device aspect ratio scaling and instant state retrieval for late joiners.
+
 - *Navigation Enhancement:* In-app notifications for new messages were purely visual. Solution: Upgraded `showNotification` to accept `onClick` callbacks, allowing users to tap a notification toast to instantly switch to the originating chat, complete with mobile drawer auto-close logic.
 
 - *Notification Overhaul:* In-app toasts were firing redundantly for active chats. Solution: Suppressed notifications if `incomingChatId === currentChatId`. Implemented `playThemeNotification()` to route audio files based on the active `body.theme-*` class.

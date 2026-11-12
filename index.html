@@ -547,7 +547,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.55</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.1.56</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>
@@ -851,6 +851,11 @@
                     <strong>Word Rush</strong>
                     <small style="opacity: 0.7;">Guess the 5-letter word!</small>
                 </div>
+                <div class="theme-card" id="select-doodle-game" style="aspect-ratio: auto; padding: 20px; flex-direction: column; gap: 10px;">
+                    <div style="font-size: 40px;">🎨</div>
+                    <strong>Doodle Dash</strong>
+                    <small style="opacity: 0.7;">Draw & guess in real time!</small>
+                </div>
             </div>
             <div class="modal-actions-vertical">
                 <button onclick="closeAnimatedModal(document.getElementById('games-library-modal'))" class="glass-btn-secondary">Close</button>
@@ -922,6 +927,27 @@
             <div id="wordle-opponent-status" style="display: flex; flex-wrap: wrap; gap: 8px; justify-content: center;"></div>
             <div id="wordle-board" style="display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 330px; margin: 0 auto;"></div>
             <div id="wordle-keyboard" style="display: flex; flex-direction: column; gap: 6px; width: 100%; max-width: 440px; margin: 6px auto 0;"></div>
+        </div>
+    </div>
+
+    <!-- Active Doodle Dash Game Screen -->
+    <div id="doodle-game-screen" class="modal">
+        <div class="glass-card game-ui-container doodle-container" style="width: 100%; max-width: 500px; padding: 20px; text-align: center; display: flex; flex-direction: column; gap: 12px;">
+            <div style="display: flex; align-items: center; justify-content: space-between;">
+                <h3 style="margin: 0;">🎨 Doodle Dash</h3>
+                <button type="button" id="close-doodle-btn" class="glass-btn-secondary" style="padding: 6px 12px; font-size: 14px;" aria-label="Close">✕</button>
+            </div>
+            <div id="doodle-status" style="font-weight: 700; font-size: 15px; color: var(--accent);">Waiting...</div>
+            <canvas id="doodle-canvas" style="width: 100%; height: 320px; background: #ffffff; border-radius: 14px; border: 2px solid var(--glass-border); touch-action: none; cursor: crosshair; display: block;"></canvas>
+            <div id="doodle-tools" style="display: none; align-items: center; justify-content: space-between; gap: 10px; flex-wrap: wrap;">
+                <input type="color" id="doodle-color" value="#000000" title="Brush Color" style="width: 44px; height: 38px; border: none; border-radius: 8px; cursor: pointer; background: transparent;">
+                <input type="range" id="doodle-size" min="2" max="20" value="5" title="Brush Size" style="flex: 1; min-width: 100px;">
+                <button type="button" class="glass-btn-secondary" onclick="clearDoodle()" style="padding: 8px 14px;">Clear</button>
+            </div>
+            <div id="doodle-guess-area" style="display: none; align-items: center; gap: 8px;">
+                <input type="text" id="doodle-guess-input" placeholder="Type your guess..." autocomplete="off" style="flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.08); color: var(--text-main, #fff); outline: none;">
+                <button type="button" class="glass-btn-primary" onclick="submitDoodleGuess()" style="padding: 10px 16px;">Guess</button>
+            </div>
         </div>
     </div>
 
