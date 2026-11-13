@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *UI Rendering Fix:* Google Drive `export=view` links returned HTML, causing `<img src>` tags to fail and display duplicate 'Shared image' alt text. Solution: Intercepted the Drive ID and routed images through the Google Drive `thumbnail` API for raw pixel rendering. Switched videos to `iframe` embeds to bypass Google CORS streaming blocks. Cleared legacy `text: 'Shared image'` payloads to prevent double-bubble nesting.
+
 - *Architecture Upgrade:* Migrated media uploads from Firebase Storage to a custom Google Apps Script backend hooked into a 5TB Google Drive to eliminate bandwidth costs. Configured a Base64 POST pipeline and isolated Time-Driven triggers for automated 5-day deletion.
 
 - *Architecture & Security:* Added local Firebase rules management. Updated `$chatId` rules to check group `members` arrays, fixing `PERMISSION_DENIED` errors for group lobbies. Replaced strict underscore string checks for DM identification with `!chatData.isGroup` evaluations. Added a 30-minute stale lobby overwrite to prevent chat locking.

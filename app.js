@@ -2199,7 +2199,7 @@ function linkifyAndEmbed(rawText) {
             return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link-inline" onclick="event.stopPropagation()">${url}</a>`;
         }
 
-        const isDriveImage = /drive\.google\.com\/(?:file\/d\/|uc\?|open\?)|googleusercontent\.com/i.test(url);
+        const isDriveImage = /drive\.google\.com\/(?:file\/d\/|uc\?|open\?|thumbnail\?)|googleusercontent\.com/i.test(url);
         if (imgRegex.test(url) || isDriveImage) {
             imageUrls.push(url);
             return ""; // Hide the link text as requested
@@ -3561,12 +3561,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.62';
+const CURRENT_APP_VERSION = '1.1.63';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.62';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.63';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3728,7 +3728,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.62';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.63';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6261,21 +6261,14 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     });
 
     if (msg.videoUrl) {
+        // Replace the old video tag with this iframe
         const videoWrap = document.createElement('div');
         videoWrap.className = 'video-embed-wrapper';
         videoWrap.style.minHeight = '140px';
-        videoWrap.style.borderRadius = '12px';
+        videoWrap.style.borderRadius = '8px';
         videoWrap.style.overflow = 'hidden';
-        videoWrap.style.marginTop = '8px';
-        const videoEl = document.createElement('video');
-        videoEl.src = msg.videoUrl;
-        videoEl.controls = true;
-        videoEl.playsInline = true;
-        videoEl.style.maxWidth = '100%';
-        videoEl.style.maxHeight = '420px';
-        videoEl.style.borderRadius = '12px';
-        videoEl.style.display = 'block';
-        videoWrap.appendChild(videoEl);
+        videoWrap.style.marginTop = '5px';
+        videoWrap.innerHTML = `<iframe src="${escapeHTML(msg.videoUrl)}" width="100%" height="250" style="border: none; border-radius: 8px; margin-top: 5px; background: #000;" allowfullscreen></iframe>`;
         msgContent.appendChild(videoWrap);
     }
 
@@ -7100,7 +7093,14 @@ async function uploadMediaToDrive(file) {
 
                 const data = await response.json();
                 if (data.success) {
-                    resolve(data.url);
+                    const fileId = data.id || (data.url ? (data.url.includes('id=') ? data.url.split('id=')[1].split('&')[0] : (data.url.match(/[-\w]{25,}/) ? data.url.match(/[-\w]{25,}/)[0] : data.url)) : '');
+
+                    // Generate a raw, high-res image link that works natively in <img src>
+                    const renderUrl = (file.type && file.type.startsWith('image/')) 
+                        ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`
+                        : `https://drive.google.com/file/d/${fileId}/preview`; // iFrame link for videos
+                        
+                    resolve(renderUrl);
                 } else {
                     reject(data.error);
                 }
@@ -7181,7 +7181,7 @@ async function sendImageMessage(imageData, targetChatId = null) {
         console.warn('[UPLOAD] Could not fetch chat title for identity:', e);
     }
 
-    const payloadText = driveUrl || base64Data;
+    const payloadText = driveUrl ? "" : base64Data;
     const isImage = !driveUrl ? true : (imageData.type ? imageData.type.startsWith('image/') : true);
     const isVideo = !driveUrl ? false : (imageData.type ? imageData.type.startsWith('video/') : false);
 
@@ -7963,7 +7963,7 @@ async function handleMediaUpload(file, sourceLabel = 'File') {
             sender: auth.currentUser.uid,
             sender_id: auth.currentUser.uid,
             sender_name: identityName,
-            text: driveUrl,
+            text: "", // Force empty to prevent the nested "Shared image" text bubble
             imageUrl: isImage ? driveUrl : null,
             videoUrl: isVideo ? driveUrl : null,
             timestamp: Date.now(),
