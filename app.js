@@ -3561,12 +3561,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.4';
+const CURRENT_APP_VERSION = '1.2.5';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.4';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.5';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3728,7 +3728,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.4';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.5';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6271,8 +6271,8 @@ function renderMessage(msg, isConsecutive = false, messageId) {
 
         const videoWrap = document.createElement('div');
         videoWrap.className = 'video-embed-wrapper';
-        videoWrap.innerHTML = `<div style="position: relative; width: 100%; min-width: 240px; padding-top: calc(56.25% + 60px); margin-top: 8px; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.1);">
-            <iframe src="${iframeUrl}" referrerpolicy="no-referrer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe>
+        videoWrap.innerHTML = `<div style="width: 100%; min-width: 240px; height: 350px; margin-top: 8px; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.1); -webkit-mask-image: -webkit-radial-gradient(white, black);">
+            <iframe src="${iframeUrl}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border: none;" allowfullscreen></iframe>
         </div>`;
         msgContent.appendChild(videoWrap);
     }

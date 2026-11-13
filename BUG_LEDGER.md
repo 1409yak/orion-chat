@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *UI Rendering Fix:* Vertical and square videos were clipping the Drive player controls because the iframe container was hardcoded to a 16:9 `padding-top` aspect ratio constraint. Solution: Replaced the absolute aspect-ratio wrapper with a responsive `height: 350px` container to guarantee sufficient vertical space for the Drive UI across all video shapes. Added WebKit mask styling to preserve iframe border-radii on mobile.
+
 - *UI Rendering Fix:* Ad-blockers intercepted native video streams. Reverted to the Google Drive `iframe` embed to guarantee playback. Fixed Drive control bar clipping by applying `padding-top: calc(56.25% + 60px)` to the responsive container, accommodating both the 16:9 video aspect ratio and the bottom player UI.
 
 - *Architecture Resilience:* Native `<video>` streaming occasionally failed due to PC ad-blockers (`ERR_BLOCKED_BY_CLIENT`) intercepting Drive download redirects. Solution: Implemented a hybrid rendering pipeline. The app defaults to native HTML5 video for aesthetic parity, but utilizes an `onerror` listener to dynamically swap the DOM element to a responsive Drive `iframe` if the stream request drops.
