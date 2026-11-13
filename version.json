@@ -1,6 +1,6 @@
 {
-  "version": "1.2.4",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.4/bundle.zip",
-  "checksum": "c5ffdcc715532fda6e9be047afd7c3520d8ba059c491d08e0a99aa3005b94346",
-  "notes": "Fixing bugs"
+  "version": "1.2.5",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.5/bundle.zip",
+  "checksum": "e0ded6d9d8eedee4052d125b93f4ccec2035b2b0b3393cb86d7b54fa9f80ab3a",
+  "notes": "Video player compatibility improvements"
 }
