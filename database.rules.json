@@ -1,0 +1,19 @@
+{
+  "rules": {
+    ".read": "auth != null",
+    ".write": "auth != null",
+    "messages": {
+      "$chatId": {
+        ".read": "auth != null",
+        ".write": "auth != null",
+        ".indexOn": "timestamp"
+      }
+    },
+    "games": {
+      "$chatId": {
+        ".read": "auth != null && root.child('chats').child($chatId).child('members').child(auth.uid).exists()",
+        ".write": "auth != null && root.child('chats').child($chatId).child('members').child(auth.uid).exists()"
+      }
+    }
+  }
+}

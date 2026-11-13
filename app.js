@@ -3561,12 +3561,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.63';
+const CURRENT_APP_VERSION = '1.1.64';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.63';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.64';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3728,7 +3728,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.63';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.64';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6232,6 +6232,8 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         img.className = 'chat-embedded-image';
         img.loading = 'lazy';
         img.decoding = 'async';
+        img.referrerPolicy = 'no-referrer';
+        img.setAttribute('referrerpolicy', 'no-referrer');
         img.alt = 'Shared image';
         img.onclick = (e) => {
             e.stopPropagation();
@@ -6240,6 +6242,8 @@ function renderMessage(msg, isConsecutive = false, messageId) {
             const senderNameEl = document.getElementById('viewer-sender-name');
 
             if (modal && modalImg && senderNameEl) {
+                modalImg.referrerPolicy = 'no-referrer';
+                modalImg.setAttribute('referrerpolicy', 'no-referrer');
                 modalImg.src = img.src;
                 // Extract sender name from the message data
                 senderNameEl.textContent = msg.sender_name || msg.senderName || (isMe ? 'You' : 'Photo');
@@ -6268,7 +6272,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         videoWrap.style.borderRadius = '8px';
         videoWrap.style.overflow = 'hidden';
         videoWrap.style.marginTop = '5px';
-        videoWrap.innerHTML = `<iframe src="${escapeHTML(msg.videoUrl)}" width="100%" height="250" style="border: none; border-radius: 8px; margin-top: 5px; background: #000;" allowfullscreen></iframe>`;
+        videoWrap.innerHTML = `<iframe src="${escapeHTML(msg.videoUrl)}" referrerpolicy="no-referrer" width="100%" height="250" style="border: none; border-radius: 8px; margin-top: 5px; background: #000;" allowfullscreen></iframe>`;
         msgContent.appendChild(videoWrap);
     }
 
@@ -7066,6 +7070,8 @@ function openImageLightbox(url, senderName = 'Photo') {
     const lb = document.getElementById('image-lightbox');
     const img = document.getElementById('lightbox-img');
     if (!lb || !img) return;
+    img.referrerPolicy = 'no-referrer';
+    img.setAttribute('referrerpolicy', 'no-referrer');
     img.src = url;
     lb.style.display = 'flex';
 }
