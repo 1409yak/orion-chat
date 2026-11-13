@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Architecture Upgrade:* Migrated media uploads from Firebase Storage to a custom Google Apps Script backend hooked into a 5TB Google Drive to eliminate bandwidth costs. Configured a Base64 POST pipeline and isolated Time-Driven triggers for automated 5-day deletion.
+
 - *Architecture & Security:* Added local Firebase rules management. Updated `$chatId` rules to check group `members` arrays, fixing `PERMISSION_DENIED` errors for group lobbies. Replaced strict underscore string checks for DM identification with `!chatData.isGroup` evaluations. Added a 30-minute stale lobby overwrite to prevent chat locking.
 
 - *Game Engine Crash:* Lobbies failed to open in group chats because the initialization script relied on extracting a single `opponentId`. Solution: Replaced DM-specific opponent lookups with generic group-safe initialization payloads and enforced a 2-player minimum check before starting.
