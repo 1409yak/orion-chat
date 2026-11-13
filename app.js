@@ -3561,12 +3561,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.2';
+const CURRENT_APP_VERSION = '1.2.3';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.2';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.3';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3728,7 +3728,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.2';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.3';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -5984,6 +5984,11 @@ document.getElementById('chat-pic-input').onchange = async (e) => {
     reader.readAsDataURL(file);
 };
 
+window.fallbackToIframe = function(videoElement, iframeUrl) {
+    console.warn("[Video] Native stream blocked. Falling back to iframe renderer.");
+    videoElement.outerHTML = `<div style="position: relative; width: 100%; min-width: 240px; padding-top: 75%; margin-top: 8px; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.1);"> <iframe src="${iframeUrl}" referrerpolicy="no-referrer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe> </div>`;
+};
+
 function renderMessage(msg, isConsecutive = false, messageId) {
     const cont = document.getElementById('messages-container');
     let wrap = document.getElementById(`msg-${messageId}`);
@@ -6268,12 +6273,16 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         // Extract the ID whether it's the old /file/d/ format or the new ?id= format
         const vidIdMatch = msg.videoUrl.match(/id=([^&]+)/) || msg.videoUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
         const vidId = vidIdMatch ? vidIdMatch[1] : null;
+
         const streamUrl = vidId ? `https://drive.google.com/uc?export=download&id=${vidId}` : msg.videoUrl;
+        const iframeUrl = vidId ? `https://drive.google.com/file/d/${vidId}/preview` : msg.videoUrl;
 
         const videoWrap = document.createElement('div');
         videoWrap.className = 'video-embed-wrapper';
         videoWrap.style.cssText = 'width: 100%; margin-top: 5px;';
-        videoWrap.innerHTML = `<video src="${streamUrl}" controls playsinline preload="metadata" referrerpolicy="no-referrer" style="max-width: 100%; width: 100%; max-height: 400px; border-radius: 8px; margin-top: 5px; background: transparent; outline: none; box-shadow: 0 2px 8px rgba(0,0,0,0.15);"></video>`;
+        videoWrap.innerHTML = `<video src="${streamUrl}" controls playsinline preload="metadata" referrerpolicy="no-referrer" 
+            style="max-width: 100%; width: 100%; max-height: 400px; border-radius: 8px; margin-top: 5px; background: transparent; outline: none; box-shadow: 0 2px 8px rgba(0,0,0,0.15);" 
+            onerror="if(typeof fallbackToIframe === 'function') fallbackToIframe(this, '${iframeUrl}')"></video>`;
         msgContent.appendChild(videoWrap);
     }
 
