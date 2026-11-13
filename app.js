@@ -3561,12 +3561,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.0';
+const CURRENT_APP_VERSION = '1.2.1';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.0';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.1';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3728,7 +3728,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.0';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.1';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6265,14 +6265,10 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     });
 
     if (msg.videoUrl) {
-        // Replace the old video tag with this iframe
         const videoWrap = document.createElement('div');
         videoWrap.className = 'video-embed-wrapper';
-        videoWrap.style.minHeight = '140px';
-        videoWrap.style.borderRadius = '8px';
-        videoWrap.style.overflow = 'hidden';
-        videoWrap.style.marginTop = '5px';
-        videoWrap.innerHTML = `<iframe src="${escapeHTML(msg.videoUrl)}" referrerpolicy="no-referrer" width="100%" height="250" style="border: none; border-radius: 8px; margin-top: 5px; background: #000;" allowfullscreen></iframe>`;
+        videoWrap.style.cssText = 'position: relative; width: 100%; min-width: 240px; padding-top: 75%; margin-top: 8px; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.1);';
+        videoWrap.innerHTML = `<iframe src="${escapeHTML(msg.videoUrl)}" referrerpolicy="no-referrer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none;" allowfullscreen></iframe>`;
         msgContent.appendChild(videoWrap);
     }
 

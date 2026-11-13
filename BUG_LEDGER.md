@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *UI Rendering Fix:* Google Drive video iframe controls were clipping on mobile due to fixed height constraints. Solution: Wrapped the iframe in a responsive 4:3 aspect-ratio container (`padding-top: 75%`) with `overflow: hidden` and styled borders to guarantee the internal Drive player has adequate space to render its UI controls cleanly.
+
 - *Feature Launch (v1.2.0):* Upgraded the custom Drive API pipeline to fully support video attachments. Expanded HTML file inputs to `image/*,video/*` and implemented a 50MB file size hard limit prior to `readAsDataURL` execution to prevent mobile WebView RAM exhaustion crashes during base64 encoding.
 
 - *Mobile Render & DB Fix:* Google Drive images failed to load on phones because the Capacitor custom URL scheme triggered Google's hotlink protection. Solution: Added `referrerpolicy="no-referrer"` to media tags. Fixed a crashing background task by adding `".indexOn": "timestamp"` to the `messages` node in Firebase rules.
