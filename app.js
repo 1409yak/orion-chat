@@ -3561,12 +3561,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.64';
+const CURRENT_APP_VERSION = '1.2.0';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.64';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.0';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3728,7 +3728,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.64';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.0';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -7929,6 +7929,13 @@ async function handleMediaUpload(file, sourceLabel = 'File') {
         showNotification("Please select a chat first", "error");
         return;
     }
+
+    // Protect mobile RAM from massive video files
+    const maxSizeMB = 50; 
+    if (file.size > maxSizeMB * 1024 * 1024) {
+        return showNotification(`File is too large! Please keep videos under ${maxSizeMB}MB.`, "error");
+    }
+
     console.log(`[UPLOAD] ${sourceLabel} selected: ${file.name}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
 
     let selectedFile = file;
@@ -8021,9 +8028,18 @@ async function handleMediaUpload(file, sourceLabel = 'File') {
 const fileUploadInput = document.getElementById('file-upload-input');
 if (fileUploadInput) {
     fileUploadInput.onchange = async (e) => {
-        const file = e.target.files[0];
+        const selectedFile = e.target.files[0];
+        if (!selectedFile) return;
+
+        // Protect mobile RAM from massive video files
+        const maxSizeMB = 50; 
+        if (selectedFile.size > maxSizeMB * 1024 * 1024) {
+            e.target.value = ''; // Reset the input
+            return showNotification(`File is too large! Please keep videos under ${maxSizeMB}MB.`, "error");
+        }
+
         try {
-            await handleMediaUpload(file, 'File');
+            await handleMediaUpload(selectedFile, 'File');
         } finally {
             fileUploadInput.value = '';
         }
@@ -8037,9 +8053,18 @@ if (cameraBtn && cameraInput) {
 }
 if (cameraInput) {
     cameraInput.onchange = async (e) => {
-        const file = e.target.files[0];
+        const selectedFile = e.target.files[0];
+        if (!selectedFile) return;
+
+        // Protect mobile RAM from massive video files
+        const maxSizeMB = 50; 
+        if (selectedFile.size > maxSizeMB * 1024 * 1024) {
+            e.target.value = ''; // Reset the input
+            return showNotification(`File is too large! Please keep videos under ${maxSizeMB}MB.`, "error");
+        }
+
         try {
-            await handleMediaUpload(file, 'Camera');
+            await handleMediaUpload(selectedFile, 'Camera');
         } finally {
             cameraInput.value = '';
         }

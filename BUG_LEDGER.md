@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Feature Launch (v1.2.0):* Upgraded the custom Drive API pipeline to fully support video attachments. Expanded HTML file inputs to `image/*,video/*` and implemented a 50MB file size hard limit prior to `readAsDataURL` execution to prevent mobile WebView RAM exhaustion crashes during base64 encoding.
+
 - *Mobile Render & DB Fix:* Google Drive images failed to load on phones because the Capacitor custom URL scheme triggered Google's hotlink protection. Solution: Added `referrerpolicy="no-referrer"` to media tags. Fixed a crashing background task by adding `".indexOn": "timestamp"` to the `messages` node in Firebase rules.
 
 - *UI Rendering Fix:* Google Drive `export=view` links returned HTML, causing `<img src>` tags to fail and display duplicate 'Shared image' alt text. Solution: Intercepted the Drive ID and routed images through the Google Drive `thumbnail` API for raw pixel rendering. Switched videos to `iframe` embeds to bypass Google CORS streaming blocks. Cleared legacy `text: 'Shared image'` payloads to prevent double-bubble nesting.
