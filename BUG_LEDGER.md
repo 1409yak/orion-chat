@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *UI Rendering Upgrade:* Video players were clipping and lacked style customization due to Google Drive `iframe` CORS restrictions. Solution: Scrapped the iframe renderer. Implemented a regex extractor to pull the Drive ID from legacy and current database URLs, rerouting them to the `uc?export=download` endpoint. Fed the raw stream into a native HTML5 `<video>` tag, ensuring aspect-ratio parity with image attachments and clean native OS controls.
+
 - *UI Rendering Fix:* Google Drive video iframe controls were clipping on mobile due to fixed height constraints. Solution: Wrapped the iframe in a responsive 4:3 aspect-ratio container (`padding-top: 75%`) with `overflow: hidden` and styled borders to guarantee the internal Drive player has adequate space to render its UI controls cleanly.
 
 - *Feature Launch (v1.2.0):* Upgraded the custom Drive API pipeline to fully support video attachments. Expanded HTML file inputs to `image/*,video/*` and implemented a 50MB file size hard limit prior to `readAsDataURL` execution to prevent mobile WebView RAM exhaustion crashes during base64 encoding.
