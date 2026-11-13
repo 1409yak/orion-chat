@@ -1,6 +1,6 @@
 {
-  "version": "1.1.62",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.62/bundle.zip",
-  "checksum": "8121a47e46230199c013df676dbad477ab81e21188d8b0ce8b35ab04c13ae841",
-  "notes": "Switched to high-capacity cloud storage"
+  "version": "1.1.63",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.1.63/bundle.zip",
+  "checksum": "5f9d7612803264d84347b767767eefeea1fc1d67b8716b836f81e930faf9fd74",
+  "notes": "Fixing bugs"
 }
