@@ -3561,12 +3561,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.5';
+const CURRENT_APP_VERSION = '1.2.6';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.5';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.6';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3728,7 +3728,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.5';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.6';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -5984,6 +5984,11 @@ document.getElementById('chat-pic-input').onchange = async (e) => {
     reader.readAsDataURL(file);
 };
 
+window.loadDriveIframe = function(el, url) {
+    console.warn("[Video] Native stream blocked by client. Falling back to iframe.");
+    el.outerHTML = `<div style="width: 100%; height: 350px; border-radius: 12px; overflow: hidden; background: #000; margin-top: 8px;"><iframe src="${url}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border: none;" allowfullscreen></iframe></div>`;
+};
+
 function renderMessage(msg, isConsecutive = false, messageId) {
     const cont = document.getElementById('messages-container');
     let wrap = document.getElementById(`msg-${messageId}`);
@@ -6267,13 +6272,17 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     if (msg.videoUrl) {
         const vidIdMatch = msg.videoUrl.match(/id=([^&]+)/) || msg.videoUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
         const vidId = vidIdMatch ? vidIdMatch[1] : null;
+
+        // Extract raw stream for native player, keep iframe URL for PC fallback
+        const streamUrl = vidId ? `https://drive.google.com/uc?export=download&id=${vidId}` : msg.videoUrl;
         const iframeUrl = vidId ? `https://drive.google.com/file/d/${vidId}/preview` : msg.videoUrl;
 
         const videoWrap = document.createElement('div');
         videoWrap.className = 'video-embed-wrapper';
-        videoWrap.innerHTML = `<div style="width: 100%; min-width: 240px; height: 350px; margin-top: 8px; border-radius: 12px; overflow: hidden; background: #000; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid rgba(255,255,255,0.1); -webkit-mask-image: -webkit-radial-gradient(white, black);">
-            <iframe src="${iframeUrl}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border: none;" allowfullscreen></iframe>
-        </div>`;
+        videoWrap.style.cssText = 'width: 100%; margin-top: 5px;';
+        videoWrap.innerHTML = `<video src="${streamUrl}" controls playsinline preload="metadata" referrerpolicy="no-referrer" 
+            style="max-width: 100%; width: 100%; border-radius: 8px; margin-top: 5px; background: transparent; outline: none; box-shadow: 0 2px 8px rgba(0,0,0,0.15);" 
+            onerror="if(typeof loadDriveIframe === 'function') loadDriveIframe(this, '${iframeUrl}')"></video>`;
         msgContent.appendChild(videoWrap);
     }
 
@@ -7102,10 +7111,10 @@ async function uploadMediaToDrive(file) {
                 if (data.success) {
                     const fileId = data.id || (data.url ? (data.url.includes('id=') ? data.url.split('id=')[1].split('&')[0] : (data.url.match(/[-\w]{25,}/) ? data.url.match(/[-\w]{25,}/)[0] : data.url)) : '');
 
-                    // Generate a raw, high-res image link that works natively in <img src>, or iframe preview for videos
+                    // Generate a raw, high-res image link that works natively in <img src>, or raw download stream for videos
                     const renderUrl = (file.type && file.type.startsWith('image/')) 
                         ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`
-                        : `https://drive.google.com/file/d/${fileId}/preview`;
+                        : `https://drive.google.com/uc?export=download&id=${fileId}`;
                         
                     resolve(renderUrl);
                 } else {

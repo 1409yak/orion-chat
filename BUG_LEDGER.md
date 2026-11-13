@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Mobile UI Overhaul:* The Google Drive iframe injected a massive, overlapping control UI on mobile devices that could not be styled due to CORS. Solution: Reverted the primary renderer to a native HTML5 `<video>` tag to utilize clean OS-level media controls, while retaining a global `loadDriveIframe` fallback function specifically for PC environments running strict ad-blockers.
+
 - *UI Rendering Fix:* Vertical and square videos were clipping the Drive player controls because the iframe container was hardcoded to a 16:9 `padding-top` aspect ratio constraint. Solution: Replaced the absolute aspect-ratio wrapper with a responsive `height: 350px` container to guarantee sufficient vertical space for the Drive UI across all video shapes. Added WebKit mask styling to preserve iframe border-radii on mobile.
 
 - *UI Rendering Fix:* Ad-blockers intercepted native video streams. Reverted to the Google Drive `iframe` embed to guarantee playback. Fixed Drive control bar clipping by applying `padding-top: calc(56.25% + 60px)` to the responsive container, accommodating both the 16:9 video aspect ratio and the bottom player UI.
