@@ -3389,62 +3389,6 @@ function setupPresence(uid) {
     });
 }
 
-/**
- * Automatically prunes messages older than 5 days across all chats.
- * Threshold: evaluates message expiration after 5 days from creation timestamp (createdAt + 5 days, or legacy timestamp).
- * Requires the caller to have Admin privileges in Firebase Rules.
- */
-async function cleanupOldMessages() {
-    const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
-    const cutoff = Date.now() - FIVE_DAYS_MS;
-    
-    try {
-        // Fetch all chat IDs to iterate through them
-        const chatsSnap = await get(ref(db, 'chats'));
-        const chats = chatsSnap.val();
-        if (!chats) return;
-
-        const chatIds = Object.keys(chats);
-        console.log(`[Maintenance] Checking ${chatIds.length} chats for messages older than 5 days (cutoff: ${new Date(cutoff).toISOString()})...`);
-
-        for (const chatId of chatIds) {
-            const chatData = chats[chatId] || {};
-            const pinnedIds = new Set(
-                Array.isArray(chatData.pinnedMessages)
-                    ? chatData.pinnedMessages
-                    : (chatData.pinnedMessageId ? [chatData.pinnedMessageId] : [])
-            );
-
-            // Query messages in this chat older than the cutoff using indexed timestamp
-            const oldMsgsQuery = query(ref(db, `messages/${chatId}`), orderByChild('timestamp'), endAt(cutoff));
-            const oldMsgsSnap = await get(oldMsgsQuery);
-            
-            if (oldMsgsSnap.exists()) {
-                const updates = {};
-                let count = 0;
-                oldMsgsSnap.forEach(msgSnap => {
-                    // Exempt pinned messages from 5-day retention auto-deletion
-                    if (pinnedIds.has(msgSnap.key)) {
-                        return;
-                    }
-                    const msg = msgSnap.val();
-                    const msgCreatedAt = msg?.createdAt || msg?.timestamp;
-                    if (msgCreatedAt && msgCreatedAt <= cutoff) {
-                        updates[msgSnap.key] = null; // Mark for deletion
-                        count++;
-                    }
-                });
-                if (count > 0) {
-                    await update(ref(db, `messages/${chatId}`), updates);
-                    console.log(`[Maintenance] Purged ${count} expired (>5 days) messages from chat: ${chatId}`);
-                }
-            }
-        }
-    } catch (e) {
-        console.error("[Maintenance] 5-day message cleanup failed:", e);
-    }
-}
-
 /* ---------------- MESSAGING / NOTIFICATIONS ---------------- */
 
 async function setupCapacitorPushNotifications(uid) {
@@ -3561,12 +3505,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.6';
+const CURRENT_APP_VERSION = '1.2.7';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.6';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.7';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3728,7 +3672,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.6';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.7';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4493,12 +4437,6 @@ function fetchMyProfile(uid) {
                 openPremiumBtn.innerText = "Settings";
                 openPremiumBtn.style.borderColor = "var(--accent)";
             }
-        }
-
-        // Automatic Cleanup Trigger: Runs once per session if the user is an Admin
-        if (isAdmin && !window._cleanupPerformed) {
-            window._cleanupPerformed = true;
-            cleanupOldMessages();
         }
 
         // Monetization gating: only apply premium visual personalizations if user has active premium status
