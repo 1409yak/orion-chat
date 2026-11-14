@@ -5492,8 +5492,8 @@ body.theme-light .pinned-item:hover {
 @media (max-width: 600px) {
     .message:has(.drive-video-wrapper),
     .message-bubble:has(.drive-video-wrapper) {
-        max-width: 88% !important;
-        width: 88% !important;
+        width: min(84vw, 480px) !important;
+        max-width: 84vw !important;
     }
 }
 

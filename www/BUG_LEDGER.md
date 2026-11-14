@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Video Layout Stability:* Removed `ResizeObserver` from `.drive-video-wrapper` because scaling a non-absolute `iframe` caused a DOM width feedback loop that made mobile video bubbles oscillate between horizontal and vertical. Replaced with CSS `aspect-ratio: 4 / 3` wrappers, `position: absolute` iframes, and one-pass `syncDriveVideoScales()` scaling.
+
 - *Video Player Architecture:* Removed custom `<video>` overlays and restored the default Google Drive `iframe` embed. Fixed oversized, overlapping mobile Drive controls by adding a `ResizeObserver` that maintains a 480px virtual iframe width and applies proportional CSS `transform: scale()` on narrow viewports, preserving the compact desktop control bar across all devices.
 
 - *Video UI Expansion:* Custom CSS overlays restricted access to OS-level fullscreen and timeline APIs. Additionally, `overflow: hidden` wrappers were physically clipping player controls on varied aspect ratios. Solution: Reverted to pure native `<video controls>` to restore fullscreen capabilities. Eliminated restrictive DOM wrappers and increased vertical bounds to `70vh` to allow massive, unclipped media rendering.

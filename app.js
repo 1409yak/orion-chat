@@ -2239,6 +2239,7 @@ function insertMessageIntoDOM(messageElement, messageTimestamp) {
     if (!inserted) {
         cont.appendChild(messageElement);
     }
+    if (typeof window.syncDriveVideoScales === 'function') requestAnimationFrame(window.syncDriveVideoScales);
 }
 
 // --- Message Action Functions ---
@@ -3505,12 +3506,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.10';
+const CURRENT_APP_VERSION = '1.2.11';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.10';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.11';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3672,7 +3673,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.10';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.11';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -5922,45 +5923,30 @@ document.getElementById('chat-pic-input').onchange = async (e) => {
     reader.readAsDataURL(file);
 };
 
-window.driveIframeObserver = window.driveIframeObserver || new ResizeObserver((entries) => {
-    for (const entry of entries) {
-        const wrapper = entry.target;
+window.syncDriveVideoScales = function() {
+    document.querySelectorAll('.drive-video-wrapper').forEach((wrapper) => {
         const iframe = wrapper.querySelector('iframe');
-        if (!iframe) continue;
+        if (!iframe) return;
 
-        const availableWidth = entry.contentRect.width;
-        if (!availableWidth) continue;
+        const w = wrapper.clientWidth;
+        const h = wrapper.clientHeight;
+        if (!w || !h) return;
 
-        const minDesktopWidth = 480;
-        const baseHeight = 360;
-
-        if (availableWidth < minDesktopWidth) {
-            const scale = availableWidth / minDesktopWidth;
-            iframe.style.width = `${minDesktopWidth}px`;
-            iframe.style.height = `${baseHeight}px`;
+        if (w < 480) {
+            const scale = w / 480;
+            iframe.style.width = '480px';
+            iframe.style.height = `${Math.round(h / scale)}px`;
             iframe.style.transform = `scale(${scale})`;
             iframe.style.transformOrigin = '0 0';
-            wrapper.style.height = `${Math.round(baseHeight * scale)}px`;
         } else {
             iframe.style.width = '100%';
-            iframe.style.height = `${baseHeight}px`;
+            iframe.style.height = '100%';
             iframe.style.transform = 'none';
-            wrapper.style.height = `${baseHeight}px`;
         }
-    }
-});
-
-function bindDriveVideoWrappers() {
-    document.querySelectorAll('.drive-video-wrapper:not([data-observed])').forEach((wrapper) => {
-        wrapper.setAttribute('data-observed', 'true');
-        window.driveIframeObserver.observe(wrapper);
     });
-}
+};
 
-if (!window.driveWrapperDomObserver) {
-    window.driveWrapperDomObserver = new MutationObserver(() => bindDriveVideoWrappers());
-    window.driveWrapperDomObserver.observe(document.body, { childList: true, subtree: true });
-}
+window.addEventListener('resize', window.syncDriveVideoScales);
 
 function renderMessage(msg, isConsecutive = false, messageId) {
     const cont = document.getElementById('messages-container');
@@ -6249,9 +6235,10 @@ function renderMessage(msg, isConsecutive = false, messageId) {
 
         const videoWrap = document.createElement('div');
         videoWrap.className = 'drive-video-wrapper';
-        videoWrap.style.cssText = 'position: relative; width: 100%; height: 360px; margin-top: 6px; border-radius: 10px; overflow: hidden; background: #000;';
-        videoWrap.innerHTML = `<iframe src="${iframeUrl}" referrerpolicy="no-referrer" style="width: 100%; height: 360px; border: none; display: block;" allowfullscreen></iframe>`;
+        videoWrap.style.cssText = 'position: relative; width: 100%; aspect-ratio: 4 / 3; margin-top: 6px; border-radius: 10px; overflow: hidden; background: #000;';
+        videoWrap.innerHTML = `<iframe src="${iframeUrl}" referrerpolicy="no-referrer" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: none; display: block;" allowfullscreen></iframe>`;
         msgContent.appendChild(videoWrap);
+        if (typeof window.syncDriveVideoScales === 'function') requestAnimationFrame(window.syncDriveVideoScales);
     }
 
     if (formatted.youtubeId) {
@@ -6440,6 +6427,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     wrap.appendChild(timestampElem);
     twemoji.parse(wrap);
     if (isNew) insertMessageIntoDOM(wrap, msg.timestamp);
+    if (typeof window.syncDriveVideoScales === 'function') requestAnimationFrame(window.syncDriveVideoScales);
 }
 
 async function renderPollMessage(msg, isConsecutive, messageId, isMe, isUserMentioned) {
@@ -6809,6 +6797,7 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
     wrap.appendChild(timestampElem);
     twemoji.parse(wrap);
     if (isNew) insertMessageIntoDOM(wrap, msg.timestamp);
+    if (typeof window.syncDriveVideoScales === 'function') requestAnimationFrame(window.syncDriveVideoScales);
 }
 
 function createTypingIndicator() {
