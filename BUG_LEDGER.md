@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Video Bubble Collapse Fix:* Setting `position: absolute` on the video `iframe` inside a `width: 100%` wrapper caused shrink-to-fit chat bubbles to collapse to 0x0px. Solution: Removed JS scaling and applied explicit pixel dimensions (`480x360px` on desktop; `300x250px` wrapper on mobile wrapping a `480x400px` iframe with `transform: scale(0.625)`), keeping Google Drive's compact desktop control bar on mobile with zero layout shifts.
+
 - *Video Layout Stability:* Removed `ResizeObserver` from `.drive-video-wrapper` because scaling a non-absolute `iframe` caused a DOM width feedback loop that made mobile video bubbles oscillate between horizontal and vertical. Replaced with CSS `aspect-ratio: 4 / 3` wrappers, `position: absolute` iframes, and one-pass `syncDriveVideoScales()` scaling.
 
 - *Video Player Architecture:* Removed custom `<video>` overlays and restored the default Google Drive `iframe` embed. Fixed oversized, overlapping mobile Drive controls by adding a `ResizeObserver` that maintains a 480px virtual iframe width and applies proportional CSS `transform: scale()` on narrow viewports, preserving the compact desktop control bar across all devices.

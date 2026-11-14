@@ -5489,11 +5489,35 @@ body.theme-light .pinned-item:hover {
     display: none;
 }
 
+.drive-video-wrapper {
+    position: relative;
+    width: 480px;
+    height: 360px;
+    max-width: 100%;
+    margin-top: 6px;
+    border-radius: 10px;
+    overflow: hidden;
+    background: #000;
+}
+
+.drive-video-wrapper iframe {
+    width: 480px;
+    height: 360px;
+    border: none;
+    display: block;
+}
+
 @media (max-width: 600px) {
-    .message:has(.drive-video-wrapper),
-    .message-bubble:has(.drive-video-wrapper) {
-        width: min(84vw, 480px) !important;
-        max-width: 84vw !important;
+    .drive-video-wrapper {
+        width: 300px !important;
+        height: 250px !important;
+    }
+
+    .drive-video-wrapper iframe {
+        width: 480px !important;
+        height: 400px !important;
+        transform: scale(0.625) !important;
+        transform-origin: 0 0 !important;
     }
 }
 
