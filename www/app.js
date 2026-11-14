@@ -2199,7 +2199,8 @@ function linkifyAndEmbed(rawText) {
             return `<a href="${url}" target="_blank" rel="noopener noreferrer" class="chat-link-inline" onclick="event.stopPropagation()">${url}</a>`;
         }
 
-        if (imgRegex.test(url)) {
+        const isDriveImage = /drive\.google\.com\/(?:file\/d\/|uc\?|open\?|thumbnail\?)|googleusercontent\.com/i.test(url);
+        if (imgRegex.test(url) || isDriveImage) {
             imageUrls.push(url);
             return ""; // Hide the link text as requested
         }
@@ -2420,7 +2421,8 @@ function extractPinnedMessagePreview(msgData) {
     if (!msgData) return '[Attachment]';
     if (msgData.stickerId) return '[Sticker]';
     if (msgData.poll?.question) return `[Poll] ${msgData.poll.question}`;
-    if (msgData.imageUrl) return msgData.text && !msgData.text.startsWith('data:image/') ? msgData.text : '[Image]';
+    if (msgData.imageUrl) return msgData.text && !msgData.text.startsWith('data:image/') && msgData.text !== msgData.imageUrl ? msgData.text : '[Image]';
+    if (msgData.videoUrl) return '[Video]';
     if (typeof msgData.text === 'string' && msgData.text.trim()) {
         const trimmed = msgData.text.trim();
         if (trimmed.startsWith('data:image/') || /^\[IMG\].*\[\/IMG\]$/i.test(trimmed)) {
@@ -3387,62 +3389,6 @@ function setupPresence(uid) {
     });
 }
 
-/**
- * Automatically prunes messages older than 5 days across all chats.
- * Threshold: evaluates message expiration after 5 days from creation timestamp (createdAt + 5 days, or legacy timestamp).
- * Requires the caller to have Admin privileges in Firebase Rules.
- */
-async function cleanupOldMessages() {
-    const FIVE_DAYS_MS = 5 * 24 * 60 * 60 * 1000;
-    const cutoff = Date.now() - FIVE_DAYS_MS;
-    
-    try {
-        // Fetch all chat IDs to iterate through them
-        const chatsSnap = await get(ref(db, 'chats'));
-        const chats = chatsSnap.val();
-        if (!chats) return;
-
-        const chatIds = Object.keys(chats);
-        console.log(`[Maintenance] Checking ${chatIds.length} chats for messages older than 5 days (cutoff: ${new Date(cutoff).toISOString()})...`);
-
-        for (const chatId of chatIds) {
-            const chatData = chats[chatId] || {};
-            const pinnedIds = new Set(
-                Array.isArray(chatData.pinnedMessages)
-                    ? chatData.pinnedMessages
-                    : (chatData.pinnedMessageId ? [chatData.pinnedMessageId] : [])
-            );
-
-            // Query messages in this chat older than the cutoff using indexed timestamp
-            const oldMsgsQuery = query(ref(db, `messages/${chatId}`), orderByChild('timestamp'), endAt(cutoff));
-            const oldMsgsSnap = await get(oldMsgsQuery);
-            
-            if (oldMsgsSnap.exists()) {
-                const updates = {};
-                let count = 0;
-                oldMsgsSnap.forEach(msgSnap => {
-                    // Exempt pinned messages from 5-day retention auto-deletion
-                    if (pinnedIds.has(msgSnap.key)) {
-                        return;
-                    }
-                    const msg = msgSnap.val();
-                    const msgCreatedAt = msg?.createdAt || msg?.timestamp;
-                    if (msgCreatedAt && msgCreatedAt <= cutoff) {
-                        updates[msgSnap.key] = null; // Mark for deletion
-                        count++;
-                    }
-                });
-                if (count > 0) {
-                    await update(ref(db, `messages/${chatId}`), updates);
-                    console.log(`[Maintenance] Purged ${count} expired (>5 days) messages from chat: ${chatId}`);
-                }
-            }
-        }
-    } catch (e) {
-        console.error("[Maintenance] 5-day message cleanup failed:", e);
-    }
-}
-
 /* ---------------- MESSAGING / NOTIFICATIONS ---------------- */
 
 async function setupCapacitorPushNotifications(uid) {
@@ -3559,12 +3505,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.1.61';
+const CURRENT_APP_VERSION = '1.2.8';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.61';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.8';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3726,7 +3672,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.1.61';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.8';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4491,12 +4437,6 @@ function fetchMyProfile(uid) {
                 openPremiumBtn.innerText = "Settings";
                 openPremiumBtn.style.borderColor = "var(--accent)";
             }
-        }
-
-        // Automatic Cleanup Trigger: Runs once per session if the user is an Admin
-        if (isAdmin && !window._cleanupPerformed) {
-            window._cleanupPerformed = true;
-            cleanupOldMessages();
         }
 
         // Monetization gating: only apply premium visual personalizations if user has active premium status
@@ -5982,6 +5922,55 @@ document.getElementById('chat-pic-input').onchange = async (e) => {
     reader.readAsDataURL(file);
 };
 
+window.toggleCustomVideo = function(buttonElement) {
+    const container = buttonElement.parentElement;
+    if (!container) return;
+    const video = container.querySelector('video');
+    if (!video) return;
+
+    if (video.paused) {
+        video.play();
+        buttonElement.style.opacity = '0';
+        buttonElement.style.pointerEvents = 'none';
+    } else {
+        video.pause();
+        buttonElement.style.opacity = '1';
+        buttonElement.style.pointerEvents = 'auto';
+    }
+};
+
+// Attach global listener to show button when video ends or pauses natively
+document.addEventListener('pause', (e) => {
+    if (e.target.tagName === 'VIDEO') {
+        const btn = e.target.parentElement?.querySelector('.custom-play-btn');
+        if (btn) {
+            btn.style.opacity = '1';
+            btn.style.pointerEvents = 'auto';
+        }
+    }
+}, true);
+
+document.addEventListener('ended', (e) => {
+    if (e.target.tagName === 'VIDEO') {
+        const btn = e.target.parentElement?.querySelector('.custom-play-btn');
+        if (btn) {
+            btn.style.opacity = '1';
+            btn.style.pointerEvents = 'auto';
+        }
+    }
+}, true);
+
+window.loadDriveIframe = function(el, url) {
+    console.warn("[Video] Native stream blocked by client. Falling back to iframe.");
+    const container = el.parentElement;
+    if (container) {
+        const btn = container.querySelector('.custom-play-btn');
+        if (btn) btn.remove();
+        container.onclick = null;
+    }
+    el.outerHTML = `<div style="width: 100%; height: 350px; border-radius: 12px; overflow: hidden; background: #000; margin-top: 8px;"><iframe src="${url}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border: none;" allowfullscreen></iframe></div>`;
+};
+
 function renderMessage(msg, isConsecutive = false, messageId) {
     const cont = document.getElementById('messages-container');
     let wrap = document.getElementById(`msg-${messageId}`);
@@ -5990,14 +5979,15 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     if (isNew) {
         wrap = document.createElement('div');
         wrap.id = `msg-${messageId}`;
-        wrap.dataset.senderId = msg.sender_id; // Store sender_id on the message wrapper
+        wrap.dataset.senderId = msg.sender_id || msg.sender; // Store sender_id on the message wrapper
         wrap.dataset.timestamp = msg.timestamp;
     } else {
         wrap.innerHTML = ''; // Clear for update (reactions/edits)
     }
 
-    const isMe = msg.sender_id === auth.currentUser.uid;
-    const isSystem = msg.sender_id === 'system';
+    const senderUid = msg.sender_id || msg.sender;
+    const isMe = senderUid === auth.currentUser.uid;
+    const isSystem = senderUid === 'system';
     const myName = document.getElementById('current-user-name').innerText;
     const myMentionRegex = new RegExp(`@${myName}\\b`, 'i');
     const everyoneMentionRegex = /@everyone\b/i;
@@ -6177,6 +6167,14 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     const formatted = linkifyAndEmbed(msg.text);
     let htmlContent = formatted.html;
 
+    // Handle direct imageUrl / videoUrl fields
+    if (msg.imageUrl && !formatted.imageUrls.includes(msg.imageUrl)) {
+        formatted.imageUrls.push(msg.imageUrl);
+    }
+    if ((msg.imageUrl || msg.videoUrl) && (msg.text === msg.imageUrl || msg.text === msg.videoUrl || !msg.text)) {
+        htmlContent = "";
+    }
+
     // Bold and style mentions within the message
     if (currentChatMemberNames) {
         currentChatMemberNames.forEach((name) => {
@@ -6221,6 +6219,8 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         img.className = 'chat-embedded-image';
         img.loading = 'lazy';
         img.decoding = 'async';
+        img.referrerPolicy = 'no-referrer';
+        img.setAttribute('referrerpolicy', 'no-referrer');
         img.alt = 'Shared image';
         img.onclick = (e) => {
             e.stopPropagation();
@@ -6229,6 +6229,8 @@ function renderMessage(msg, isConsecutive = false, messageId) {
             const senderNameEl = document.getElementById('viewer-sender-name');
 
             if (modal && modalImg && senderNameEl) {
+                modalImg.referrerPolicy = 'no-referrer';
+                modalImg.setAttribute('referrerpolicy', 'no-referrer');
                 modalImg.src = img.src;
                 // Extract sender name from the message data
                 senderNameEl.textContent = msg.sender_name || msg.senderName || (isMe ? 'You' : 'Photo');
@@ -6248,6 +6250,28 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         imgWrap.appendChild(img);
         msgContent.appendChild(imgWrap);
     });
+
+    if (msg.videoUrl) {
+        const vidIdMatch = msg.videoUrl.match(/id=([^&]+)/) || msg.videoUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+        const vidId = vidIdMatch ? vidIdMatch[1] : null;
+
+        const streamUrl = vidId ? `https://drive.google.com/uc?export=download&id=${vidId}` : msg.videoUrl;
+        const iframeUrl = vidId ? `https://drive.google.com/file/d/${vidId}/preview` : msg.videoUrl;
+
+        const videoWrap = document.createElement('div');
+        videoWrap.className = 'video-embed-wrapper';
+        videoWrap.style.cssText = 'position: relative; max-width: 100%; width: 100%; margin-top: 5px; border-radius: 8px; overflow: hidden; background: #000; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
+        videoWrap.setAttribute('onclick', "if(typeof toggleCustomVideo === 'function') { const btn = this.querySelector('.custom-play-btn'); if(btn) toggleCustomVideo(btn); }");
+        videoWrap.innerHTML = `
+            <video src="${streamUrl}" playsinline preload="metadata" referrerpolicy="no-referrer" 
+                style="width: 100%; display: block; outline: none;" 
+                onerror="if(typeof loadDriveIframe === 'function') loadDriveIframe(this, '${iframeUrl}')"></video>
+            
+            <div class="custom-play-btn" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50px; height: 50px; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(4px); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity 0.2s ease; border: 1px solid rgba(255,255,255,0.4);">
+                <div style="width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-left: 15px solid white; margin-left: 5px;"></div>
+            </div>`;
+        msgContent.appendChild(videoWrap);
+    }
 
     if (formatted.youtubeId) {
         const ytWrap = document.createElement('div');
@@ -6396,13 +6420,14 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     if (isSystem) {
         avatarHtml = `<div class="msg-avatar-fallback system-avatar" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; display: flex; align-items: center; justify-content: center; border-radius: 50%; width: 28px; height: 28px; font-size: 15px;">🛡️</div>`;
     } else {
-        const pfp = currentChatMemberPics.get(msg.sender_id);
+        const senderUid = msg.sender_id || msg.sender;
+        const pfp = currentChatMemberPics.get(senderUid);
         avatarHtml = pfp 
-            ? `<img src="${pfp}" loading="lazy" decoding="async" class="msg-avatar-img" onclick="event.stopPropagation(); showUserProfile('${msg.sender_id}', currentChatId, currentChatCreatorId)">`
+            ? `<img src="${pfp}" loading="lazy" decoding="async" class="msg-avatar-img" onclick="event.stopPropagation(); showUserProfile('${senderUid}', currentChatId, currentChatCreatorId)">`
             : `<div class="msg-avatar-fallback">\u{1F464}</div>`;
     }
 
-    const author = createAuthorElement(msg, () => showUserProfile(msg.sender_id, currentChatId, currentChatCreatorId));
+    const author = createAuthorElement(msg, () => showUserProfile(msg.sender_id || msg.sender, currentChatId, currentChatCreatorId));
     
     const timestampElem = document.createElement('span');
     timestampElem.className = 'msg-timestamp';
@@ -7042,10 +7067,53 @@ function openImageLightbox(url, senderName = 'Photo') {
     const lb = document.getElementById('image-lightbox');
     const img = document.getElementById('lightbox-img');
     if (!lb || !img) return;
+    img.referrerPolicy = 'no-referrer';
+    img.setAttribute('referrerpolicy', 'no-referrer');
     img.src = url;
     lb.style.display = 'flex';
 }
 window.openImageLightbox = openImageLightbox;
+
+const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbycV8hAMQKvXxg9XKSlYFEPz9c3lEyj5aVxsdKhyrrElnVQLuEOHH2e1-uqCd1mc481ig/exec';
+
+async function uploadMediaToDrive(file) {
+    return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.readAsDataURL(file);
+        reader.onload = async () => {
+            try {
+                const base64String = reader.result.split(',')[1];
+                const payload = {
+                    filename: `${Date.now()}_${(file.name || 'upload').replace(/\s+/g, '_')}`,
+                    mimeType: file.type || 'application/octet-stream',
+                    base64: base64String
+                };
+
+                const response = await fetch(APPS_SCRIPT_URL, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+
+                const data = await response.json();
+                if (data.success) {
+                    const fileId = data.id || (data.url ? (data.url.includes('id=') ? data.url.split('id=')[1].split('&')[0] : (data.url.match(/[-\w]{25,}/) ? data.url.match(/[-\w]{25,}/)[0] : data.url)) : '');
+
+                    // Generate a raw, high-res image link that works natively in <img src>, or raw download stream for videos
+                    const renderUrl = (file.type && file.type.startsWith('image/')) 
+                        ? `https://drive.google.com/thumbnail?id=${fileId}&sz=w1200`
+                        : `https://drive.google.com/uc?export=download&id=${fileId}`;
+                        
+                    resolve(renderUrl);
+                } else {
+                    reject(data.error);
+                }
+            } catch (err) {
+                reject(err);
+            }
+        };
+        reader.onerror = error => reject(error);
+    });
+}
 
 // Asynchronous helper to convert Blob/File to Data URL without blocking the main thread
 function blobToDataUrlAsync(blob) {
@@ -7075,11 +7143,26 @@ async function sendImageMessage(imageData, targetChatId = null) {
     // Yield to let UI update and ensure non-blocking execution
     await new Promise(r => setTimeout(r, 0));
 
-    let base64Data = imageData;
-    if (imageData instanceof Blob) {
-        console.log(`[UPLOAD] Converting compressed blob (${(imageData.size / 1024).toFixed(2)} KB) to data payload...`);
-        base64Data = await blobToDataUrlAsync(imageData);
-        console.log(`[UPLOAD] Payload converted. Length: ${(base64Data.length / 1024).toFixed(2)} KB.`);
+    let driveUrl = null;
+    let base64Data = null;
+
+    if (imageData instanceof Blob || imageData instanceof File) {
+        try {
+            console.log(`[UPLOAD] Uploading media to Google Drive backend...`);
+            driveUrl = await uploadMediaToDrive(imageData);
+        } catch (uploadErr) {
+            console.warn('[UPLOAD] Direct Drive upload failed, falling back to local payload:', uploadErr);
+        }
+    }
+
+    if (!driveUrl) {
+        if (imageData instanceof Blob) {
+            console.log(`[UPLOAD] Converting compressed blob (${(imageData.size / 1024).toFixed(2)} KB) to data payload...`);
+            base64Data = await blobToDataUrlAsync(imageData);
+            console.log(`[UPLOAD] Payload converted. Length: ${(base64Data.length / 1024).toFixed(2)} KB.`);
+        } else {
+            base64Data = imageData;
+        }
     }
 
     // Yield again before database operation to ensure UI remains fluid
@@ -7101,16 +7184,24 @@ async function sendImageMessage(imageData, targetChatId = null) {
         console.warn('[UPLOAD] Could not fetch chat title for identity:', e);
     }
 
+    const payloadText = driveUrl ? "" : base64Data;
+    const isImage = !driveUrl ? true : (imageData.type ? imageData.type.startsWith('image/') : true);
+    const isVideo = !driveUrl ? false : (imageData.type ? imageData.type.startsWith('video/') : false);
+
     const updates = {};
     updates[`/messages/${destChatId}/${mKey}`] = {
+        sender: auth.currentUser.uid,
         sender_id: auth.currentUser.uid,
         sender_name: identityName,
-        text: base64Data,
-        timestamp: serverTimestamp(),
+        text: payloadText,
+        imageUrl: isImage ? (driveUrl || base64Data) : null,
+        videoUrl: isVideo ? driveUrl : null,
+        timestamp: Date.now(),
         createdAt: serverTimestamp()
     };
 
-    updates[`/chats/${destChatId}/last_message`] = "Sent an image";
+    const lastMsgText = isImage ? "Sent an image" : (isVideo ? "Sent a video" : "Sent a file");
+    updates[`/chats/${destChatId}/last_message`] = lastMsgText;
     updates[`/chats/${destChatId}/timestamp`] = serverTimestamp();
 
     console.log('[UPLOAD] Fetching chat members for unread flags...');
@@ -7137,7 +7228,7 @@ async function sendImageMessage(imageData, targetChatId = null) {
                         const userSnap = await get(ref(db, `users/${rUid}/fcmToken`));
                         recipientFcmToken = userSnap.val();
                         if (recipientFcmToken) {
-                            sendPushNotification(recipientFcmToken, identityName, "Sent an image", { chatId: destChatId });
+                            sendPushNotification(recipientFcmToken, identityName, lastMsgText, { chatId: destChatId });
                         }
                     } catch (notifyErr) {
                         console.error("[FCM Worker] Error notifying recipient for image:", rUid, notifyErr);
@@ -7831,27 +7922,121 @@ messageInput.addEventListener('paste', async (e) => {
 // Reusable media file upload handler
 async function handleMediaUpload(file, sourceLabel = 'File') {
     if (!file) return;
+    if (!currentChatId) {
+        showNotification("Please select a chat first", "error");
+        return;
+    }
+
+    // Protect mobile RAM from massive video files
+    const maxSizeMB = 50; 
+    if (file.size > maxSizeMB * 1024 * 1024) {
+        return showNotification(`File is too large! Please keep videos under ${maxSizeMB}MB.`, "error");
+    }
+
     console.log(`[UPLOAD] ${sourceLabel} selected: ${file.name}, Size: ${(file.size / 1024 / 1024).toFixed(2)} MB`);
+
+    let selectedFile = file;
+    if (file.type && file.type.startsWith('image/')) {
+        try {
+            await new Promise(r => setTimeout(r, 0));
+            const quality = isCurrentUserPremium ? 0.9 : 0.8;
+            selectedFile = await compressImageAsync(file, 1280, quality);
+            console.log(`[UPLOAD] Compressed file for Drive: ${selectedFile.name}`);
+        } catch (compErr) {
+            console.warn('[UPLOAD] Image compression skipped or failed:', compErr);
+            selectedFile = file;
+        }
+    }
+
     try {
-        await new Promise(r => setTimeout(r, 0));
-        const quality = isCurrentUserPremium ? 0.9 : 0.8;
-        const compressedBlob = await compressImageAsync(file, 1280, quality);
-        console.log(`[UPLOAD] Initiating server upload for: ${compressedBlob.name}`);
-        await new Promise(r => setTimeout(r, 0));
-        await sendImageMessage(compressedBlob);
-        console.log(`[UPLOAD] Server upload completed successfully.`);
+        showNotification("Uploading to secure cloud...", "info");
+        const driveUrl = await uploadMediaToDrive(selectedFile);
+
+        const destChatId = currentChatId;
+        const msgRef = push(ref(db, `messages/${destChatId}`));
+        const senderName = document.getElementById('current-user-name')?.innerText || auth.currentUser?.displayName || "User";
+        let identityName = senderName;
+        try {
+            const chatSnap = await get(ref(db, `chats/${destChatId}`));
+            const chatData = chatSnap.val();
+            if (chatData?.isChannel) {
+                identityName = chatData.title || senderName;
+            }
+        } catch (e) {
+            console.warn('[UPLOAD] Could not fetch chat title for identity:', e);
+        }
+
+        const isImage = selectedFile.type ? selectedFile.type.startsWith('image/') : true;
+        const isVideo = selectedFile.type ? selectedFile.type.startsWith('video/') : false;
+
+        await update(msgRef, {
+            sender: auth.currentUser.uid,
+            sender_id: auth.currentUser.uid,
+            sender_name: identityName,
+            text: "", // Force empty to prevent the nested "Shared image" text bubble
+            imageUrl: isImage ? driveUrl : null,
+            videoUrl: isVideo ? driveUrl : null,
+            timestamp: Date.now(),
+            createdAt: serverTimestamp()
+        });
+
+        const lastMsgText = isImage ? "Sent an image" : (isVideo ? "Sent a video" : "Sent a file");
+        const chatUpdates = {};
+        chatUpdates[`/chats/${destChatId}/last_message`] = lastMsgText;
+        chatUpdates[`/chats/${destChatId}/timestamp`] = serverTimestamp();
+
+        try {
+            const membersSnap = await get(ref(db, `members/${destChatId}`));
+            const members = membersSnap.val();
+            if (members) {
+                Object.keys(members).forEach(uid => { 
+                    if (uid !== auth.currentUser.uid) chatUpdates[`/unread/${uid}/${destChatId}`] = true; 
+                });
+            }
+            await update(ref(db), chatUpdates);
+
+            if (members) {
+                const recipientUids = Object.keys(members).filter(uid => uid !== auth.currentUser.uid);
+                (async () => {
+                    for (const rUid of recipientUids) {
+                        try {
+                            const userSnap = await get(ref(db, `users/${rUid}/fcmToken`));
+                            const recipientFcmToken = userSnap.val();
+                            if (recipientFcmToken) {
+                                sendPushNotification(recipientFcmToken, identityName, lastMsgText, { chatId: destChatId });
+                            }
+                        } catch (notifyErr) {
+                            console.error("[FCM Worker] Error notifying recipient for media:", rUid, notifyErr);
+                        }
+                    }
+                })().catch(err => console.warn('[UPLOAD] Background notification dispatch error:', err));
+            }
+        } catch (dbErr) {
+            console.warn('[UPLOAD] Failed to update chat metadata/unread:', dbErr);
+        }
+
+        showNotification("Sent!", "success");
     } catch (error) {
-        console.error(`[UPLOAD] ${sourceLabel} processing failed:`, error);
-        showNotification("Failed to send image: " + (error?.message || "Unknown error"), "error");
+        console.error("Upload failed:", error);
+        showNotification("Media upload failed", "error");
     }
 }
 
 const fileUploadInput = document.getElementById('file-upload-input');
 if (fileUploadInput) {
     fileUploadInput.onchange = async (e) => {
-        const file = e.target.files[0];
+        const selectedFile = e.target.files[0];
+        if (!selectedFile) return;
+
+        // Protect mobile RAM from massive video files
+        const maxSizeMB = 50; 
+        if (selectedFile.size > maxSizeMB * 1024 * 1024) {
+            e.target.value = ''; // Reset the input
+            return showNotification(`File is too large! Please keep videos under ${maxSizeMB}MB.`, "error");
+        }
+
         try {
-            await handleMediaUpload(file, 'File');
+            await handleMediaUpload(selectedFile, 'File');
         } finally {
             fileUploadInput.value = '';
         }
@@ -7865,9 +8050,18 @@ if (cameraBtn && cameraInput) {
 }
 if (cameraInput) {
     cameraInput.onchange = async (e) => {
-        const file = e.target.files[0];
+        const selectedFile = e.target.files[0];
+        if (!selectedFile) return;
+
+        // Protect mobile RAM from massive video files
+        const maxSizeMB = 50; 
+        if (selectedFile.size > maxSizeMB * 1024 * 1024) {
+            e.target.value = ''; // Reset the input
+            return showNotification(`File is too large! Please keep videos under ${maxSizeMB}MB.`, "error");
+        }
+
         try {
-            await handleMediaUpload(file, 'Camera');
+            await handleMediaUpload(selectedFile, 'Camera');
         } finally {
             cameraInput.value = '';
         }

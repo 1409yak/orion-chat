@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Video UI Customization:* Dropped the native OS `controls` attribute in favor of a custom-built CSS play button overlay. Utilized `playsinline` and a JavaScript controller to manage playback state, providing a unified, styled media experience across all mobile devices while maintaining the ad-blocker iframe fallback.
+
 - *Architecture Optimization:* The client-side `cleanupOldMessages` routine crashed mobile WebViews and failed due to index requirements. Solution: Stripped the routine from the frontend entirely. Offloaded 5-day message retention policies to a daily automated Google Apps Script Cron job interacting securely via the Firebase REST API.
 
 - *Mobile UI Overhaul:* The Google Drive iframe injected a massive, overlapping control UI on mobile devices that could not be styled due to CORS. Solution: Reverted the primary renderer to a native HTML5 `<video>` tag to utilize clean OS-level media controls, while retaining a global `loadDriveIframe` fallback function specifically for PC environments running strict ad-blockers.

@@ -19,6 +19,54 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Video UI Customization:* Dropped the native OS `controls` attribute in favor of a custom-built CSS play button overlay. Utilized `playsinline` and a JavaScript controller to manage playback state, providing a unified, styled media experience across all mobile devices while maintaining the ad-blocker iframe fallback.
+
+- *Architecture Optimization:* The client-side `cleanupOldMessages` routine crashed mobile WebViews and failed due to index requirements. Solution: Stripped the routine from the frontend entirely. Offloaded 5-day message retention policies to a daily automated Google Apps Script Cron job interacting securely via the Firebase REST API.
+
+- *Mobile UI Overhaul:* The Google Drive iframe injected a massive, overlapping control UI on mobile devices that could not be styled due to CORS. Solution: Reverted the primary renderer to a native HTML5 `<video>` tag to utilize clean OS-level media controls, while retaining a global `loadDriveIframe` fallback function specifically for PC environments running strict ad-blockers.
+
+- *UI Rendering Fix:* Vertical and square videos were clipping the Drive player controls because the iframe container was hardcoded to a 16:9 `padding-top` aspect ratio constraint. Solution: Replaced the absolute aspect-ratio wrapper with a responsive `height: 350px` container to guarantee sufficient vertical space for the Drive UI across all video shapes. Added WebKit mask styling to preserve iframe border-radii on mobile.
+
+- *UI Rendering Fix:* Ad-blockers intercepted native video streams. Reverted to the Google Drive `iframe` embed to guarantee playback. Fixed Drive control bar clipping by applying `padding-top: calc(56.25% + 60px)` to the responsive container, accommodating both the 16:9 video aspect ratio and the bottom player UI.
+
+- *Architecture Resilience:* Native `<video>` streaming occasionally failed due to PC ad-blockers (`ERR_BLOCKED_BY_CLIENT`) intercepting Drive download redirects. Solution: Implemented a hybrid rendering pipeline. The app defaults to native HTML5 video for aesthetic parity, but utilizes an `onerror` listener to dynamically swap the DOM element to a responsive Drive `iframe` if the stream request drops.
+
+- *UI Rendering Upgrade:* Video players were clipping and lacked style customization due to Google Drive `iframe` CORS restrictions. Solution: Scrapped the iframe renderer. Implemented a regex extractor to pull the Drive ID from legacy and current database URLs, rerouting them to the `uc?export=download` endpoint. Fed the raw stream into a native HTML5 `<video>` tag, ensuring aspect-ratio parity with image attachments and clean native OS controls.
+
+- *UI Rendering Fix:* Google Drive video iframe controls were clipping on mobile due to fixed height constraints. Solution: Wrapped the iframe in a responsive 4:3 aspect-ratio container (`padding-top: 75%`) with `overflow: hidden` and styled borders to guarantee the internal Drive player has adequate space to render its UI controls cleanly.
+
+- *Feature Launch (v1.2.0):* Upgraded the custom Drive API pipeline to fully support video attachments. Expanded HTML file inputs to `image/*,video/*` and implemented a 50MB file size hard limit prior to `readAsDataURL` execution to prevent mobile WebView RAM exhaustion crashes during base64 encoding.
+
+- *Mobile Render & DB Fix:* Google Drive images failed to load on phones because the Capacitor custom URL scheme triggered Google's hotlink protection. Solution: Added `referrerpolicy="no-referrer"` to media tags. Fixed a crashing background task by adding `".indexOn": "timestamp"` to the `messages` node in Firebase rules.
+
+- *UI Rendering Fix:* Google Drive `export=view` links returned HTML, causing `<img src>` tags to fail and display duplicate 'Shared image' alt text. Solution: Intercepted the Drive ID and routed images through the Google Drive `thumbnail` API for raw pixel rendering. Switched videos to `iframe` embeds to bypass Google CORS streaming blocks. Cleared legacy `text: 'Shared image'` payloads to prevent double-bubble nesting.
+
+- *Architecture Upgrade:* Migrated media uploads from Firebase Storage to a custom Google Apps Script backend hooked into a 5TB Google Drive to eliminate bandwidth costs. Configured a Base64 POST pipeline and isolated Time-Driven triggers for automated 5-day deletion.
+
+- *Architecture & Security:* Added local Firebase rules management. Updated `$chatId` rules to check group `members` arrays, fixing `PERMISSION_DENIED` errors for group lobbies. Replaced strict underscore string checks for DM identification with `!chatData.isGroup` evaluations. Added a 30-minute stale lobby overwrite to prevent chat locking.
+
+- *Game Engine Crash:* Lobbies failed to open in group chats because the initialization script relied on extracting a single `opponentId`. Solution: Replaced DM-specific opponent lookups with generic group-safe initialization payloads and enforced a 2-player minimum check before starting.
+
+- *Gameplay Enhancement:* Implemented Gartic-style logic for Doodle Dash. Added a native RGB color wheel, live chat feed for guesses, anti-spoiler blind logic hiding correct guessers' messages from active guessers, and a 3-second post-round word reveal screen.
+
+- *UI & Logic Overhaul:* Replaced default browser `<select>` and `<input type="color">` with custom, theme-styled segmented controls and color swatches. Patched Doodle Dash word repetition by tracking a `usedWords` array in Firebase and filtering the available pool during turn advances.
+
+- *Game Overhaul:* Upgraded Doodle Dash from single-round to turn-based multi-round rotation. Added round configuration lobby selector, letter-count hint generation (`_ _ _ _`), timer scaled to word difficulty, and a point scoring system based on answer speed leading to a final podium ranking.
+
+- *Feature Integration:* Added 'Doodle Dash' multiplayer drawing game. Implemented relative-coordinate `pointermove` syncing to Firebase `child_added` nodes, ensuring cross-device aspect ratio scaling and instant state retrieval for late joiners.
+
+- *Navigation Enhancement:* In-app notifications for new messages were purely visual. Solution: Upgraded `showNotification` to accept `onClick` callbacks, allowing users to tap a notification toast to instantly switch to the originating chat, complete with mobile drawer auto-close logic.
+
+- *Notification Overhaul:* In-app toasts were firing redundantly for active chats. Solution: Suppressed notifications if `incomingChatId === currentChatId`. Implemented `playThemeNotification()` to route audio files based on the active `body.theme-*` class.
+
+- *Theme Overhaul:* The Retro 2000s theme was a flat, ugly white. Solution: Injected an authentic MSN/XP Luna aesthetic using metallic silver gradients (`#ece9d8`), glossy blue accents (`#0b77e9`), text inversion, and enforced `Tahoma` as the base font.
+
+- *UI Color Clash:* The sidebar retained a hardcoded navy-blue tint (`rgba(14, 18, 42)`) that clashed with non-blue themes. Solution: Stripped out the navy base values and enforced `var(--solid-panel)` mixed dynamically with `var(--accent)` across both desktop and mobile breakpoints.
+
+- *UI & Logic Enhancement:* Fixed left-screen overflow on action menus via `Math.min/max` boundaries. Overhauled pinning to support up to 5 concurrent pins in groups (3 in DMs) via a horizontal CSS snap-scroll container. Pinned messages bypass the 5-day retention limit and are purged upon unpinning if expired.
+
+- *Feature Enhancement:* Added message pinning. Included a dynamic `pinnedMessageId` listener to render a clickable banner header. Enforced group role checks (Admins/Mods only in groups; open access in DMs) for the Pin/Unpin actions.
+
 - *Game Engine Exploit:* Players could submit invalid 5-letter gibberish strings (e.g., 'AAAAA') in Word Rush to brute-force color hints. Solution: Added a pre-submission `fetch` validation against `api.dictionaryapi.dev`, blocking progression and throwing an error toast if a 404 is returned.
 
 - *Feature Integration:* Added 'Word Rush' (multiplayer Wordle). Implemented localized grid rendering, strict tile color validation (consuming characters to prevent duplicate yellow hints), async completion state, and ranked podium sorting based on win status, attempts, and timestamp.

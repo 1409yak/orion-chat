@@ -3505,12 +3505,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.7';
+const CURRENT_APP_VERSION = '1.2.8';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.7';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.8';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3672,7 +3672,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.7';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.8';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -5922,8 +5922,52 @@ document.getElementById('chat-pic-input').onchange = async (e) => {
     reader.readAsDataURL(file);
 };
 
+window.toggleCustomVideo = function(buttonElement) {
+    const container = buttonElement.parentElement;
+    if (!container) return;
+    const video = container.querySelector('video');
+    if (!video) return;
+
+    if (video.paused) {
+        video.play();
+        buttonElement.style.opacity = '0';
+        buttonElement.style.pointerEvents = 'none';
+    } else {
+        video.pause();
+        buttonElement.style.opacity = '1';
+        buttonElement.style.pointerEvents = 'auto';
+    }
+};
+
+// Attach global listener to show button when video ends or pauses natively
+document.addEventListener('pause', (e) => {
+    if (e.target.tagName === 'VIDEO') {
+        const btn = e.target.parentElement?.querySelector('.custom-play-btn');
+        if (btn) {
+            btn.style.opacity = '1';
+            btn.style.pointerEvents = 'auto';
+        }
+    }
+}, true);
+
+document.addEventListener('ended', (e) => {
+    if (e.target.tagName === 'VIDEO') {
+        const btn = e.target.parentElement?.querySelector('.custom-play-btn');
+        if (btn) {
+            btn.style.opacity = '1';
+            btn.style.pointerEvents = 'auto';
+        }
+    }
+}, true);
+
 window.loadDriveIframe = function(el, url) {
     console.warn("[Video] Native stream blocked by client. Falling back to iframe.");
+    const container = el.parentElement;
+    if (container) {
+        const btn = container.querySelector('.custom-play-btn');
+        if (btn) btn.remove();
+        container.onclick = null;
+    }
     el.outerHTML = `<div style="width: 100%; height: 350px; border-radius: 12px; overflow: hidden; background: #000; margin-top: 8px;"><iframe src="${url}" referrerpolicy="no-referrer" style="width: 100%; height: 100%; border: none;" allowfullscreen></iframe></div>`;
 };
 
@@ -6211,16 +6255,21 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         const vidIdMatch = msg.videoUrl.match(/id=([^&]+)/) || msg.videoUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
         const vidId = vidIdMatch ? vidIdMatch[1] : null;
 
-        // Extract raw stream for native player, keep iframe URL for PC fallback
         const streamUrl = vidId ? `https://drive.google.com/uc?export=download&id=${vidId}` : msg.videoUrl;
         const iframeUrl = vidId ? `https://drive.google.com/file/d/${vidId}/preview` : msg.videoUrl;
 
         const videoWrap = document.createElement('div');
         videoWrap.className = 'video-embed-wrapper';
-        videoWrap.style.cssText = 'width: 100%; margin-top: 5px;';
-        videoWrap.innerHTML = `<video src="${streamUrl}" controls playsinline preload="metadata" referrerpolicy="no-referrer" 
-            style="max-width: 100%; width: 100%; border-radius: 8px; margin-top: 5px; background: transparent; outline: none; box-shadow: 0 2px 8px rgba(0,0,0,0.15);" 
-            onerror="if(typeof loadDriveIframe === 'function') loadDriveIframe(this, '${iframeUrl}')"></video>`;
+        videoWrap.style.cssText = 'position: relative; max-width: 100%; width: 100%; margin-top: 5px; border-radius: 8px; overflow: hidden; background: #000; box-shadow: 0 2px 8px rgba(0,0,0,0.15);';
+        videoWrap.setAttribute('onclick', "if(typeof toggleCustomVideo === 'function') { const btn = this.querySelector('.custom-play-btn'); if(btn) toggleCustomVideo(btn); }");
+        videoWrap.innerHTML = `
+            <video src="${streamUrl}" playsinline preload="metadata" referrerpolicy="no-referrer" 
+                style="width: 100%; display: block; outline: none;" 
+                onerror="if(typeof loadDriveIframe === 'function') loadDriveIframe(this, '${iframeUrl}')"></video>
+            
+            <div class="custom-play-btn" style="position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); width: 50px; height: 50px; background: rgba(255, 255, 255, 0.2); backdrop-filter: blur(4px); border-radius: 50%; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: opacity 0.2s ease; border: 1px solid rgba(255,255,255,0.4);">
+                <div style="width: 0; height: 0; border-top: 10px solid transparent; border-bottom: 10px solid transparent; border-left: 15px solid white; margin-left: 5px;"></div>
+            </div>`;
         msgContent.appendChild(videoWrap);
     }
 
