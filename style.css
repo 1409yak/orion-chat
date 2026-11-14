@@ -1518,6 +1518,17 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
 }
 #message-input { flex: 1; background: none; border: none; color: var(--text); padding: 10px; outline: none; z-index: 10; user-select: text; }
 #message-input::placeholder { color: var(--text); opacity: 0.5; }
+#message-input[contenteditable="true"] {
+    white-space: pre-wrap;
+    word-break: break-word;
+    max-height: 120px;
+    overflow-y: auto;
+}
+[contenteditable="true"][data-placeholder]:empty::before {
+    content: attr(data-placeholder);
+    color: rgba(255, 255, 255, 0.45);
+    pointer-events: none;
+}
 .send-icon-btn { width: 40px; height: 40px; background: var(--accent); border: none; border-radius: 50%; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
 
 .section-header { 

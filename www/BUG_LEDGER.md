@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Native Clipboard Paste Fix:* Removed the manual clipboard button (`navigator.clipboard.read` is blocked without native plugin permissions in Android WebView). Converted the chat input to `contenteditable="true"` with a `.value` property shim so Android `InputConnection` advertises `image/*` support to Gboard/Samsung Keyboard, and routed `paste`/`beforeinput` image blobs directly into the chat attachment upload routine.
+
 - *Clipboard Image Fix:* Replaced custom upload logic inside the `paste` listener with a `DataTransfer` bridge into the existing `<input type="file">` element so PC `Ctrl+V` triggers the native attachment handler directly. Added `navigator.clipboard.read()` and a dedicated paste button to bypass Android `<input type="text">` IME restrictions on mobile image pasting.
 
 - *Feature Addition (Clipboard Paste):* Added a `paste` event listener that intercepts `image/*` items from `event.clipboardData.items`, wraps the blob in a timestamped `File` object, enforces the 50MB memory guard, and routes it through `uploadMediaToDrive`.

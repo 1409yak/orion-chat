@@ -3505,12 +3505,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.14';
+const CURRENT_APP_VERSION = '1.2.15';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.14';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.15';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3672,7 +3672,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.14';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.15';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -7721,6 +7721,89 @@ document.addEventListener('click', (e) => {
 });
 
 const messageInput = document.getElementById('message-input');
+const chatInputEl = messageInput;
+if (chatInputEl && chatInputEl.getAttribute('contenteditable') === 'true') {
+    Object.defineProperty(chatInputEl, 'value', {
+        get() {
+            return (this.innerText || '').replace(/^\n+|\n+$/g, '');
+        },
+        set(val) {
+            this.innerText = val || '';
+            if (!val) this.innerHTML = '';
+        },
+        configurable: true
+    });
+    Object.defineProperty(chatInputEl, 'selectionStart', {
+        get() {
+            const sel = window.getSelection();
+            if (!sel || !sel.rangeCount) return (this.innerText || '').length;
+            const range = sel.getRangeAt(0);
+            const preRange = range.cloneRange();
+            preRange.selectNodeContents(this);
+            preRange.setEnd(range.startContainer, range.startOffset);
+            return preRange.toString().length;
+        },
+        configurable: true
+    });
+    Object.defineProperty(chatInputEl, 'selectionEnd', {
+        get() {
+            const sel = window.getSelection();
+            if (!sel || !sel.rangeCount) return (this.innerText || '').length;
+            const range = sel.getRangeAt(0);
+            const preRange = range.cloneRange();
+            preRange.selectNodeContents(this);
+            preRange.setEnd(range.endContainer, range.endOffset);
+            return preRange.toString().length;
+        },
+        configurable: true
+    });
+    chatInputEl.setSelectionRange = function(start, end) {
+        try {
+            const sel = window.getSelection();
+            if (!sel) return;
+            const range = document.createRange();
+            let charCount = 0;
+            let startNode = this, startOffset = 0;
+            let endNode = this, endOffset = 0;
+            let foundStart = false, foundEnd = false;
+
+            function traverseNodes(node) {
+                if (node.nodeType === Node.TEXT_NODE) {
+                    const nextCount = charCount + node.length;
+                    if (!foundStart && start >= charCount && start <= nextCount) {
+                        startNode = node;
+                        startOffset = start - charCount;
+                        foundStart = true;
+                    }
+                    if (!foundEnd && end >= charCount && end <= nextCount) {
+                        endNode = node;
+                        endOffset = end - charCount;
+                        foundEnd = true;
+                    }
+                    charCount = nextCount;
+                } else {
+                    for (let i = 0; i < node.childNodes.length; i++) {
+                        traverseNodes(node.childNodes[i]);
+                        if (foundStart && foundEnd) break;
+                    }
+                }
+            }
+
+            traverseNodes(this);
+            range.setStart(startNode, startOffset);
+            range.setEnd(endNode, endOffset);
+            sel.removeAllRanges();
+            sel.addRange(range);
+        } catch (e) {
+            console.warn('[contenteditable] setSelectionRange error:', e);
+        }
+    };
+    chatInputEl.addEventListener('blur', () => {
+        if (!chatInputEl.innerText.trim()) {
+            chatInputEl.innerHTML = '';
+        }
+    });
+}
 
 messageInput.onkeydown = (e) => {
     if (e.key === 'Escape') {
@@ -7746,6 +7829,7 @@ messageInput.onkeydown = (e) => {
             }
         }
     } else if (e.key === 'Enter') {
+        e.preventDefault();
         sendMessage();
     }
 };
@@ -7804,6 +7888,9 @@ function renderMentionDropdownList(filter = "") {
 
 messageInput.oninput = (e) => {
     const val = e.target.value;
+    if (!val.trim() && e.target.innerHTML !== '') {
+        e.target.innerHTML = '';
+    }
     const cursor = e.target.selectionStart;
     const lastChar = val.charAt(cursor - 1);
     const textBeforeCursor = val.substring(0, cursor);
@@ -7838,13 +7925,10 @@ messageInput.oninput = (e) => {
     updateInputButtons();
 };
 
-window.triggerFileUploadFromBlob = function(blob) {
+window.handleChatPastedImage = function(blob) {
     if (!blob) return;
-    console.log("[Clipboard] Image detected in clipboard:", blob.type, blob.size);
-
-    const fileInput = document.getElementById('media-upload') || document.getElementById('file-upload-input') || document.querySelector('input[type="file"][accept*="image"]');
-    if (!fileInput) {
-        console.error("[Clipboard] Could not find file input element.");
+    if (!currentChatId) {
+        if (typeof showNotification === 'function') showNotification("Please select a chat first", "error");
         return;
     }
 
@@ -7853,73 +7937,40 @@ window.triggerFileUploadFromBlob = function(blob) {
         ? blob
         : new File([blob], `pasted_${Date.now()}.${ext}`, { type: blob.type || 'image/png' });
 
-    const dt = new DataTransfer();
-    dt.items.add(namedFile);
-    fileInput.files = dt.files;
-    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+    console.log("[Clipboard] Uploading pasted image via chat attachment routine:", namedFile.name, namedFile.size);
+    handleMediaUpload(namedFile, 'Pasted Image');
 };
 
-// Capture-phase listener for PC Ctrl+V and rich-content paste
 window.addEventListener('paste', (event) => {
     const cd = event.clipboardData || window.clipboardData;
     if (!cd) return;
 
-    // Check clipboardData.files first
-    if (cd.files && cd.files.length > 0) {
-        for (const file of cd.files) {
-            if (file.type.startsWith('image/')) {
-                event.preventDefault();
-                window.triggerFileUploadFromBlob(file);
-                return;
-            }
-        }
+    const files = cd.files && cd.files.length ? Array.from(cd.files) : [];
+    const itemFiles = cd.items
+        ? Array.from(cd.items).filter(i => i.type && i.type.startsWith('image/')).map(i => i.getAsFile()).filter(Boolean)
+        : [];
+    const imageFile = files.find(f => f.type && f.type.startsWith('image/')) || itemFiles[0];
+
+    if (imageFile) {
+        event.preventDefault();
+        window.handleChatPastedImage(imageFile);
+        return;
     }
 
-    // Fallback to clipboardData.items
-    if (cd.items) {
-        for (const item of cd.items) {
-            if (item.type && item.type.startsWith('image/')) {
-                const blob = item.getAsFile();
-                if (blob) {
-                    event.preventDefault();
-                    window.triggerFileUploadFromBlob(blob);
-                    return;
-                }
-            }
-        }
+    // Keep text pastes inside the contenteditable chat input strictly plain text
+    if (event.target && event.target.isContentEditable) {
+        event.preventDefault();
+        const text = cd.getData('text/plain');
+        if (text) document.execCommand('insertText', false, text);
     }
 }, true);
 
-window.pasteImageFromClipboard = async function() {
-    try {
-        if (!navigator.clipboard || !navigator.clipboard.read) {
-            if (typeof showNotification === 'function') showNotification("Clipboard image read not supported on this device", "error");
-            return;
-        }
-        const clipboardItems = await navigator.clipboard.read();
-        for (const item of clipboardItems) {
-            const imageType = item.types.find(type => type.startsWith('image/'));
-            if (imageType) {
-                const blob = await item.getType(imageType);
-                window.triggerFileUploadFromBlob(blob);
-                return;
-            }
-        }
-        if (typeof showNotification === 'function') showNotification("No image found in clipboard", "info");
-    } catch (err) {
-        console.error("[Clipboard] navigator.clipboard.read failed:", err);
-        if (typeof showNotification === 'function') showNotification("Allow clipboard permission to paste images", "error");
-    }
-};
-
 document.addEventListener('beforeinput', (event) => {
     if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
-        for (const file of event.dataTransfer.files) {
-            if (file.type.startsWith('image/')) {
-                event.preventDefault();
-                window.triggerFileUploadFromBlob(file);
-                return;
-            }
+        const imageFile = Array.from(event.dataTransfer.files).find(f => f.type && f.type.startsWith('image/'));
+        if (imageFile) {
+            event.preventDefault();
+            window.handleChatPastedImage(imageFile);
         }
     }
 }, true);
@@ -8079,13 +8130,11 @@ function updateInputButtons() {
     const plusBtn = document.getElementById('plus-btn');
     const cameraBtn = document.getElementById('camera-btn');
     const stickerBtn = document.getElementById('sticker-btn');
-    const pasteBtn = document.getElementById('clipboard-paste-btn');
     if (!input || !sendBtn) return;
 
     if (!currentChatId) {
         if (plusBtn) plusBtn.style.display = 'none';
         if (cameraBtn) cameraBtn.style.display = 'none';
-        if (pasteBtn) pasteBtn.style.display = 'none';
         sendBtn.style.display = 'none';
         return;
     }
@@ -8097,13 +8146,11 @@ function updateInputButtons() {
         sendBtn.style.display = isMobile ? 'flex' : 'none';
         if (isMobile && plusBtn) plusBtn.style.display = 'none';
         if (isMobile && cameraBtn) cameraBtn.style.display = 'none';
-        if (isMobile && pasteBtn) pasteBtn.style.display = 'none';
         if (stickerBtn) stickerBtn.style.display = 'none';
     } else {
         sendBtn.style.display = 'none';
         if (plusBtn) plusBtn.style.display = 'inline-flex';
         if (cameraBtn) cameraBtn.style.display = 'none';
-        if (pasteBtn) pasteBtn.style.display = 'inline-flex';
         if (stickerBtn) stickerBtn.style.display = 'none';
     }
 }
