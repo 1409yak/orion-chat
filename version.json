@@ -1,6 +1,6 @@
 {
-  "version": "1.2.13",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.13/bundle.zip",
-  "checksum": "9a18a6ea5772ea4e7103b08815228ade094bdb2e429bb6ce98d6d0193149e6ce",
-  "notes": "Added support for pasting images from clipboard"
+  "version": "1.2.14",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.14/bundle.zip",
+  "checksum": "27262d59cc2b8b358cc53c8e0190c94c92d7d3a3f8b9fe41bd21c8238f7cbfca",
+  "notes": "Fixed clipboard image pasting on PC and mobile"
 }
