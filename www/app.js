@@ -3505,12 +3505,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.12';
+const CURRENT_APP_VERSION = '1.2.13';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.12';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.13';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3672,7 +3672,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.12';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.13';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -7838,23 +7838,100 @@ messageInput.oninput = (e) => {
     updateInputButtons();
 };
 
-messageInput.addEventListener('paste', async (e) => {
-    const items = (e.clipboardData || e.originalEvent?.clipboardData)?.items;
+// Global Clipboard Paste Listener
+document.addEventListener('paste', async (event) => {
+    // Only handle paste if the user is logged in and inside an active chat
+    if (!auth?.currentUser || !currentChatId) return;
+
+    const items = (event.clipboardData || event.originalEvent?.clipboardData)?.items;
     if (!items) return;
 
     for (const item of items) {
-        if (item.kind === 'file' && item.type.startsWith('image/')) {
-            e.preventDefault(); // Stop default text pasting
-            const file = item.getAsFile();
-            if (!file) continue;
-            
-            // Send seamlessly without confirmation to mimic native sticker behavior
-            try {
-                // Uses the existing handleMediaUpload function
-                await handleMediaUpload(file, 'Keyboard Sticker');
-            } catch (err) {
-                console.error("[Keyboard] Sticker upload failed:", err);
+        if (item.type && item.type.startsWith('image/')) {
+            event.preventDefault(); // Prevent pasting raw binary/filename text into input
+            const blob = item.getAsFile();
+            if (!blob) return;
+
+            // Check 50MB RAM limit
+            const maxSizeMB = 50;
+            if (blob.size > maxSizeMB * 1024 * 1024) {
+                return showNotification(`Pasted image is too large! Max size is ${maxSizeMB}MB.`, "error");
             }
+
+            // Ensure a clean filename with extension for Apps Script Drive upload
+            const ext = (blob.type.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '');
+            const namedFile = new File([blob], `pasted_${Date.now()}.${ext}`, { type: blob.type });
+
+            try {
+                showNotification("Uploading pasted image...", "info");
+                const driveUrl = await uploadMediaToDrive(namedFile);
+
+                const destChatId = currentChatId;
+                const msgRef = push(ref(db, `messages/${destChatId}`));
+                const senderName = document.getElementById('current-user-name')?.innerText || auth.currentUser?.displayName || "User";
+                let identityName = senderName;
+                try {
+                    const chatSnap = await get(ref(db, `chats/${destChatId}`));
+                    const chatData = chatSnap.val();
+                    if (chatData?.isChannel) {
+                        identityName = chatData.title || senderName;
+                    }
+                } catch (e) {
+                    console.warn('[Clipboard] Could not fetch chat title for identity:', e);
+                }
+
+                await update(msgRef, {
+                    sender: auth.currentUser.uid,
+                    sender_id: auth.currentUser.uid,
+                    sender_name: identityName,
+                    text: "",
+                    imageUrl: driveUrl,
+                    videoUrl: null,
+                    timestamp: Date.now(),
+                    createdAt: serverTimestamp()
+                });
+
+                const lastMsgText = "Sent an image";
+                const chatUpdates = {};
+                chatUpdates[`/chats/${destChatId}/last_message`] = lastMsgText;
+                chatUpdates[`/chats/${destChatId}/timestamp`] = serverTimestamp();
+
+                try {
+                    const membersSnap = await get(ref(db, `members/${destChatId}`));
+                    const members = membersSnap.val();
+                    if (members) {
+                        Object.keys(members).forEach(uid => { 
+                            if (uid !== auth.currentUser.uid) chatUpdates[`/unread/${uid}/${destChatId}`] = true; 
+                        });
+                    }
+                    await update(ref(db), chatUpdates);
+
+                    if (members) {
+                        const recipientUids = Object.keys(members).filter(uid => uid !== auth.currentUser.uid);
+                        (async () => {
+                            for (const rUid of recipientUids) {
+                                try {
+                                    const userSnap = await get(ref(db, `users/${rUid}/fcmToken`));
+                                    const recipientFcmToken = userSnap.val();
+                                    if (recipientFcmToken) {
+                                        sendPushNotification(recipientFcmToken, identityName, lastMsgText, { chatId: destChatId });
+                                    }
+                                } catch (notifyErr) {
+                                    console.error("[FCM Worker] Error notifying recipient for pasted image:", rUid, notifyErr);
+                                }
+                            }
+                        })().catch(err => console.warn('[Clipboard] Background notification dispatch error:', err));
+                    }
+                } catch (dbErr) {
+                    console.warn('[Clipboard] Failed to update chat metadata/unread:', dbErr);
+                }
+
+                showNotification("Sent!", "success");
+            } catch (err) {
+                console.error("[Clipboard] Paste upload failed:", err);
+                showNotification("Failed to upload pasted image", "error");
+            }
+            break;
         }
     }
 });
