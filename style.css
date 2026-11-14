@@ -5489,6 +5489,15 @@ body.theme-light .pinned-item:hover {
     display: none;
 }
 
+@media (max-width: 600px) {
+    .message:has(.drive-video-wrapper),
+    .message-bubble:has(.drive-video-wrapper) {
+        max-width: 88% !important;
+        width: 88% !important;
+    }
+}
+
+
 
 
 
