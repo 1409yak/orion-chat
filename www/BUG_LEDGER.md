@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Video UI Expansion:* Custom CSS overlays restricted access to OS-level fullscreen and timeline APIs. Additionally, `overflow: hidden` wrappers were physically clipping player controls on varied aspect ratios. Solution: Reverted to pure native `<video controls>` to restore fullscreen capabilities. Eliminated restrictive DOM wrappers and increased vertical bounds to `70vh` to allow massive, unclipped media rendering.
+
 - *Video UI Customization:* Dropped the native OS `controls` attribute in favor of a custom-built CSS play button overlay. Utilized `playsinline` and a JavaScript controller to manage playback state, providing a unified, styled media experience across all mobile devices while maintaining the ad-blocker iframe fallback.
 
 - *Architecture Optimization:* The client-side `cleanupOldMessages` routine crashed mobile WebViews and failed due to index requirements. Solution: Stripped the routine from the frontend entirely. Offloaded 5-day message retention policies to a daily automated Google Apps Script Cron job interacting securely via the Firebase REST API.
