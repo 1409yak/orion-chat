@@ -1,6 +1,6 @@
 {
-  "version": "1.2.7",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.7/bundle.zip",
-  "checksum": "1f3108d1f930b09dd247f7f337d07a4df14417f3421f1e18c1fc845b61e3aacc",
-  "notes": "Backend optimization for faster app launch"
+  "version": "1.2.8",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.8/bundle.zip",
+  "checksum": "7656a93754d0f83e734bdeb33d8459288333c7399615231efb44ba1965e0d532",
+  "notes": "Custom video player UI"
 }
