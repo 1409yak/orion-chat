@@ -1,6 +1,6 @@
 {
-  "version": "1.2.9",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.9/bundle.zip",
-  "checksum": "d7acd810d9637a5f888726928594124c9b07d35dec3cd27d6d0fe4df6ed86e59",
-  "notes": "Expanded video player with fullscreen support"
+  "version": "1.2.10",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.10/bundle.zip",
+  "checksum": "20e585df1012e4226c0f497a4ca1425e1d18ed16257394c16fa212eb32283c31",
+  "notes": "Improved mobile video player layout"
 }
