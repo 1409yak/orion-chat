@@ -1,6 +1,6 @@
 {
-  "version": "1.2.12",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.12/bundle.zip",
-  "checksum": "d1bc6c1dac01eff3c1f4fddb953663c17d172a198cfcf47b442590b54f081b1e",
-  "notes": "Fixed video player sizing across devices"
+  "version": "1.2.13",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.13/bundle.zip",
+  "checksum": "9a18a6ea5772ea4e7103b08815228ade094bdb2e429bb6ce98d6d0193149e6ce",
+  "notes": "Added support for pasting images from clipboard"
 }
