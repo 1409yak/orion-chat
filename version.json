@@ -1,6 +1,6 @@
 {
-  "version": "1.2.11",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.11/bundle.zip",
-  "checksum": "59841344aa1cc2f6bace59be7486d48519c3e61bc782a42473de2cd70d9322db",
-  "notes": "Fixed mobile video player layout stability"
+  "version": "1.2.12",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.12/bundle.zip",
+  "checksum": "d1bc6c1dac01eff3c1f4fddb953663c17d172a198cfcf47b442590b54f081b1e",
+  "notes": "Fixed video player sizing across devices"
 }
