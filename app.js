@@ -3505,12 +3505,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.13';
+const CURRENT_APP_VERSION = '1.2.14';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.13';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.14';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3672,7 +3672,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.13';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.14';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -7838,103 +7838,91 @@ messageInput.oninput = (e) => {
     updateInputButtons();
 };
 
-// Global Clipboard Paste Listener
-document.addEventListener('paste', async (event) => {
-    // Only handle paste if the user is logged in and inside an active chat
-    if (!auth?.currentUser || !currentChatId) return;
+window.triggerFileUploadFromBlob = function(blob) {
+    if (!blob) return;
+    console.log("[Clipboard] Image detected in clipboard:", blob.type, blob.size);
 
-    const items = (event.clipboardData || event.originalEvent?.clipboardData)?.items;
-    if (!items) return;
+    const fileInput = document.getElementById('media-upload') || document.getElementById('file-upload-input') || document.querySelector('input[type="file"][accept*="image"]');
+    if (!fileInput) {
+        console.error("[Clipboard] Could not find file input element.");
+        return;
+    }
 
-    for (const item of items) {
-        if (item.type && item.type.startsWith('image/')) {
-            event.preventDefault(); // Prevent pasting raw binary/filename text into input
-            const blob = item.getAsFile();
-            if (!blob) return;
+    const ext = (blob.type.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '');
+    const namedFile = blob instanceof File && blob.name
+        ? blob
+        : new File([blob], `pasted_${Date.now()}.${ext}`, { type: blob.type || 'image/png' });
 
-            // Check 50MB RAM limit
-            const maxSizeMB = 50;
-            if (blob.size > maxSizeMB * 1024 * 1024) {
-                return showNotification(`Pasted image is too large! Max size is ${maxSizeMB}MB.`, "error");
+    const dt = new DataTransfer();
+    dt.items.add(namedFile);
+    fileInput.files = dt.files;
+    fileInput.dispatchEvent(new Event('change', { bubbles: true }));
+};
+
+// Capture-phase listener for PC Ctrl+V and rich-content paste
+window.addEventListener('paste', (event) => {
+    const cd = event.clipboardData || window.clipboardData;
+    if (!cd) return;
+
+    // Check clipboardData.files first
+    if (cd.files && cd.files.length > 0) {
+        for (const file of cd.files) {
+            if (file.type.startsWith('image/')) {
+                event.preventDefault();
+                window.triggerFileUploadFromBlob(file);
+                return;
             }
-
-            // Ensure a clean filename with extension for Apps Script Drive upload
-            const ext = (blob.type.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '');
-            const namedFile = new File([blob], `pasted_${Date.now()}.${ext}`, { type: blob.type });
-
-            try {
-                showNotification("Uploading pasted image...", "info");
-                const driveUrl = await uploadMediaToDrive(namedFile);
-
-                const destChatId = currentChatId;
-                const msgRef = push(ref(db, `messages/${destChatId}`));
-                const senderName = document.getElementById('current-user-name')?.innerText || auth.currentUser?.displayName || "User";
-                let identityName = senderName;
-                try {
-                    const chatSnap = await get(ref(db, `chats/${destChatId}`));
-                    const chatData = chatSnap.val();
-                    if (chatData?.isChannel) {
-                        identityName = chatData.title || senderName;
-                    }
-                } catch (e) {
-                    console.warn('[Clipboard] Could not fetch chat title for identity:', e);
-                }
-
-                await update(msgRef, {
-                    sender: auth.currentUser.uid,
-                    sender_id: auth.currentUser.uid,
-                    sender_name: identityName,
-                    text: "",
-                    imageUrl: driveUrl,
-                    videoUrl: null,
-                    timestamp: Date.now(),
-                    createdAt: serverTimestamp()
-                });
-
-                const lastMsgText = "Sent an image";
-                const chatUpdates = {};
-                chatUpdates[`/chats/${destChatId}/last_message`] = lastMsgText;
-                chatUpdates[`/chats/${destChatId}/timestamp`] = serverTimestamp();
-
-                try {
-                    const membersSnap = await get(ref(db, `members/${destChatId}`));
-                    const members = membersSnap.val();
-                    if (members) {
-                        Object.keys(members).forEach(uid => { 
-                            if (uid !== auth.currentUser.uid) chatUpdates[`/unread/${uid}/${destChatId}`] = true; 
-                        });
-                    }
-                    await update(ref(db), chatUpdates);
-
-                    if (members) {
-                        const recipientUids = Object.keys(members).filter(uid => uid !== auth.currentUser.uid);
-                        (async () => {
-                            for (const rUid of recipientUids) {
-                                try {
-                                    const userSnap = await get(ref(db, `users/${rUid}/fcmToken`));
-                                    const recipientFcmToken = userSnap.val();
-                                    if (recipientFcmToken) {
-                                        sendPushNotification(recipientFcmToken, identityName, lastMsgText, { chatId: destChatId });
-                                    }
-                                } catch (notifyErr) {
-                                    console.error("[FCM Worker] Error notifying recipient for pasted image:", rUid, notifyErr);
-                                }
-                            }
-                        })().catch(err => console.warn('[Clipboard] Background notification dispatch error:', err));
-                    }
-                } catch (dbErr) {
-                    console.warn('[Clipboard] Failed to update chat metadata/unread:', dbErr);
-                }
-
-                showNotification("Sent!", "success");
-            } catch (err) {
-                console.error("[Clipboard] Paste upload failed:", err);
-                showNotification("Failed to upload pasted image", "error");
-            }
-            break;
         }
     }
-});
+
+    // Fallback to clipboardData.items
+    if (cd.items) {
+        for (const item of cd.items) {
+            if (item.type && item.type.startsWith('image/')) {
+                const blob = item.getAsFile();
+                if (blob) {
+                    event.preventDefault();
+                    window.triggerFileUploadFromBlob(blob);
+                    return;
+                }
+            }
+        }
+    }
+}, true);
+
+window.pasteImageFromClipboard = async function() {
+    try {
+        if (!navigator.clipboard || !navigator.clipboard.read) {
+            if (typeof showNotification === 'function') showNotification("Clipboard image read not supported on this device", "error");
+            return;
+        }
+        const clipboardItems = await navigator.clipboard.read();
+        for (const item of clipboardItems) {
+            const imageType = item.types.find(type => type.startsWith('image/'));
+            if (imageType) {
+                const blob = await item.getType(imageType);
+                window.triggerFileUploadFromBlob(blob);
+                return;
+            }
+        }
+        if (typeof showNotification === 'function') showNotification("No image found in clipboard", "info");
+    } catch (err) {
+        console.error("[Clipboard] navigator.clipboard.read failed:", err);
+        if (typeof showNotification === 'function') showNotification("Allow clipboard permission to paste images", "error");
+    }
+};
+
+document.addEventListener('beforeinput', (event) => {
+    if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
+        for (const file of event.dataTransfer.files) {
+            if (file.type.startsWith('image/')) {
+                event.preventDefault();
+                window.triggerFileUploadFromBlob(file);
+                return;
+            }
+        }
+    }
+}, true);
 
 // Reusable media file upload handler
 async function handleMediaUpload(file, sourceLabel = 'File') {
@@ -8091,11 +8079,13 @@ function updateInputButtons() {
     const plusBtn = document.getElementById('plus-btn');
     const cameraBtn = document.getElementById('camera-btn');
     const stickerBtn = document.getElementById('sticker-btn');
+    const pasteBtn = document.getElementById('clipboard-paste-btn');
     if (!input || !sendBtn) return;
 
     if (!currentChatId) {
         if (plusBtn) plusBtn.style.display = 'none';
         if (cameraBtn) cameraBtn.style.display = 'none';
+        if (pasteBtn) pasteBtn.style.display = 'none';
         sendBtn.style.display = 'none';
         return;
     }
@@ -8107,11 +8097,13 @@ function updateInputButtons() {
         sendBtn.style.display = isMobile ? 'flex' : 'none';
         if (isMobile && plusBtn) plusBtn.style.display = 'none';
         if (isMobile && cameraBtn) cameraBtn.style.display = 'none';
+        if (isMobile && pasteBtn) pasteBtn.style.display = 'none';
         if (stickerBtn) stickerBtn.style.display = 'none';
     } else {
         sendBtn.style.display = 'none';
         if (plusBtn) plusBtn.style.display = 'inline-flex';
         if (cameraBtn) cameraBtn.style.display = 'none';
+        if (pasteBtn) pasteBtn.style.display = 'inline-flex';
         if (stickerBtn) stickerBtn.style.display = 'none';
     }
 }
