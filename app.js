@@ -3505,12 +3505,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.16';
+const CURRENT_APP_VERSION = '1.2.17';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.16';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.17';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3672,7 +3672,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.16';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.17';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -7639,106 +7639,193 @@ function setupInputAreaListeners() {
     }
 }
 
-window.toggleAttachmentMenu = function(e) {
-    if (e) e.stopPropagation();
-    const menu = document.getElementById('attachment-menu');
-    if (!menu) return;
-    menu.style.display = menu.style.display === 'none' || menu.style.display === '' ? 'flex' : 'none';
-};
+// --- Global Event Delegation for Paperclip Menu ---
+document.addEventListener('click', (e) => {
+    // 1. Toggle the Paperclip Menu
+    const plusBtnClick = e.target.closest('#plus-btn');
+    const plusMenu = document.getElementById('plus-menu');
 
-document.addEventListener('click', () => {
-    const menu = document.getElementById('attachment-menu');
-    if (menu) menu.style.display = 'none';
-});
-
-window.triggerGalleryUpload = function() {
-    const menu = document.getElementById('attachment-menu');
-    if (menu) menu.style.display = 'none';
-    const fileInput = document.getElementById('file-upload-input');
-    if (fileInput) {
-        fileInput.click();
-    } else {
-        console.error('[Attachment] Could not find #file-upload-input');
-    }
-};
-
-window.requestClipboardPermissionAndPaste = async function() {
-    const menu = document.getElementById('attachment-menu');
-    if (menu) menu.style.display = 'none';
-
-    try {
-        // 1. Query permission state if Permissions API is available
-        if (navigator.permissions && navigator.permissions.query) {
-            try {
-                const status = await navigator.permissions.query({ name: 'clipboard-read' });
-                console.log('[Clipboard] Permission state:', status.state);
-            } catch (permErr) {
-                // Ignore if browser doesn't recognize 'clipboard-read' query name
+    if (plusBtnClick) {
+        e.stopPropagation(); // Stop global click from immediately hiding it
+        if (plusMenu) {
+            const isOpening = plusMenu.style.display === 'none' || plusMenu.classList.contains('hidden');
+            if (isOpening) {
+                plusMenu.classList.remove('hidden');
+                plusMenu.style.display = 'flex';
+                const ep = document.getElementById('emoji-picker');
+                if (ep) ep.style.display = 'none';
+                activeReactionMessageId = null;
+            } else {
+                plusMenu.style.display = 'none';
+                plusMenu.classList.add('hidden');
             }
         }
+        return;
+    }
 
-        // 2. Calling clipboard.read() directly inside the click handler triggers the native permission prompt
+    // 2. Handle Menu Options dynamically
+    if (e.target.closest('#camera-option-btn')) {
+        if (plusMenu) {
+            plusMenu.style.display = 'none';
+            plusMenu.classList.add('hidden');
+        }
+        document.getElementById('camera-input')?.click();
+        return;
+    }
+    
+    if (e.target.closest('#upload-image-option') || e.target.closest('#upload-file-option')) {
+        if (plusMenu) {
+            plusMenu.style.display = 'none';
+            plusMenu.classList.add('hidden');
+        }
+        document.getElementById('file-upload-input')?.click();
+        return;
+    }
+    
+    if (e.target.closest('#create-poll-option')) {
+        if (plusMenu) {
+            plusMenu.style.display = 'none';
+            plusMenu.classList.add('hidden');
+        }
+        const pollModal = document.getElementById('poll-modal');
+        if (pollModal) {
+            pollModal.style.display = 'flex';
+            // Reset poll inputs
+            const pollQ = document.getElementById('poll-question');
+            if (pollQ) pollQ.value = '';
+            const pollOpts = document.getElementById('poll-options-container');
+            if (pollOpts) {
+                pollOpts.innerHTML = '<label>Options</label><input type="text" class="poll-option-input" placeholder="Option 1"><input type="text" class="poll-option-input" placeholder="Option 2">';
+            }
+        }
+        return;
+    }
+    
+    if (e.target.closest('#open-games-option')) {
+        if (plusMenu) {
+            plusMenu.style.display = 'none';
+            plusMenu.classList.add('hidden');
+        }
+        const gamesModal = document.getElementById('games-library-modal');
+        if (gamesModal) gamesModal.style.display = 'flex';
+        return;
+    }
+
+    if (e.target.closest('#clipboard-paste-option')) {
+        if (plusMenu) {
+            plusMenu.style.display = 'none';
+            plusMenu.classList.add('hidden');
+        }
+        window.pasteLastCopiedItem();
+        return;
+    }
+
+    // 3. Close menu when clicking outside
+    if (!e.target.closest('#plus-menu')) {
+        if (plusMenu && (plusMenu.style.display !== 'none' || !plusMenu.classList.contains('hidden'))) {
+            plusMenu.style.display = 'none';
+            plusMenu.classList.add('hidden');
+        }
+    }
+});
+
+window.pasteLastCopiedItem = async function() {
+    // Close the existing attachment menu if open
+    const activeMenu = document.getElementById('plus-menu');
+    if (activeMenu) {
+        activeMenu.style.display = 'none';
+        activeMenu.classList.add('hidden');
+    }
+
+    if (!currentChatId || !auth?.currentUser) {
+        if (typeof showNotification === 'function') {
+            showNotification("Please select a chat first", "info");
+        }
+        return;
+    }
+
+    try {
+        // 1. Trigger permission check if supported by the browser/WebView
+        if (navigator.permissions && navigator.permissions.query) {
+            try {
+                await navigator.permissions.query({ name: 'clipboard-read' });
+            } catch (_) {}
+        }
+
+        // 2. Read clipboard items (triggers the "Allow access to clipboard?" prompt)
         if (navigator.clipboard && navigator.clipboard.read) {
             const clipboardItems = await navigator.clipboard.read();
-            for (const item of clipboardItems) {
-                const imageType = item.types.find(t => t.startsWith('image/'));
-                if (imageType) {
-                    const blob = await item.getType(imageType);
-                    await window.uploadPastedChatImage(blob);
+            if (!clipboardItems || clipboardItems.length === 0) {
+                return showNotification("Clipboard is empty", "info");
+            }
+
+            // Get the most recent item
+            const item = clipboardItems[0];
+
+            // Check for an image first
+            const imageType = item.types.find(type => type.startsWith('image/'));
+            if (imageType) {
+                const blob = await item.getType(imageType);
+                const maxSizeMB = 50;
+                if (blob.size > maxSizeMB * 1024 * 1024) {
+                    return showNotification(`Pasted image is too large! Max ${maxSizeMB}MB.`, "error");
+                }
+
+                const ext = (imageType.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '');
+                const file = new File([blob], `pasted_${Date.now()}.${ext}`, { type: imageType });
+
+                // Route into the existing chat media upload function / file input
+                if (typeof handleMediaUpload === 'function') {
+                    await handleMediaUpload(file, 'Clipboard Paste');
+                } else {
+                    showNotification("Uploading pasted image...", "info");
+                    const driveUrl = await uploadMediaToDrive(file);
+                    const msgRef = push(ref(db, `messages/${currentChatId}`));
+                    await update(msgRef, {
+                        sender: auth.currentUser.uid,
+                        sender_id: auth.currentUser.uid,
+                        sender_name: document.getElementById('current-user-name')?.innerText || auth.currentUser?.displayName || "User",
+                        text: "",
+                        imageUrl: driveUrl,
+                        videoUrl: null,
+                        timestamp: Date.now(),
+                        createdAt: serverTimestamp()
+                    });
+                    showNotification("Sent!", "success");
+                }
+                return;
+            }
+
+            // If no image, check if the user copied plain text
+            if (item.types.includes('text/plain')) {
+                const textBlob = await item.getType('text/plain');
+                const text = await textBlob.text();
+                const inputEl = document.getElementById('message-input') || document.querySelector('input[placeholder*="message" i]');
+                if (inputEl && text) {
+                    inputEl.value = (inputEl.value ? inputEl.value + ' ' : '') + text;
+                    if (typeof updateInputButtons === 'function') updateInputButtons();
+                    inputEl.focus();
                     return;
                 }
             }
-            if (typeof showNotification === 'function') {
-                showNotification("No image found in your clipboard.", "info");
-            }
-            return;
         }
-        throw new Error("Clipboard API unavailable");
-    } catch (err) {
-        console.warn("[Clipboard] Direct read blocked or denied, opening permission catcher modal:", err);
-        window.openClipboardCatcherModal();
-    }
-};
 
-window.openClipboardCatcherModal = function() {
-    let modal = document.getElementById('clipboard-catcher-modal');
-    if (modal) modal.remove();
-
-    modal = document.createElement('div');
-    modal.id = 'clipboard-catcher-modal';
-    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;';
-    modal.innerHTML = `
-        <div style="background:#1e1e2a;border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:18px;max-width:320px;width:100%;text-align:center;color:#fff;box-shadow:0 10px 30px rgba(0,0,0,0.5);">
-            <div style="font-weight:600;font-size:16px;margin-bottom:8px;">Paste Image from Clipboard</div>
-            <div style="font-size:13px;opacity:0.75;margin-bottom:14px;">Tap the box below or select the image from your keyboard clipboard bar to grant access:</div>
-            <div id="clipboard-paste-box" contenteditable="true" style="min-height:64px;border:2px dashed rgba(255,255,255,0.3);border-radius:10px;display:flex;align-items:center;justify-content:center;padding:10px;font-size:13px;color:rgba(255,255,255,0.6);outline:none;user-select:text;-webkit-user-select:text;">
-                Tap & Paste Here
-            </div>
-            <button type="button" style="margin-top:14px;padding:8px 18px;border-radius:8px;border:none;background:rgba(255,255,255,0.12);color:#fff;cursor:pointer;" onclick="document.getElementById('clipboard-catcher-modal')?.remove()">Cancel</button>
-        </div>
-    `;
-    document.body.appendChild(modal);
-
-    const box = document.getElementById('clipboard-paste-box');
-    if (box) {
-        setTimeout(() => box.focus(), 50);
-        const handleBoxImage = (file) => {
-            modal.remove();
-            window.uploadPastedChatImage(file);
-        };
-        box.addEventListener('paste', (e) => {
-            e.preventDefault();
-            const cd = e.clipboardData || window.clipboardData;
-            const file = (cd?.files && cd.files[0]) || (cd?.items && Array.from(cd.items).find(i => i.type.startsWith('image/'))?.getAsFile());
-            if (file) handleBoxImage(file);
-        });
-        box.addEventListener('beforeinput', (e) => {
-            const file = e.dataTransfer?.files && e.dataTransfer.files[0];
-            if (file && file.type.startsWith('image/')) {
-                e.preventDefault();
-                handleBoxImage(file);
+        // Fallback to readText() if clipboard.read() is not supported
+        if (navigator.clipboard && navigator.clipboard.readText) {
+            const text = await navigator.clipboard.readText();
+            const inputEl = document.getElementById('message-input') || document.querySelector('input[placeholder*="message" i]');
+            if (inputEl && text) {
+                inputEl.value = (inputEl.value ? inputEl.value + ' ' : '') + text;
+                if (typeof updateInputButtons === 'function') updateInputButtons();
+                inputEl.focus();
+                return;
             }
-        });
+        }
+
+        showNotification("Nothing found in clipboard to paste", "info");
+    } catch (err) {
+        console.error("[Clipboard] Permission denied or read failed:", err);
+        showNotification("Clipboard access denied. Please allow clipboard permission in your browser/app settings.", "error");
     }
 };
 
@@ -7884,9 +7971,6 @@ messageInput.oninput = (e) => {
 };
 
 window.addEventListener('paste', (event) => {
-    // If modal is active, let modal handle it
-    if (event.target && event.target.id === 'clipboard-paste-box') return;
-
     const cd = event.clipboardData || window.clipboardData;
     if (!cd) return;
 
@@ -7903,8 +7987,6 @@ window.addEventListener('paste', (event) => {
 }, true);
 
 document.addEventListener('beforeinput', (event) => {
-    if (event.target && event.target.id === 'clipboard-paste-box') return;
-
     if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
         const imageFile = Array.from(event.dataTransfer.files).find(f => f.type && f.type.startsWith('image/'));
         if (imageFile) {

@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Attachment Menu Rollback & Clipboard Paste:* Reverted the standalone `#attachment-menu` overwrite to restore the original attachment menu containing Games and Polls. Added a single `Clipboard paste` option inside the existing menu that invokes `navigator.clipboard.read()` to prompt for permission and paste the latest copied image or text.
+
 - *Attachment Menu & Clipboard Permission:* Added an attachment popover menu (`Photo or Video` and `Paste from Clipboard`) to the paperclip icon. Configured `requestClipboardPermissionAndPaste` to query `clipboard-read` and invoke `navigator.clipboard.read()` directly inside the click gesture to trigger the native permission prompt, backed by a `contenteditable` paste catcher modal for restricted mobile WebViews.
 
 - *Native Clipboard Paste Fix:* Removed the manual clipboard button (`navigator.clipboard.read` is blocked without native plugin permissions in Android WebView). Converted the chat input to `contenteditable="true"` with a `.value` property shim so Android `InputConnection` advertises `image/*` support to Gboard/Samsung Keyboard, and routed `paste`/`beforeinput` image blobs directly into the chat attachment upload routine.
