@@ -3505,12 +3505,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.15';
+const CURRENT_APP_VERSION = '1.2.16';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.15';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.16';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3672,7 +3672,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.15';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.16';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -7639,171 +7639,133 @@ function setupInputAreaListeners() {
     }
 }
 
-// --- Global Event Delegation for Paperclip Menu ---
-document.addEventListener('click', (e) => {
-    // 1. Toggle the Paperclip Menu
-    const plusBtnClick = e.target.closest('#plus-btn');
-    const plusMenu = document.getElementById('plus-menu');
+window.toggleAttachmentMenu = function(e) {
+    if (e) e.stopPropagation();
+    const menu = document.getElementById('attachment-menu');
+    if (!menu) return;
+    menu.style.display = menu.style.display === 'none' || menu.style.display === '' ? 'flex' : 'none';
+};
 
-    if (plusBtnClick) {
-        e.stopPropagation(); // Stop global click from immediately hiding it
-        if (plusMenu) {
-            const isOpening = plusMenu.style.display === 'none' || plusMenu.classList.contains('hidden');
-            if (isOpening) {
-                plusMenu.classList.remove('hidden');
-                plusMenu.style.display = 'flex';
-                const ep = document.getElementById('emoji-picker');
-                if (ep) ep.style.display = 'none';
-                activeReactionMessageId = null;
-            } else {
-                plusMenu.style.display = 'none';
-                plusMenu.classList.add('hidden');
-            }
-        }
-        return;
-    }
-
-    // 2. Handle Menu Options dynamically
-    if (e.target.closest('#camera-option-btn')) {
-        if (plusMenu) {
-            plusMenu.style.display = 'none';
-            plusMenu.classList.add('hidden');
-        }
-        document.getElementById('camera-input')?.click();
-        return;
-    }
-    
-    if (e.target.closest('#upload-image-option') || e.target.closest('#upload-file-option')) {
-        if (plusMenu) {
-            plusMenu.style.display = 'none';
-            plusMenu.classList.add('hidden');
-        }
-        document.getElementById('file-upload-input')?.click();
-        return;
-    }
-    
-    if (e.target.closest('#create-poll-option')) {
-        if (plusMenu) {
-            plusMenu.style.display = 'none';
-            plusMenu.classList.add('hidden');
-        }
-        const pollModal = document.getElementById('poll-modal');
-        if (pollModal) {
-            pollModal.style.display = 'flex';
-            // Reset poll inputs
-            const pollQ = document.getElementById('poll-question');
-            if (pollQ) pollQ.value = '';
-            const pollOpts = document.getElementById('poll-options-container');
-            if (pollOpts) {
-                pollOpts.innerHTML = '<label>Options</label><input type="text" class="poll-option-input" placeholder="Option 1"><input type="text" class="poll-option-input" placeholder="Option 2">';
-            }
-        }
-        return;
-    }
-    
-    if (e.target.closest('#open-games-option')) {
-        if (plusMenu) {
-            plusMenu.style.display = 'none';
-            plusMenu.classList.add('hidden');
-        }
-        const gamesModal = document.getElementById('games-library-modal');
-        if (gamesModal) gamesModal.style.display = 'flex';
-        return;
-    }
-
-    // 3. Close menu when clicking outside
-    if (!e.target.closest('#plus-menu')) {
-        if (plusMenu && (plusMenu.style.display !== 'none' || !plusMenu.classList.contains('hidden'))) {
-            plusMenu.style.display = 'none';
-            plusMenu.classList.add('hidden');
-        }
-    }
+document.addEventListener('click', () => {
+    const menu = document.getElementById('attachment-menu');
+    if (menu) menu.style.display = 'none';
 });
 
-const messageInput = document.getElementById('message-input');
-const chatInputEl = messageInput;
-if (chatInputEl && chatInputEl.getAttribute('contenteditable') === 'true') {
-    Object.defineProperty(chatInputEl, 'value', {
-        get() {
-            return (this.innerText || '').replace(/^\n+|\n+$/g, '');
-        },
-        set(val) {
-            this.innerText = val || '';
-            if (!val) this.innerHTML = '';
-        },
-        configurable: true
-    });
-    Object.defineProperty(chatInputEl, 'selectionStart', {
-        get() {
-            const sel = window.getSelection();
-            if (!sel || !sel.rangeCount) return (this.innerText || '').length;
-            const range = sel.getRangeAt(0);
-            const preRange = range.cloneRange();
-            preRange.selectNodeContents(this);
-            preRange.setEnd(range.startContainer, range.startOffset);
-            return preRange.toString().length;
-        },
-        configurable: true
-    });
-    Object.defineProperty(chatInputEl, 'selectionEnd', {
-        get() {
-            const sel = window.getSelection();
-            if (!sel || !sel.rangeCount) return (this.innerText || '').length;
-            const range = sel.getRangeAt(0);
-            const preRange = range.cloneRange();
-            preRange.selectNodeContents(this);
-            preRange.setEnd(range.endContainer, range.endOffset);
-            return preRange.toString().length;
-        },
-        configurable: true
-    });
-    chatInputEl.setSelectionRange = function(start, end) {
-        try {
-            const sel = window.getSelection();
-            if (!sel) return;
-            const range = document.createRange();
-            let charCount = 0;
-            let startNode = this, startOffset = 0;
-            let endNode = this, endOffset = 0;
-            let foundStart = false, foundEnd = false;
+window.triggerGalleryUpload = function() {
+    const menu = document.getElementById('attachment-menu');
+    if (menu) menu.style.display = 'none';
+    const fileInput = document.getElementById('file-upload-input');
+    if (fileInput) {
+        fileInput.click();
+    } else {
+        console.error('[Attachment] Could not find #file-upload-input');
+    }
+};
 
-            function traverseNodes(node) {
-                if (node.nodeType === Node.TEXT_NODE) {
-                    const nextCount = charCount + node.length;
-                    if (!foundStart && start >= charCount && start <= nextCount) {
-                        startNode = node;
-                        startOffset = start - charCount;
-                        foundStart = true;
-                    }
-                    if (!foundEnd && end >= charCount && end <= nextCount) {
-                        endNode = node;
-                        endOffset = end - charCount;
-                        foundEnd = true;
-                    }
-                    charCount = nextCount;
-                } else {
-                    for (let i = 0; i < node.childNodes.length; i++) {
-                        traverseNodes(node.childNodes[i]);
-                        if (foundStart && foundEnd) break;
-                    }
+window.requestClipboardPermissionAndPaste = async function() {
+    const menu = document.getElementById('attachment-menu');
+    if (menu) menu.style.display = 'none';
+
+    try {
+        // 1. Query permission state if Permissions API is available
+        if (navigator.permissions && navigator.permissions.query) {
+            try {
+                const status = await navigator.permissions.query({ name: 'clipboard-read' });
+                console.log('[Clipboard] Permission state:', status.state);
+            } catch (permErr) {
+                // Ignore if browser doesn't recognize 'clipboard-read' query name
+            }
+        }
+
+        // 2. Calling clipboard.read() directly inside the click handler triggers the native permission prompt
+        if (navigator.clipboard && navigator.clipboard.read) {
+            const clipboardItems = await navigator.clipboard.read();
+            for (const item of clipboardItems) {
+                const imageType = item.types.find(t => t.startsWith('image/'));
+                if (imageType) {
+                    const blob = await item.getType(imageType);
+                    await window.uploadPastedChatImage(blob);
+                    return;
                 }
             }
+            if (typeof showNotification === 'function') {
+                showNotification("No image found in your clipboard.", "info");
+            }
+            return;
+        }
+        throw new Error("Clipboard API unavailable");
+    } catch (err) {
+        console.warn("[Clipboard] Direct read blocked or denied, opening permission catcher modal:", err);
+        window.openClipboardCatcherModal();
+    }
+};
 
-            traverseNodes(this);
-            range.setStart(startNode, startOffset);
-            range.setEnd(endNode, endOffset);
-            sel.removeAllRanges();
-            sel.addRange(range);
-        } catch (e) {
-            console.warn('[contenteditable] setSelectionRange error:', e);
-        }
-    };
-    chatInputEl.addEventListener('blur', () => {
-        if (!chatInputEl.innerText.trim()) {
-            chatInputEl.innerHTML = '';
-        }
-    });
-}
+window.openClipboardCatcherModal = function() {
+    let modal = document.getElementById('clipboard-catcher-modal');
+    if (modal) modal.remove();
+
+    modal = document.createElement('div');
+    modal.id = 'clipboard-catcher-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.65);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;';
+    modal.innerHTML = `
+        <div style="background:#1e1e2a;border:1px solid rgba(255,255,255,0.15);border-radius:14px;padding:18px;max-width:320px;width:100%;text-align:center;color:#fff;box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+            <div style="font-weight:600;font-size:16px;margin-bottom:8px;">Paste Image from Clipboard</div>
+            <div style="font-size:13px;opacity:0.75;margin-bottom:14px;">Tap the box below or select the image from your keyboard clipboard bar to grant access:</div>
+            <div id="clipboard-paste-box" contenteditable="true" style="min-height:64px;border:2px dashed rgba(255,255,255,0.3);border-radius:10px;display:flex;align-items:center;justify-content:center;padding:10px;font-size:13px;color:rgba(255,255,255,0.6);outline:none;user-select:text;-webkit-user-select:text;">
+                Tap & Paste Here
+            </div>
+            <button type="button" style="margin-top:14px;padding:8px 18px;border-radius:8px;border:none;background:rgba(255,255,255,0.12);color:#fff;cursor:pointer;" onclick="document.getElementById('clipboard-catcher-modal')?.remove()">Cancel</button>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const box = document.getElementById('clipboard-paste-box');
+    if (box) {
+        setTimeout(() => box.focus(), 50);
+        const handleBoxImage = (file) => {
+            modal.remove();
+            window.uploadPastedChatImage(file);
+        };
+        box.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const cd = e.clipboardData || window.clipboardData;
+            const file = (cd?.files && cd.files[0]) || (cd?.items && Array.from(cd.items).find(i => i.type.startsWith('image/'))?.getAsFile());
+            if (file) handleBoxImage(file);
+        });
+        box.addEventListener('beforeinput', (e) => {
+            const file = e.dataTransfer?.files && e.dataTransfer.files[0];
+            if (file && file.type.startsWith('image/')) {
+                e.preventDefault();
+                handleBoxImage(file);
+            }
+        });
+    }
+};
+
+window.uploadPastedChatImage = async function(blob) {
+    if (!blob) return;
+    if (!currentChatId) {
+        if (typeof showNotification === 'function') showNotification("Please select a chat first", "error");
+        return;
+    }
+
+    const maxSizeMB = 50;
+    if (blob.size > maxSizeMB * 1024 * 1024) {
+        if (typeof showNotification === 'function') showNotification(`Pasted image is too large! Max size is ${maxSizeMB}MB.`, "error");
+        return;
+    }
+
+    const ext = (blob.type?.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '');
+    const namedFile = blob instanceof File && blob.name
+        ? blob
+        : new File([blob], `pasted_${Date.now()}.${ext || 'png'}`, { type: blob.type || 'image/png' });
+
+    console.log('[Clipboard] Uploading pasted image via handleMediaUpload:', namedFile.name, namedFile.size);
+    await handleMediaUpload(namedFile, 'Pasted Image');
+};
+window.handleChatPastedImage = window.uploadPastedChatImage;
+
+const messageInput = document.getElementById('message-input');
 
 messageInput.onkeydown = (e) => {
     if (e.key === 'Escape') {
@@ -7829,7 +7791,6 @@ messageInput.onkeydown = (e) => {
             }
         }
     } else if (e.key === 'Enter') {
-        e.preventDefault();
         sendMessage();
     }
 };
@@ -7888,9 +7849,6 @@ function renderMentionDropdownList(filter = "") {
 
 messageInput.oninput = (e) => {
     const val = e.target.value;
-    if (!val.trim() && e.target.innerHTML !== '') {
-        e.target.innerHTML = '';
-    }
     const cursor = e.target.selectionStart;
     const lastChar = val.charAt(cursor - 1);
     const textBeforeCursor = val.substring(0, cursor);
@@ -7925,23 +7883,10 @@ messageInput.oninput = (e) => {
     updateInputButtons();
 };
 
-window.handleChatPastedImage = function(blob) {
-    if (!blob) return;
-    if (!currentChatId) {
-        if (typeof showNotification === 'function') showNotification("Please select a chat first", "error");
-        return;
-    }
-
-    const ext = (blob.type.split('/')[1] || 'png').replace(/[^a-z0-9]/gi, '');
-    const namedFile = blob instanceof File && blob.name
-        ? blob
-        : new File([blob], `pasted_${Date.now()}.${ext}`, { type: blob.type || 'image/png' });
-
-    console.log("[Clipboard] Uploading pasted image via chat attachment routine:", namedFile.name, namedFile.size);
-    handleMediaUpload(namedFile, 'Pasted Image');
-};
-
 window.addEventListener('paste', (event) => {
+    // If modal is active, let modal handle it
+    if (event.target && event.target.id === 'clipboard-paste-box') return;
+
     const cd = event.clipboardData || window.clipboardData;
     if (!cd) return;
 
@@ -7953,24 +7898,18 @@ window.addEventListener('paste', (event) => {
 
     if (imageFile) {
         event.preventDefault();
-        window.handleChatPastedImage(imageFile);
-        return;
-    }
-
-    // Keep text pastes inside the contenteditable chat input strictly plain text
-    if (event.target && event.target.isContentEditable) {
-        event.preventDefault();
-        const text = cd.getData('text/plain');
-        if (text) document.execCommand('insertText', false, text);
+        window.uploadPastedChatImage(imageFile);
     }
 }, true);
 
 document.addEventListener('beforeinput', (event) => {
+    if (event.target && event.target.id === 'clipboard-paste-box') return;
+
     if (event.dataTransfer && event.dataTransfer.files && event.dataTransfer.files.length > 0) {
         const imageFile = Array.from(event.dataTransfer.files).find(f => f.type && f.type.startsWith('image/'));
         if (imageFile) {
             event.preventDefault();
-            window.handleChatPastedImage(imageFile);
+            window.uploadPastedChatImage(imageFile);
         }
     }
 }, true);

@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Attachment Menu & Clipboard Permission:* Added an attachment popover menu (`Photo or Video` and `Paste from Clipboard`) to the paperclip icon. Configured `requestClipboardPermissionAndPaste` to query `clipboard-read` and invoke `navigator.clipboard.read()` directly inside the click gesture to trigger the native permission prompt, backed by a `contenteditable` paste catcher modal for restricted mobile WebViews.
+
 - *Native Clipboard Paste Fix:* Removed the manual clipboard button (`navigator.clipboard.read` is blocked without native plugin permissions in Android WebView). Converted the chat input to `contenteditable="true"` with a `.value` property shim so Android `InputConnection` advertises `image/*` support to Gboard/Samsung Keyboard, and routed `paste`/`beforeinput` image blobs directly into the chat attachment upload routine.
 
 - *Clipboard Image Fix:* Replaced custom upload logic inside the `paste` listener with a `DataTransfer` bridge into the existing `<input type="file">` element so PC `Ctrl+V` triggers the native attachment handler directly. Added `navigator.clipboard.read()` and a dedicated paste button to bypass Android `<input type="text">` IME restrictions on mobile image pasting.

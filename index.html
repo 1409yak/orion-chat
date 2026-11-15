@@ -186,20 +186,22 @@
                     <div id="picker-tab-content-emojis" class="picker-tab-content active"></div>
                     <div id="picker-tab-content-stickers" class="picker-tab-content" style="display: none;"></div>
                 </div>
-                <!-- Plus Menu Popup -->
-                <div id="plus-menu" class="msg-action-menu plus-popup hidden" style="display: none; flex-direction: column; gap: 5px; bottom: 85px; top: auto; right: 20px !important; left: auto !important; width: 160px; z-index: 501;">
-                    <button type="button" id="camera-option-btn">📷 Camera</button>
-                    <button type="button" id="upload-image-option">📁 Files</button>
-                    <button type="button" id="create-poll-option">📊 Poll</button>
-                    <button type="button" id="open-games-option">🎮 Games</button>
+                <!-- Attachment Popover Menu -->
+                <div id="attachment-menu" class="attachment-popover" style="display: none;">
+                    <button type="button" class="attachment-option" onclick="triggerGalleryUpload()">
+                        <span>📁</span> Photo or Video
+                    </button>
+                    <button type="button" class="attachment-option" onclick="requestClipboardPermissionAndPaste()">
+                        <span>📋</span> Paste from Clipboard
+                    </button>
                 </div>
 
                 <div class="input-wrapper">
                     <button id="emoji-btn" class="emoji-trigger-btn" title="Add Emoji">😊</button>
-                    <div id="message-input" contenteditable="true" role="textbox" aria-multiline="false" data-placeholder="Type a message..."></div>
+                    <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
                     
                     <!-- Re-integrated paperclip using the stable #plus-btn ID -->
-                    <button id="plus-btn" class="emoji-trigger-btn" title="Attachments" style="display: inline-flex; align-items: center; justify-content: center;">
+                    <button id="plus-btn" class="emoji-trigger-btn" title="Attachments" onclick="toggleAttachmentMenu(event)" style="display: inline-flex; align-items: center; justify-content: center;">
                         <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
                     </button>
                     
@@ -547,7 +549,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.2.15</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.2.16</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>
