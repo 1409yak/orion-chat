@@ -825,27 +825,38 @@ async function setupGameLobby(gameType = 'flags') {
                     }
 
                     const playersList = playerUids.length ? playerUids : [auth.currentUser.uid];
-                    const wordleWordList = ['APPLE', 'TRAIN', 'GHOST', 'PLANT', 'WATER', 'BRAIN', 'HEART', 'LIGHT', 'SOUND', 'SPACE', 'DREAM', 'HOUSE', 'MOUSE', 'CLOCK', 'PHONE', 'CHAIR'];
-                    const doodleWordList = [...wordleWordList, 'ASTRONAUT', 'HELICOPTER', 'TELESCOPE', 'DINOSAUR', 'VOLCANO', 'PENGUIN', 'PYRAMID'];
-                    const activePool = typeIsDoodle ? doodleWordList : wordleWordList;
-                    const targetWord = activePool[Math.floor(Math.random() * activePool.length)];
-                    const durationMs = typeIsDoodle ? (targetWord.length * 5 + 30) * 1000 : null;
 
-                    await update(gameRef, {
-                        status: 'playing',
-                        type: lobbyType,
-                        targetWord: targetWord,
-                        usedWords: typeIsDoodle ? [targetWord] : null,
-                        startedAt: Date.now(),
+                    if (typeIsDoodle) {
+                        const firstDrawerUid = playersList[0];
+                        const options = [];
+                        while (options.length < 3) {
+                            const word = DOODLE_WORDS[Math.floor(Math.random() * DOODLE_WORDS.length)];
+                            if (!options.includes(word)) options.push(word);
+                        }
 
-                        // Doodle Turn Tracking
-                        turnOrder: typeIsDoodle ? playersList : null,
-                        currentTurnIndex: typeIsDoodle ? 0 : null,
-                        currentRound: typeIsDoodle ? 1 : null,
-                        maxRounds: typeIsDoodle ? rounds : null,
-                        drawerUid: typeIsDoodle ? playersList[0] : null,
-                        turnEndTime: typeIsDoodle ? Date.now() + durationMs : null
-                    });
+                        await update(gameRef, {
+                            status: 'choosing',
+                            type: 'doodle',
+                            startedAt: Date.now(),
+                            turnOrder: playersList,
+                            currentTurnIndex: 0,
+                            currentRound: 1,
+                            maxRounds: rounds,
+                            drawer: firstDrawerUid,
+                            drawerUid: firstDrawerUid,
+                            wordOptions: options,
+                            turnExpiresAt: Date.now() + 10000 // 10 seconds to choose
+                        });
+                    } else {
+                        const wordleWordList = ['APPLE', 'TRAIN', 'GHOST', 'PLANT', 'WATER', 'BRAIN', 'HEART', 'LIGHT', 'SOUND', 'SPACE', 'DREAM', 'HOUSE', 'MOUSE', 'CLOCK', 'PHONE', 'CHAIR'];
+                        const targetWord = wordleWordList[Math.floor(Math.random() * wordleWordList.length)];
+                        await update(gameRef, {
+                            status: 'playing',
+                            type: 'wordle',
+                            targetWord: targetWord,
+                            startedAt: Date.now()
+                        });
+                    }
                 } else {
                     const duration = parseInt(document.getElementById('game-duration-slider').value);
                     await update(gameRef, {
@@ -1314,132 +1325,353 @@ document.addEventListener('input', (e) => {
 });
 
 // --- DOODLE DASH (MULTIPLAYER PICTIONARY) ENGINE ---
+const DOODLE_WORDS = ["apple", "banana", "helicopter", "elephant", "guitar", "mountain", "ocean", "pizza", "robot", "spider", "telescope", "umbrella", "volcano", "window", "zebra", "astronaut", "butterfly", "castle", "dragon", "engine", "firefighter", "ghost", "hospital", "island", "jungle", "kangaroo", "lighthouse", "mermaid", "ninja", "octopus", "penguin", "queen", "rocket", "submarine", "tornado", "unicorn", "vampire", "wizard", "xylophone", "yacht", "zombie", "airplane", "bridge", "camera", "diamond", "eagle", "forest", "galaxy", "hammer", "igloo", "jacket", "kettle", "ladder", "magnet", "needle", "ostrich", "parachute", "quilt", "radar", "scissors", "tractor", "ukulele", "vacuum", "windmill", "yoyo", "zeppelin", "anchor", "balloon", "cactus", "dolphin", "escalator", "fountain", "giraffe", "helmet", "iceberg", "jigsaw", "kayak", "lantern", "microscope", "notebook", "origami", "padlock", "compass", "rainbow", "satellite", "thermometer", "unicycle", "violin", "waterfall", "alligator", "avalanche", "backpack", "barbecue", "basketball", "binoculars", "blizzard", "boomerang", "bulldozer", "campfire", "caterpillar", "chandelier", "cheeseburger", "chocolate", "coconut", "crocodile", "dinosaur", "electricity", "flamingo", "glacier", "hamburger", "hedgehog", "hippopotamus", "hurricane", "jellyfish", "keyboard", "leopard", "limousine", "macaroni", "microphone", "motorcycle", "mushroom", "orchestra", "pancake", "pineapple", "platypus", "porcupine", "rhinoceros", "saxophone", "skeleton", "snowflake", "sombrero", "spaghetti", "squirrel", "strawberry", "sunflower", "symphony", "tarantula", "thunderstorm", "toothbrush", "trampoline", "typewriter", "vegetable", "volleyball", "watermelon", "wheelchair", "woodpecker", "zucchini", "acorn", "alarm", "alien", "ambulance", "ant", "apron", "arch", "arm", "armor", "arrow", "axe", "baby", "bacon", "badge", "bag", "bait", "baker", "ball", "bamboo", "band", "bank", "bar", "barn", "bat", "bath", "bear", "beard", "bed", "bee", "beef", "bell", "belt", "bench", "bike", "bird", "boat", "bone", "book", "boot", "bow", "bowl", "box", "boy", "brain", "branch", "bread", "brick", "broom", "brush", "bug", "bulb", "bull", "bus", "bush", "butter", "button", "cabin", "cable", "cake", "camel", "camp", "can", "candle", "candy", "cane", "cap", "car", "card", "cart", "cat", "cave", "chain", "chair", "chalk", "chef", "cherry", "chess", "chest", "chin", "chip", "church", "circle", "clam", "clock", "cloud", "clown", "club", "coal", "coat", "coin", "comb", "cone", "cook", "cord", "cork", "corn", "cow", "crab", "crane", "crow", "crown", "cube", "cup", "dart", "dash", "date", "deer", "desk", "dial", "dice", "dirt", "dish", "dog", "doll", "door", "dot", "dove", "drop", "drum", "duck", "dust", "ear", "earth", "egg", "elf", "eye", "face", "fan", "farm", "feather", "fence"];
+
 let currentDoodleRound = -1;
+let currentDoodleStatus = null;
+let currentDoodleTool = 'pen';
+
+function hexToRgba(hex) {
+    if (!hex || typeof hex !== 'string') return [0, 0, 0, 255];
+    let clean = hex.replace('#', '');
+    if (clean.length === 3) {
+        clean = clean.split('').map(c => c + c).join('');
+    }
+    const r = parseInt(clean.slice(0, 2), 16) || 0;
+    const g = parseInt(clean.slice(2, 4), 16) || 0;
+    const b = parseInt(clean.slice(4, 6), 16) || 0;
+    return [r, g, b, 255];
+}
+
+window.emitCanvasUpdate = function() {
+    if (!currentChatId || !auth.currentUser) return;
+    const canvas = document.getElementById('doodle-canvas');
+    if (!canvas) return;
+    try {
+        const dataUrl = canvas.toDataURL('image/png');
+        update(ref(db, `games/${currentChatId}/doodle`), {
+            snapshot: dataUrl,
+            snapshotAt: Date.now()
+        }).catch(err => console.error("Error emitting canvas update:", err));
+    } catch (err) {
+        console.error("Canvas toDataURL error:", err);
+    }
+};
+
+window.fillCanvas = function(startX, startY, fillColorHex) {
+    const canvas = document.getElementById('doodle-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d', { willReadFrequently: true });
+    const imgData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+    const data = imgData.data;
+    
+    const clampedX = Math.max(0, Math.min(canvas.width - 1, Math.floor(startX)));
+    const clampedY = Math.max(0, Math.min(canvas.height - 1, Math.floor(startY)));
+
+    const startPos = (clampedY * canvas.width + clampedX) * 4;
+    const startColor = [data[startPos], data[startPos+1], data[startPos+2], data[startPos+3]];
+    const fillColor = hexToRgba(fillColorHex);
+    
+    if (startColor[0] === fillColor[0] && startColor[1] === fillColor[1] && startColor[2] === fillColor[2]) return;
+    
+    const matchColor = (pos) => data[pos] === startColor[0] && data[pos+1] === startColor[1] && data[pos+2] === startColor[2] && data[pos+3] === startColor[3];
+    const colorPixel = (pos) => { data[pos] = fillColor[0]; data[pos+1] = fillColor[1]; data[pos+2] = fillColor[2]; data[pos+3] = 255; };
+    
+    const stack = [[clampedX, clampedY]];
+    while (stack.length) {
+        const [x, y] = stack.pop();
+        let pos = (y * canvas.width + x) * 4;
+        let dy = y;
+        while (dy >= 0 && matchColor(pos)) { pos -= canvas.width * 4; dy--; }
+        pos += canvas.width * 4; dy++;
+        
+        let reachLeft = false, reachRight = false;
+        while (dy < canvas.height && matchColor(pos)) {
+            colorPixel(pos);
+            if (x > 0) {
+                if (matchColor(pos - 4)) { if (!reachLeft) { stack.push([x - 1, dy]); reachLeft = true; } }
+                else reachLeft = false;
+            }
+            if (x < canvas.width - 1) {
+                if (matchColor(pos + 4)) { if (!reachRight) { stack.push([x + 1, dy]); reachRight = true; } }
+                else reachRight = false;
+            }
+            pos += canvas.width * 4; dy++;
+        }
+    }
+    ctx.putImageData(imgData, 0, 0);
+    // Ensure bucket fill is emitted to Firebase as a full-canvas image snapshot so other players see it instantly
+    emitCanvasUpdate(); 
+};
+
+window.selectDoodleWord = async (chosenWord) => {
+    if (!currentChatId) return;
+    const gameRef = ref(db, `games/${currentChatId}`);
+    const snap = await get(gameRef);
+    const g = snap.val();
+    if (!g || g.status !== 'choosing') return;
+
+    const word = chosenWord || (g.wordOptions && g.wordOptions[0]) || DOODLE_WORDS[0];
+    const requestedRoundTime = (word.length * 5 + 30) * 1000;
+    const roundDuration = Math.max(30000, requestedRoundTime);
+    const now = Date.now();
+    const updatedUsedWords = [...(g.usedWords || []), word];
+
+    await update(gameRef, {
+        status: 'playing',
+        targetWord: word,
+        word: word,
+        usedWords: updatedUsedWords,
+        roundStartTime: now,
+        startedAt: now,
+        roundExpiresAt: now + roundDuration,
+        turnEndTime: now + roundDuration,
+        wordOptions: null,
+        turnExpiresAt: null
+    });
+};
 
 function startDoodleGame(gameData) {
     if (!currentChatId || !auth.currentUser) return;
     if (gameData.status === 'finished') return;
-    // Prevent canvas wipe on every stroke or redundant listener updates within the same turn
-    if (gameData.currentTurnIndex === currentDoodleTurn && gameData.currentRound === currentDoodleRound) return;
+    if (gameData.currentTurnIndex === currentDoodleTurn && 
+        gameData.currentRound === currentDoodleRound && 
+        gameData.status === currentDoodleStatus) return;
+
     currentDoodleTurn = gameData.currentTurnIndex;
     currentDoodleRound = gameData.currentRound;
+    currentDoodleStatus = gameData.status;
 
     const screen = document.getElementById('doodle-game-screen');
     const cvs = document.getElementById('doodle-canvas');
     const statusEl = document.getElementById('doodle-status');
+    const wordDisplayEl = document.getElementById('doodle-word-display');
     const chatBoxEl = document.getElementById('doodle-chat-box');
-    if (!screen || !cvs || !statusEl) return;
+    const selectionOverlay = document.getElementById('doodle-word-selection-overlay');
+    const choiceTitle = document.getElementById('doodle-choice-title');
+    const choiceTimer = document.getElementById('doodle-choice-timer');
+    const choiceButtons = document.getElementById('doodle-choice-buttons');
+    if (!screen || !cvs) return;
 
     const myUid = auth.currentUser.uid;
-    const isDrawer = (myUid === gameData.drawerUid);
-    const wordLen = gameData.targetWord ? gameData.targetWord.length : 0;
-    const hint = isDrawer ? gameData.targetWord : Array(wordLen).fill('_').join(' ');
+    const drawerUid = gameData.drawer || gameData.drawerUid;
+    const isDrawer = (myUid === drawerUid);
 
     window.localGuessedCorrect = gameData.players?.[myUid]?.guessedCorrect || false;
-    if (chatBoxEl) chatBoxEl.innerHTML = '';
-    cvs.style.opacity = '1';
-
-    document.getElementById('doodle-tools').style.display = isDrawer ? 'flex' : 'none';
-    document.getElementById('doodle-guess-area').style.display = isDrawer ? 'none' : 'flex';
-
-    const guessInput = document.getElementById('doodle-guess-input');
-    if (guessInput) {
-        guessInput.value = '';
-        guessInput.placeholder = window.localGuessedCorrect ? 'Guessed! Chat with winners...' : 'Type your guess...';
-        guessInput.onkeydown = (e) => {
-            if (e.key === 'Enter') {
-                e.preventDefault();
-                window.submitDoodleGuess();
-            }
-        };
-    }
+    if (chatBoxEl && gameData.status === 'choosing') chatBoxEl.innerHTML = '';
 
     // Open modal before reading canvas clientWidth/clientHeight so layout size is non-zero
     openAnimatedModal(screen);
     if (window.twemoji) twemoji.parse(screen);
 
-    const ctx = cvs.getContext('2d');
+    const ctx = cvs.getContext('2d', { willReadFrequently: true });
     cvs.width = cvs.clientWidth || 320;
     cvs.height = cvs.clientHeight || 320;
     ctx.lineCap = 'round';
     ctx.lineJoin = 'round';
-    ctx.fillStyle = '#ffffff';
-    ctx.fillRect(0, 0, cvs.width, cvs.height);
 
     cleanupDoodleListeners();
 
-    let currentRoundStatus = gameData.status || 'playing';
-    let revealTimeoutId = null;
-    let revealTriggered = false;
+    // Setup Tools
+    const penBtn = document.getElementById('doodle-tool-pen');
+    const bucketBtn = document.getElementById('doodle-tool-bucket');
+    const eraserBtn = document.getElementById('doodle-tool-eraser');
 
-    const updateTimerText = () => {
-        if (currentRoundStatus !== 'playing') return;
-        const left = Math.max(0, Math.floor((gameData.turnEndTime - Date.now()) / 1000));
-        statusEl.innerText = isDrawer
-            ? `Draw: ${gameData.targetWord} (${left}s) [Round ${gameData.currentRound}/${gameData.maxRounds}]`
-            : `Guess! Hint: ${hint} (${left}s) [Round ${gameData.currentRound}/${gameData.maxRounds}]`;
-
-        if (left <= 0 && isDrawer && !revealTriggered) {
-            revealTriggered = true;
-            currentRoundStatus = 'reveal';
-            clearInterval(timerInt);
-            update(ref(db, `games/${currentChatId}`), { status: 'reveal' });
-        }
+    const updateToolBtns = () => {
+        [penBtn, bucketBtn, eraserBtn].forEach(b => b && b.classList.remove('active'));
+        if (currentDoodleTool === 'pen' && penBtn) penBtn.classList.add('active');
+        if (currentDoodleTool === 'bucket' && bucketBtn) bucketBtn.classList.add('active');
+        if (currentDoodleTool === 'eraser' && eraserBtn) eraserBtn.classList.add('active');
     };
 
-    const timerInt = setInterval(updateTimerText, 1000);
-    updateTimerText();
-    doodleUnsubs.push(() => {
-        clearInterval(timerInt);
-        if (revealTimeoutId) clearTimeout(revealTimeoutId);
-    });
+    if (penBtn) penBtn.onclick = () => { currentDoodleTool = 'pen'; updateToolBtns(); };
+    if (bucketBtn) bucketBtn.onclick = () => { currentDoodleTool = 'bucket'; updateToolBtns(); };
+    if (eraserBtn) eraserBtn.onclick = () => { currentDoodleTool = 'eraser'; updateToolBtns(); };
+    updateToolBtns();
 
-    if (isDrawer) {
-        let drawing = false, lx = 0, ly = 0;
-        const getPos = (e) => {
-            const r = cvs.getBoundingClientRect();
-            const evt = e.touches ? e.touches[0] : e;
-            return { x: evt.clientX - r.left, y: evt.clientY - r.top };
-        };
+    if (gameData.status === 'choosing') {
+        cvs.style.opacity = '0.4';
+        document.getElementById('doodle-tools').style.display = 'none';
+        document.getElementById('doodle-guess-area').style.display = 'none';
+        if (wordDisplayEl) wordDisplayEl.innerText = '';
+        if (statusEl) statusEl.innerText = `Round ${gameData.currentRound || 1}/${gameData.maxRounds || 3}`;
 
-        cvs.onpointerdown = (e) => {
-            if (e.cancelable) e.preventDefault();
-            if (cvs.setPointerCapture && e.pointerId !== undefined) {
-                try { cvs.setPointerCapture(e.pointerId); } catch (_) {}
+        if (selectionOverlay) selectionOverlay.style.display = 'flex';
+
+        const options = gameData.wordOptions || [];
+        if (isDrawer) {
+            if (choiceTitle) choiceTitle.innerText = "Choose a word to draw";
+            if (choiceButtons) {
+                choiceButtons.innerHTML = '';
+                options.forEach(word => {
+                    const btn = document.createElement('button');
+                    btn.type = 'button';
+                    btn.className = 'glass-btn-primary';
+                    btn.style.cssText = 'padding: 12px 18px; font-size: 16px; font-weight: 700; text-transform: capitalize; border-radius: 12px; cursor: pointer;';
+                    btn.innerText = word;
+                    btn.onclick = () => {
+                        window.selectDoodleWord(word);
+                    };
+                    choiceButtons.appendChild(btn);
+                });
             }
-            drawing = true;
-            const p = getPos(e);
-            lx = p.x;
-            ly = p.y;
+        } else {
+            const drawerName = gameData.players?.[drawerUid]?.name?.split(' ')[0] || 'Drawer';
+            if (choiceTitle) choiceTitle.innerText = `${drawerName} is choosing a word...`;
+            if (choiceButtons) choiceButtons.innerHTML = '<div style="opacity: 0.6; font-size: 14px; margin-top: 8px;">Get ready to guess!</div>';
+        }
+
+        let choiceExpiredTriggered = false;
+        const updateChoiceTimer = () => {
+            const leftSec = Math.max(0, Math.ceil(((gameData.turnExpiresAt || (Date.now() + 10000)) - Date.now()) / 1000));
+            if (choiceTimer) choiceTimer.innerText = `${leftSec}s`;
+            if (leftSec <= 0 && !choiceExpiredTriggered) {
+                choiceExpiredTriggered = true;
+                clearInterval(choiceTimerInterval);
+                if (isDrawer || auth.currentUser.uid === gameData.hostId) {
+                    window.selectDoodleWord(options[0] || DOODLE_WORDS[0]);
+                }
+            }
         };
-        cvs.onpointerup = () => { drawing = false; };
-        cvs.onpointercancel = () => { drawing = false; };
-        cvs.onpointermove = (e) => {
-            if (!drawing) return;
-            if (e.cancelable) e.preventDefault();
+        const choiceTimerInterval = setInterval(updateChoiceTimer, 1000);
+        updateChoiceTimer();
+        doodleUnsubs.push(() => clearInterval(choiceTimerInterval));
 
-            const p = getPos(e);
-            const col = document.getElementById('doodle-color').value;
-            const size = document.getElementById('doodle-size').value;
+    } else if (gameData.status === 'playing') {
+        if (selectionOverlay) selectionOverlay.style.display = 'none';
+        cvs.style.opacity = '1';
+        document.getElementById('doodle-tools').style.display = isDrawer ? 'flex' : 'none';
+        document.getElementById('doodle-guess-area').style.display = isDrawer ? 'none' : 'flex';
 
-            ctx.beginPath();
-            ctx.moveTo(lx, ly);
-            ctx.lineTo(p.x, p.y);
-            ctx.strokeStyle = col;
-            ctx.lineWidth = size;
-            ctx.stroke();
+        const guessInput = document.getElementById('doodle-guess-input');
+        if (guessInput) {
+            guessInput.value = '';
+            guessInput.placeholder = window.localGuessedCorrect ? 'Guessed! Chat with winners...' : 'Type your guess...';
+            guessInput.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    window.submitDoodleGuess();
+                }
+            };
+        }
 
-            push(ref(db, `games/${currentChatId}/doodle/strokes`), {
-                x0: lx / cvs.width,
-                y0: ly / cvs.height,
-                x1: p.x / cvs.width,
-                y1: p.y / cvs.height,
-                c: col,
-                s: size
-            });
-            lx = p.x;
-            ly = p.y;
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, cvs.width, cvs.height);
+
+        let currentRoundStatus = 'playing';
+        let revealTimeoutId = null;
+        let revealTriggered = false;
+
+        const roundExpiresAt = gameData.roundExpiresAt || gameData.turnEndTime || (Date.now() + 30000);
+        const roundStartTime = gameData.roundStartTime || gameData.startedAt || (Date.now() - 1000);
+        const currentWord = gameData.targetWord || gameData.word || "";
+
+        const updateTimerText = () => {
+            if (currentRoundStatus !== 'playing') return;
+            const timeLeft = Math.max(0, Math.floor((roundExpiresAt - Date.now()) / 1000));
+            const timeElapsed = Date.now() - roundStartTime;
+
+            let displayWord = "";
+            if (isDrawer) {
+                displayWord = currentWord;
+            } else {
+                const maxHints = currentWord.length <= 4 ? 2 : 3;
+                let revealedIndices = [];
+                
+                // Seed random based on the word itself so hints don't flicker
+                if (timeElapsed >= 10000) {
+                    for (let i = 0; i < maxHints; i++) {
+                        revealedIndices.push((currentWord.length * (i + 7)) % currentWord.length);
+                    }
+                }
+                
+                displayWord = currentWord.split('').map((char, index) => {
+                    return revealedIndices.includes(index) ? char : '_';
+                }).join(' ');
+            }
+
+            // Set the UI Layout: _ _ _ _ _ (5) 30s
+            if (wordDisplayEl) {
+                wordDisplayEl.innerText = `${displayWord} (${currentWord.length}) ${timeLeft}s`;
+            }
+            if (statusEl) {
+                statusEl.innerText = `Round ${gameData.currentRound || 1}/${gameData.maxRounds || 3} • ${isDrawer ? 'You are drawing!' : 'Type your guess below'}`;
+            }
+
+            if (timeLeft <= 0 && isDrawer && !revealTriggered) {
+                revealTriggered = true;
+                currentRoundStatus = 'reveal';
+                clearInterval(timerInt);
+                update(ref(db, `games/${currentChatId}`), { status: 'reveal' });
+            }
         };
+
+        const timerInt = setInterval(updateTimerText, 1000);
+        updateTimerText();
+        doodleUnsubs.push(() => {
+            clearInterval(timerInt);
+            if (revealTimeoutId) clearTimeout(revealTimeoutId);
+        });
+
+        // Drawer pointer handling (drawing, eraser, bucket)
+        if (isDrawer) {
+            let drawing = false, lx = 0, ly = 0;
+            const getPos = (e) => {
+                const r = cvs.getBoundingClientRect();
+                const evt = e.touches ? e.touches[0] : e;
+                const scaleX = cvs.width / (r.width || 1);
+                const scaleY = cvs.height / (r.height || 1);
+                return {
+                    x: (evt.clientX - r.left) * scaleX,
+                    y: (evt.clientY - r.top) * scaleY
+                };
+            };
+
+            cvs.onpointerdown = (e) => {
+                if (e.cancelable) e.preventDefault();
+                if (cvs.setPointerCapture && e.pointerId !== undefined) {
+                    try { cvs.setPointerCapture(e.pointerId); } catch (_) {}
+                }
+                const p = getPos(e);
+                if (currentDoodleTool === 'bucket') {
+                    const col = document.getElementById('doodle-color').value || '#000000';
+                    window.fillCanvas(p.x, p.y, col);
+                    return;
+                }
+                drawing = true;
+                lx = p.x;
+                ly = p.y;
+            };
+            cvs.onpointerup = () => { drawing = false; };
+            cvs.onpointercancel = () => { drawing = false; };
+            cvs.onpointermove = (e) => {
+                if (!drawing || currentDoodleTool === 'bucket') return;
+                if (e.cancelable) e.preventDefault();
+
+                const p = getPos(e);
+                const col = currentDoodleTool === 'eraser' ? '#ffffff' : document.getElementById('doodle-color').value;
+                const rawSize = parseInt(document.getElementById('doodle-size').value, 10) || 5;
+                const size = currentDoodleTool === 'eraser' ? rawSize * 2 : rawSize;
+
+                ctx.beginPath();
+                ctx.moveTo(lx, ly);
+                ctx.lineTo(p.x, p.y);
+                ctx.strokeStyle = col;
+                ctx.lineWidth = size;
+                ctx.stroke();
+
+                push(ref(db, `games/${currentChatId}/doodle/strokes`), {
+                    x0: lx / cvs.width,
+                    y0: ly / cvs.height,
+                    x1: p.x / cvs.width,
+                    y1: p.y / cvs.height,
+                    c: col,
+                    s: size
+                });
+                lx = p.x;
+                ly = p.y;
+            };
+        }
     }
 
     let doodleEnded = false;
@@ -1450,6 +1682,7 @@ function startDoodleGame(gameData) {
             cleanupDoodleListeners();
             currentDoodleTurn = -1;
             currentDoodleRound = -1;
+            currentDoodleStatus = null;
             gameStartedLocally = false;
             closeAnimatedModal(screen);
             if (currentChatId && auth.currentUser) {
@@ -1481,10 +1714,22 @@ function startDoodleGame(gameData) {
         }
     });
 
+    const unSubSnapshot = onValue(ref(db, `games/${currentChatId}/doodle/snapshot`), snap => {
+        if (isDrawer) return;
+        const dataUrl = snap.val();
+        if (dataUrl) {
+            const img = new Image();
+            img.onload = () => {
+                ctx.drawImage(img, 0, 0, cvs.width, cvs.height);
+            };
+            img.src = dataUrl;
+        }
+    });
+
     const unSubChat = onChildAdded(ref(db, `games/${currentChatId}/doodle/chat`), snap => {
         const msg = snap.val();
         if (!msg) return;
-        const amDrawer = (gameData.drawerUid === myUid);
+        const amDrawer = ((gameData.drawer || gameData.drawerUid) === myUid);
 
         // Blind logic: Hide messages from winners from active guessers
         if (msg.hiddenFromGuessers && !amDrawer && !window.localGuessedCorrect && msg.uid !== myUid) {
@@ -1508,35 +1753,33 @@ function startDoodleGame(gameData) {
         chatBox.scrollTop = chatBox.scrollHeight;
     });
 
-    const unSubStatus = onValue(ref(db, `games/${currentChatId}/status`), async (snap) => {
-        const stat = snap.val();
-        currentRoundStatus = stat || currentRoundStatus;
-        if (stat === 'reveal') {
-            clearInterval(timerInt);
-            const gSnap = await get(ref(db, `games/${currentChatId}`));
-            const g = gSnap.val();
-            if (!g) return;
-            statusEl.innerText = `Round Over! The word was: ${g.targetWord}`;
+    const unSubGame = onValue(ref(db, `games/${currentChatId}`), async (snap) => {
+        const freshData = snap.val();
+        if (!freshData) return;
+
+        if (freshData.status === 'reveal') {
+            if (selectionOverlay) selectionOverlay.style.display = 'none';
+            if (wordDisplayEl) wordDisplayEl.innerText = `${freshData.targetWord || freshData.word || ''}`;
+            if (statusEl) statusEl.innerText = `Round Over! The word was: ${freshData.targetWord || freshData.word || ''}`;
             cvs.style.opacity = '0.3';
 
-            if (auth.currentUser.uid === g.drawerUid && !revealTimeoutId) {
-                revealTimeoutId = setTimeout(() => window.advanceDoodleTurn(g.currentTurnIndex), 3000);
+            if (auth.currentUser.uid === (freshData.drawer || freshData.drawerUid) && !revealTimeoutId) {
+                revealTimeoutId = setTimeout(() => window.advanceDoodleTurn(freshData.currentTurnIndex), 3000);
             }
-        } else if (stat === 'finished' && !doodleEnded) {
+        } else if (freshData.status === 'finished' && !doodleEnded) {
             doodleEnded = true;
             cleanupDoodleListeners();
             gameStartedLocally = false;
             currentDoodleTurn = -1;
             currentDoodleRound = -1;
+            currentDoodleStatus = null;
             closeAnimatedModal(screen);
 
-            const gameSnap = await get(ref(db, `games/${currentChatId}`));
-            const gData = gameSnap.val() || {};
-            if (gData.inviteMsgId) {
-                await update(ref(db, `messages/${currentChatId}/${gData.inviteMsgId}`), { expired: true });
+            if (freshData.inviteMsgId) {
+                await update(ref(db, `messages/${currentChatId}/${freshData.inviteMsgId}`), { expired: true });
             }
 
-            const players = Object.values(gData.players || {});
+            const players = Object.values(freshData.players || {});
             players.sort((a, b) => (b.score || 0) - (a.score || 0));
             players.forEach((p, i) => {
                 p.won = (i === 0 && (p.score || 0) > 0);
@@ -1545,26 +1788,24 @@ function startDoodleGame(gameData) {
             });
             showPodium(players);
             schedulePodiumCleanup();
+        } else if (freshData.status !== currentDoodleStatus || freshData.currentTurnIndex !== currentDoodleTurn) {
+            startDoodleGame(freshData);
         }
     });
 
-    // Track new turns across rounds
-    const unSubTurn = onValue(ref(db, `games/${currentChatId}/currentTurnIndex`), snap => {
-        if (snap.exists() && snap.val() !== currentDoodleTurn) {
-            get(ref(db, `games/${currentChatId}`)).then(gSnap => {
-                if (gSnap.exists() && gSnap.val().status === 'playing') {
-                    startDoodleGame(gSnap.val());
-                }
-            });
-        }
-    });
-
-    doodleUnsubs.push(unSubStrokes, unSubClear, unSubChat, unSubStatus, unSubTurn);
+    doodleUnsubs.push(unSubStrokes, unSubClear, unSubSnapshot, unSubChat, unSubGame);
 }
 
 window.clearDoodle = async () => {
     if (!currentChatId) return;
+    const cvs = document.getElementById('doodle-canvas');
+    if (cvs) {
+        const ctx = cvs.getContext('2d');
+        ctx.fillStyle = '#ffffff';
+        ctx.fillRect(0, 0, cvs.width, cvs.height);
+    }
     await remove(ref(db, `games/${currentChatId}/doodle/strokes`));
+    await remove(ref(db, `games/${currentChatId}/doodle/snapshot`));
     await update(ref(db, `games/${currentChatId}/doodle`), { clearAt: Date.now() });
 };
 
@@ -1575,7 +1816,7 @@ window.advanceDoodleTurn = async (expectedTurnIndex = null) => {
         const gameRef = ref(db, `games/${currentChatId}`);
         const snap = await get(gameRef);
         const g = snap.val();
-        if (!g || (g.status !== 'playing' && g.status !== 'reveal')) return;
+        if (!g || (g.status !== 'playing' && g.status !== 'reveal' && g.status !== 'choosing')) return;
         if (expectedTurnIndex !== null && g.currentTurnIndex !== expectedTurnIndex) return;
 
         let nextIdx = (g.currentTurnIndex ?? 0) + 1;
@@ -1594,27 +1835,28 @@ window.advanceDoodleTurn = async (expectedTurnIndex = null) => {
             return;
         }
 
-        // Next Turn Setup (clear old strokes/chat & guessed flags before advancing currentTurnIndex)
-        const wordList = ['APPLE', 'TRAIN', 'GHOST', 'PLANT', 'WATER', 'BRAIN', 'HEART', 'LIGHT', 'SOUND', 'SPACE', 'DREAM', 'HOUSE', 'MOUSE', 'CLOCK', 'PHONE', 'CHAIR', 'ASTRONAUT', 'HELICOPTER', 'TELESCOPE', 'DINOSAUR', 'VOLCANO', 'PENGUIN', 'PYRAMID'];
-        let availableWords = wordList.filter(w => !(g.usedWords || []).includes(w));
-        if (availableWords.length === 0) availableWords = wordList;
+        const nextDrawerUid = order[nextIdx] || g.drawerUid || g.drawer;
 
-        const targetWord = availableWords[Math.floor(Math.random() * availableWords.length)];
-        const updatedUsedWords = [...(g.usedWords || []), targetWord];
-        const durationMs = (targetWord.length * 5 + 30) * 1000;
+        // When a new drawer's turn starts: 10 seconds to choose from 3 random words
+        const options = [];
+        while (options.length < 3) {
+            const word = DOODLE_WORDS[Math.floor(Math.random() * DOODLE_WORDS.length)];
+            if (!options.includes(word)) options.push(word);
+        }
 
         await remove(ref(db, `games/${currentChatId}/doodle/strokes`));
         await remove(ref(db, `games/${currentChatId}/doodle/chat`));
+        await remove(ref(db, `games/${currentChatId}/doodle/snapshot`));
         await update(ref(db, `games/${currentChatId}/doodle`), { clearAt: Date.now() });
 
         const updates = {
-            status: 'playing',
+            status: 'choosing',
             currentTurnIndex: nextIdx,
             currentRound: nextRound,
-            drawerUid: order[nextIdx] || g.drawerUid,
-            targetWord: targetWord,
-            usedWords: updatedUsedWords,
-            turnEndTime: Date.now() + durationMs
+            drawer: nextDrawerUid,
+            drawerUid: nextDrawerUid,
+            wordOptions: options,
+            turnExpiresAt: Date.now() + 10000 // 10 seconds to choose
         };
         Object.keys(g.players || {}).forEach(uid => {
             updates[`players/${uid}/guessedCorrect`] = null;
@@ -1638,13 +1880,16 @@ window.submitDoodleGuess = async () => {
         const gameRef = ref(db, `games/${currentChatId}`);
         const snap = await get(gameRef);
         const gData = snap.val();
-        if (!gData || !gData.targetWord || gData.status !== 'playing') return;
+        if (!gData || gData.status !== 'playing') return;
+        const currentWord = String(gData.targetWord || gData.word || '').trim();
+        if (!currentWord) return;
 
         const myUid = auth.currentUser.uid;
         const myName = gData.players?.[myUid]?.name?.split(' ')[0] || 'Player';
+        const drawerId = gData.drawer || gData.drawerUid;
 
         // If already guessed correct (or drawing), send as hidden chat message
-        if (window.localGuessedCorrect || myUid === gData.drawerUid) {
+        if (window.localGuessedCorrect || myUid === drawerId) {
             push(ref(db, `games/${currentChatId}/doodle/chat`), {
                 uid: myUid,
                 name: myName,
@@ -1654,18 +1899,19 @@ window.submitDoodleGuess = async () => {
             return;
         }
 
-        if (guess.toUpperCase() === String(gData.targetWord).toUpperCase()) {
+        if (guess.toLowerCase() === currentWord.toLowerCase()) {
             window.localGuessedCorrect = true;
             input.placeholder = 'Guessed! Chat with winners...';
-            const timeLeft = Math.max(1, Math.floor((gData.turnEndTime - Date.now()) / 1000));
+            const roundExpiresAt = gData.roundExpiresAt || gData.turnEndTime || (Date.now() + 30000);
+            const timeLeft = Math.max(1, Math.floor((roundExpiresAt - Date.now()) / 1000));
             const points = timeLeft * 10;
 
             await update(ref(db, `games/${currentChatId}/players/${myUid}`), {
                 score: (gData.players?.[myUid]?.score || 0) + points,
                 guessedCorrect: true
             });
-            await update(ref(db, `games/${currentChatId}/players/${gData.drawerUid}`), {
-                score: (gData.players?.[gData.drawerUid]?.score || 0) + Math.floor(points / 2)
+            await update(ref(db, `games/${currentChatId}/players/${drawerId}`), {
+                score: (gData.players?.[drawerId]?.score || 0) + Math.floor(points / 2)
             });
 
             push(ref(db, `games/${currentChatId}/doodle/chat`), {
@@ -1675,7 +1921,7 @@ window.submitDoodleGuess = async () => {
             });
 
             const players = Object.keys(gData.players || {});
-            const nonDrawers = players.filter(id => id !== gData.drawerUid);
+            const nonDrawers = players.filter(id => id !== drawerId);
             const freshSnap = await get(gameRef);
             const allGuessed = nonDrawers.length > 0 && nonDrawers.every(id => freshSnap.val()?.players?.[id]?.guessedCorrect);
 
@@ -3506,12 +3752,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.19';
+const CURRENT_APP_VERSION = '1.2.20';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.19';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.20';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3673,7 +3919,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.19';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.20';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();

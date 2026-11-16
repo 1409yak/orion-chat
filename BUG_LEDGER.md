@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Doodle Dash Upgrade:* Enforced a 30s minimum timer, injected a 10s progressive hint system with a <Word> (<Length>) <Time> UI layout, massively expanded the dictionary to over 300 words, added a 10s drawer selection phase, and implemented a BFS flood-fill algorithm for a new canvas bucket tool.
+
 - *Feature Addition (Moderator Tools):* Implemented group-level mod actions. Added `mutedUsers` node in Firebase rules to block message writes at the server level. Added `toggleUserMute` and `inviteToGroup` logic, disabled the chat input UI for muted users, and exposed mod controls in the group details screen.
 
 - *Database Architecture Fix:* Querying users by friend code triggered an `Index not defined` error because Firebase blocked the unindexed child property sort. Solution: Added `".indexOn": ["friendID"]` to the database rules to enable authorized querying and resolve the crash.
