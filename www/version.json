@@ -1,6 +1,6 @@
 {
-  "version": "1.2.20",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.20/bundle.zip",
-  "checksum": "ebecc1a93e48292dcf6ade0fd0a7404030cac93cb3857bcc68241065835818e1",
-  "notes": "Bug fixes and Doodle Dash improvements. You can now use a paint bucket and pick what you draw!"
+  "version": "1.2.21",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.21/bundle.zip",
+  "checksum": "d9d30d73707c42b95f2cfd627f28049e1e1db835f61dc420e145217cc502bb9c",
+  "notes": "World Flags improvements and bug fixes!"
 }
