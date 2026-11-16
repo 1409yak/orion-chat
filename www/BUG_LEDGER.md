@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Database Architecture Fix:* Querying users by friend code triggered an `Index not defined` error because Firebase blocked the unindexed child property sort. Solution: Added `".indexOn": ["friendID"]` to the database rules to enable authorized querying and resolve the crash.
+
 - *Attachment Menu Rollback & Clipboard Paste:* Reverted the standalone `#attachment-menu` overwrite to restore the original attachment menu containing Games and Polls. Added a single `Clipboard paste` option inside the existing menu that invokes `navigator.clipboard.read()` to prompt for permission and paste the latest copied image or text.
 
 - *Attachment Menu & Clipboard Permission:* Added an attachment popover menu (`Photo or Video` and `Paste from Clipboard`) to the paperclip icon. Configured `requestClipboardPermissionAndPaste` to query `clipboard-read` and invoke `navigator.clipboard.read()` directly inside the click gesture to trigger the native permission prompt, backed by a `contenteditable` paste catcher modal for restricted mobile WebViews.

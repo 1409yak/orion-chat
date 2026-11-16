@@ -2,6 +2,11 @@
   "rules": {
     ".read": "auth != null",
     ".write": "auth != null",
+    "users": {
+      ".indexOn": ["friendID"],
+      ".read": true,
+      ".write": true
+    },
     "messages": {
       "$chatId": {
         ".read": "auth != null",
