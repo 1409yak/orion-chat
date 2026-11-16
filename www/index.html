@@ -553,7 +553,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.2.20</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.2.21</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>
@@ -900,8 +900,9 @@
 
     <!-- Active Flag Game Screen -->
     <div id="flag-game-screen" class="modal">
-        <div class="game-ui-container" style="width: 100%; max-width: 800px; padding: 20px; text-align: center;">
-            <div id="game-timer" style="font-size: 32px; font-weight: 800; color: #ffd700; margin-bottom: 20px;">00:00</div>
+        <div id="flags-game-ui" class="game-ui-container" style="width: 100%; max-width: 800px; padding: 20px; text-align: center;">
+            <div id="flags-timer" style="font-size: 32px; font-weight: 800; color: #ffd700; margin-bottom: 20px;">0s</div>
+            <div id="game-timer" style="display: none;"></div>
             
             <div id="question-area">
                 <img id="flag-display" src="" style="height: 150px; border-radius: 12px; box-shadow: 0 10px 30px rgba(0,0,0,0.5); margin-bottom: 30px;">
@@ -922,6 +923,7 @@
             <div id="podium-area" style="display: none; flex-direction: column; align-items: center; justify-content: center; gap: 20px;">
                 <h2 style="color: #ffd700; font-size: 42px; margin: 0; text-shadow: 0 0 20px rgba(255, 215, 0, 0.4);">🏆 FINAL STANDINGS 🏆</h2>
                 <div id="podium-list" style="width: 100%; max-width: 400px; display: flex; flex-direction: column; gap: 12px;"></div>
+                <div id="flags-end-screen" style="width: 100%; max-width: 400px;"></div>
                 <button type="button" id="close-podium-btn" class="glass-btn-secondary" style="margin-top: 8px; min-width: 140px;">Close</button>
             </div>
 

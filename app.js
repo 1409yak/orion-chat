@@ -576,6 +576,7 @@ let prizeTimeout = null;
 let availableFlags = [];
 let lobbyGameUnsub = null;
 let wordleGameUnsub = null;
+let flagsGameUnsub = null;
 let doodleUnsubs = [];
 let currentDoodleTurn = -1;
 let isSubmittingDoodleGuess = false;
@@ -888,67 +889,100 @@ function initFlagGame() {
 window.initFlagGame = initFlagGame;
 
 function startLocalGameUI(gameData) {
+    const gameId = currentChatId;
     closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
-    document.getElementById('flag-game-screen').style.display = 'flex';
+    const flagScreen = document.getElementById('flag-game-screen');
+    if (flagScreen) flagScreen.style.display = 'flex';
     
+    // Unlock input pointer events when a game starts
+    const flagsUi = document.getElementById('flags-game-ui');
+    if (flagsUi) flagsUi.style.pointerEvents = 'auto';
+
     // Ensure initial visibility is correct
-    document.getElementById('game-timer').style.display = 'block';
+    const flagsTimer = document.getElementById('flags-timer');
+    if (flagsTimer) flagsTimer.style.display = 'block';
+    const legacyTimer = document.getElementById('game-timer');
+    if (legacyTimer) legacyTimer.style.display = 'none';
     document.getElementById('question-area').style.display = 'block';
     document.getElementById('chest-area').style.display = 'none';
     document.getElementById('podium-area').style.display = 'none';
     document.getElementById('game-leaderboard').style.display = 'block';
+    const endStatsEl = document.getElementById('flags-end-screen');
+    if (endStatsEl) endStatsEl.innerHTML = '';
     
     availableFlags = [...COUNTRIES_LIST]; // Refresh flag pool for session
     nextFlagRound();
     
+    if (window.flagsGameInterval) clearInterval(window.flagsGameInterval);
     if (gameTimerInterval) clearInterval(gameTimerInterval);
-    const endTime = (gameData && gameData.endTime) ? gameData.endTime : (Date.now() + 300000);
-    gameTimerInterval = setInterval(() => {
-        const remaining = Math.max(0, endTime - Date.now());
-        const mins = Math.floor(remaining / 60000);
-        const secs = Math.floor((remaining % 60000) / 1000);
-        document.getElementById('game-timer').innerText = `${mins}:${secs < 10 ? '0' : ''}${secs}`;
-        
-        if (remaining <= 0 && gameStartedLocally) {
-            clearInterval(gameTimerInterval);
-            gameStartedLocally = false;
 
-            // Immediately mark game as finished and expire the invite message
-            if (currentChatId) {
-                update(ref(db, `games/${currentChatId}`), { status: 'finished' });
-                if (gameData && gameData.inviteMsgId) {
-                    update(ref(db, `messages/${currentChatId}/${gameData.inviteMsgId}`), { expired: true });
-                }
+    let activeEndTime = (gameData && gameData.endTime) ? gameData.endTime : (Date.now() + 300000);
+
+    // Strict Timer Interval
+    window.flagsGameInterval = setInterval(async () => {
+        const timeLeft = Math.max(0, Math.floor((activeEndTime - Date.now()) / 1000));
+        const timerEl = document.getElementById('flags-timer');
+        if (timerEl) timerEl.innerText = `${timeLeft}s`;
+
+        if (timeLeft <= 0 && gameData.status !== 'finished') {
+            // First client to hit 0 tells Firebase the game is strictly over
+            clearInterval(window.flagsGameInterval);
+            await update(ref(db, `games/${gameId}`), { status: 'finished' });
+            if (gameData && gameData.inviteMsgId) {
+                update(ref(db, `messages/${gameId}/${gameData.inviteMsgId}`), { expired: true });
             }
-            
-            showPodium();
-            showNotification("Game Over!", "info");
-            
-            schedulePodiumCleanup();
         }
     }, 1000);
+    gameTimerInterval = window.flagsGameInterval;
 
-    // Listener for being stolen from
-    const myStolenRef = ref(db, `games/${currentChatId}/players/${auth.currentUser.uid}/lastStolenBy`);
-    onValue(myStolenRef, (snap) => {
-        const stealer = snap.val();
-        if (stealer) {
-            document.getElementById('stealer-name').innerText = stealer;
-            document.getElementById('steal-notification').style.display = 'flex';
-            setTimeout(() => {
-                document.getElementById('steal-notification').style.display = 'none';
-                remove(myStolenRef);
-            }, 1000);
+    if (flagsGameUnsub) {
+        flagsGameUnsub();
+        flagsGameUnsub = null;
+    }
+
+    let previousScore = undefined;
+    const gameRef = ref(db, `games/${gameId}`);
+
+    flagsGameUnsub = onValue(gameRef, async (snap) => {
+        const currentData = snap.val();
+        if (!currentData) return;
+
+        // Add a strict status check at the top of your onValue listener
+        if (currentData.status === 'finished') {
+            if (window.flagsGameInterval) clearInterval(window.flagsGameInterval);
+            if (gameTimerInterval) clearInterval(gameTimerInterval);
+            const flagsUi = document.getElementById('flags-game-ui');
+            if (flagsUi) flagsUi.style.pointerEvents = 'none'; // Lock inputs instantly
+            gameStartedLocally = false;
+            showPodium();
+            renderFlagsEndStats(currentData);
+            schedulePodiumCleanup();
+            return; // Halt further game logic
         }
-    });
 
-    onValue(ref(db, `games/${currentChatId}/players`), (snap) => {
-        const players = snap.val() || {};
+        if (currentData.endTime) {
+            activeEndTime = currentData.endTime;
+            gameData.endTime = currentData.endTime;
+        }
+        gameData.status = currentData.status;
+
+        // Inside the game state listener, tracking previous score to detect a steal
+        const currentScore = currentData.scores?.[auth.currentUser.uid] ?? currentData.players?.[auth.currentUser.uid]?.gold ?? 0;
+        if (previousScore !== undefined && currentScore < previousScore) {
+            const amountLost = previousScore - currentScore;
+            if (typeof showNotification === 'function') {
+                showNotification(`🚨 You were robbed of $${amountLost}!`, "error");
+            }
+        }
+        previousScore = currentScore; // Update tracker
+
+        // Update leaderboard
+        const players = currentData.players || {};
         const leader = document.getElementById('leaderboard-content');
         if (leader) {
             leader.innerHTML = Object.values(players)
-                .sort((a, b) => b.gold - a.gold)
-                .map(p => `<div><strong>${p.name}</strong>: ${p.gold} Gold</div>`)
+                .sort((a, b) => (b.gold || 0) - (a.gold || 0))
+                .map(p => `<div><strong>${escapeHTML(p.name || 'Player')}</strong>: ${p.gold || 0} Gold</div>`)
                 .join('');
         }
     });
@@ -974,11 +1008,13 @@ function schedulePodiumCleanup() {
 
 async function showPodium(customPlayers = null) {
     const screen = document.getElementById('flag-game-screen');
-    if (screen && screen.style.display === 'none' || (screen && !screen.style.display)) {
+    if (screen && (screen.style.display === 'none' || !screen.style.display)) {
         openAnimatedModal(screen);
     }
     const timerEl = document.getElementById('game-timer');
-    if (timerEl) timerEl.style.display = customPlayers ? 'none' : 'block';
+    if (timerEl) timerEl.style.display = 'none';
+    const flagsTimerEl = document.getElementById('flags-timer');
+    if (flagsTimerEl) flagsTimerEl.style.display = customPlayers ? 'none' : 'block';
     document.getElementById('question-area').style.display = 'none';
     document.getElementById('chest-area').style.display = 'none';
     document.getElementById('game-leaderboard').style.display = 'none';
@@ -991,9 +1027,11 @@ async function showPodium(customPlayers = null) {
     if (isWordle) {
         sorted = customPlayers;
     } else {
-        const snap = await get(ref(db, `games/${currentChatId}/players`));
-        const players = snap.val() || {};
-        sorted = Object.values(players).sort((a, b) => b.gold - a.gold);
+        const snap = await get(ref(db, `games/${currentChatId}`));
+        const gameData = snap.val() || {};
+        const players = gameData.players || {};
+        sorted = Object.values(players).sort((a, b) => (b.gold || 0) - (a.gold || 0));
+        renderFlagsEndStats(gameData);
     }
 
     podiumList.innerHTML = sorted.map((p, i) => {
@@ -1005,7 +1043,7 @@ async function showPodium(customPlayers = null) {
 
         const scoreLabel = isWordle
             ? (p.scoreLabel || (p.won ? `${p.attempts || 0}/6 \u{2B50}` : 'X/6'))
-            : `${p.gold} Gold`;
+            : `${p.gold || 0} Gold`;
 
         return `
             <div class="podium-card ${i < 3 ? 'top-three' : ''}">
@@ -1022,6 +1060,16 @@ async function showPodium(customPlayers = null) {
                 clearTimeout(podiumCloseTimeout);
                 podiumCloseTimeout = null;
             }
+            if (flagsGameUnsub) {
+                flagsGameUnsub();
+                flagsGameUnsub = null;
+            }
+            if (window.flagsGameInterval) {
+                clearInterval(window.flagsGameInterval);
+                window.flagsGameInterval = null;
+            }
+            const flagsUi = document.getElementById('flags-game-ui');
+            if (flagsUi) flagsUi.style.pointerEvents = 'auto';
             closeAnimatedModal(document.getElementById('flag-game-screen'));
             if (currentChatId) {
                 const snap = await get(ref(db, `games/${currentChatId}`));
@@ -1034,6 +1082,47 @@ async function showPodium(customPlayers = null) {
 
     twemoji.parse(podiumList);
 }
+
+window.renderFlagsEndStats = function(gameData) {
+    if (!gameData) return;
+    const stats = gameData.stats || {};
+    const scores = gameData.scores || {};
+    const players = gameData.players || {}; // UID to username mapping
+
+    const getTop = (category) => {
+        if (!stats[category]) return { name: "Nobody", val: 0 };
+        let topUid = null;
+        let maxVal = -1;
+        for (const [uid, val] of Object.entries(stats[category])) {
+            if (val > maxVal) { maxVal = val; topUid = uid; }
+        }
+        const playerObj = players[topUid];
+        const playerName = (typeof playerObj === 'object' ? playerObj?.name : playerObj) || "Unknown";
+        return { name: playerName, val: maxVal > 0 ? maxVal : 0 };
+    };
+
+    const mostEarned = getTop('earned');
+    const mostStolen = getTop('stolenAmount');
+    const mostRobbed = getTop('timesRobbed');
+    const mostLost = getTop('lostToRobbers');
+
+    const statsHtml = `
+        <div class="flags-end-stats" style="margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.4); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
+            <h3 style="margin: 0 0 10px 0; color: #ffeb3b; text-align: center;">📊 Match Awards</h3>
+            <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; line-height: 1.8;">
+                <li>🏆 <strong>Biggest Brain:</strong> ${mostEarned.name} ($${mostEarned.val} earned)</li>
+                <li>🥷 <strong>Master Thief:</strong> ${mostStolen.name} ($${mostStolen.val} stolen)</li>
+                <li>🎯 <strong>Favorite Target:</strong> ${mostRobbed.name} (${mostRobbed.val} times robbed)</li>
+                <li>📉 <strong>Biggest Victim:</strong> ${mostLost.name} ($${mostLost.val} lost to thieves)</li>
+            </ul>
+        </div>
+    `;
+    
+    const endScreen = document.getElementById('flags-end-screen');
+    if (endScreen && !endScreen.innerHTML.includes('Match Awards')) {
+        endScreen.innerHTML += statsHtml;
+    }
+};
 
 // --- WORD RUSH (MULTIPLAYER WORDLE) ENGINE ---
 let currentGuess = '';
@@ -2040,12 +2129,22 @@ window.pickChest = async (idx, event) => {
                     e.stopPropagation();
                     const victimGold = allPlayers[uid].gold || 0;
                     const amountToSteal = Math.floor(victimGold * stealPercent);
+                    const victimUid = uid;
+                    const stealAmount = amountToSteal;
                     
-                    await update(ref(db, `games/${currentChatId}/players/${uid}`), {
-                        gold: increment(-amountToSteal),
-                        lastStolenBy: myName
-                    });
-                    await update(ref(db, `games/${currentChatId}/players/${myUid}`), { gold: increment(amountToSteal) });
+                    const updates = {};
+                    updates[`games/${currentChatId}/players/${victimUid}/gold`] = increment(-stealAmount);
+                    updates[`games/${currentChatId}/players/${victimUid}/lastStolenBy`] = myName;
+                    updates[`games/${currentChatId}/players/${myUid}/gold`] = increment(stealAmount);
+                    updates[`games/${currentChatId}/scores/${victimUid}`] = increment(-stealAmount);
+                    updates[`games/${currentChatId}/scores/${myUid}`] = increment(stealAmount);
+
+                    // Track extensive stats during gameplay
+                    updates[`games/${currentChatId}/stats/stolenAmount/${auth.currentUser.uid}`] = increment(stealAmount);
+                    updates[`games/${currentChatId}/stats/timesRobbed/${victimUid}`] = increment(1);
+                    updates[`games/${currentChatId}/stats/lostToRobbers/${victimUid}`] = increment(stealAmount);
+
+                    await update(ref(db), updates);
                     
                     chestsContainer.style.display = 'none';
                     prizeDisplay.innerText = `Stole ${stealPercentStr} from ${allPlayers[uid].name}!`;
@@ -2084,7 +2183,14 @@ window.pickChest = async (idx, event) => {
     prizeDisplay.className = `prize-display ${goldChange >= 0 ? 'win' : 'lose'}`;
     
     if (goldChange !== 0) {
-        await update(ref(db, `games/${currentChatId}/players/${myUid}`), { gold: increment(goldChange) });
+        const updates = {};
+        updates[`games/${currentChatId}/players/${myUid}/gold`] = increment(goldChange);
+        updates[`games/${currentChatId}/scores/${myUid}`] = increment(goldChange);
+        if (goldChange > 0) {
+            const rewardAmount = goldChange;
+            updates[`games/${currentChatId}/stats/earned/${auth.currentUser.uid}`] = increment(rewardAmount);
+        }
+        await update(ref(db), updates);
     }
     
     // Timing logic
@@ -3752,12 +3858,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.20';
+const CURRENT_APP_VERSION = '1.2.21';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.20';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.21';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3919,7 +4025,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.20';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.21';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
