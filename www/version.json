@@ -1,6 +1,6 @@
 {
   "version": "1.2.19",
   "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.19/bundle.zip",
-  "checksum": "eefb61b93592a9892f1794fd277bef4cfbe7501fb188fa7c6fac81f2f80f9144",
+  "checksum": "596fd0b6ac4c80a6a710eb43bb01818bb437724a45c0e60d082debd13448abeb",
   "notes": "Added group moderation tools (mute and invite)"
 }
