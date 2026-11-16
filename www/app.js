@@ -70,6 +70,7 @@ let activeTypingOff = null;   // Listener for typing status
 let activeMembersOff = null;   // Listener for current chat members
 let activeMessagesOff = null;  // Listener for current chat messages
 let activeChatPartnerOff = null; // Listener for DM partner status
+let activeGroupMuteOff = null; // Listener for group metadata and mute status
 let currentEditingMessage = null; // To keep track of the message being edited
 let viewedMessagesInSession = new Set(); // To prevent multiple increments in one view
 let currentReplyMessage = null; // To keep track of the message being replied to
@@ -3505,12 +3506,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.18';
+const CURRENT_APP_VERSION = '1.2.19';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.18';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.19';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -3672,7 +3673,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.18';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.19';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4541,6 +4542,7 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
         const myData = currentChatMemberData?.[myUid];
         const amICreator = myUid === groupCreatorId;
         const amIAdmin = myData?.role === 'admin';
+        const amIMod = myData?.role === 'mod';
         const targetIsCreator = targetUid === groupCreatorId;
         const targetMemberData = currentChatMemberData?.[targetUid];
 
@@ -4588,42 +4590,41 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
         }
 
         // ── 3. GROUP MODERATION & ROLES SECTION ──
-        if (chatId && isGroupChat && (amICreator || amIAdmin) && !targetIsCreator) {
+        if (chatId && isGroupChat && (amICreator || amIAdmin || amIMod) && !targetIsCreator) {
             const modSection = makeSection('Group Roles & Moderation');
             
             // Discord-Style Role Assignment (Creator or Admin)
-            const targetRole = targetMemberData?.role || 'member';
-            const targetRoleInfo = getGroupRoleInfo(targetRole);
+            if (amICreator || amIAdmin) {
+                const targetRole = targetMemberData?.role || 'member';
+                const targetRoleInfo = getGroupRoleInfo(targetRole);
+                modSection.appendChild(makeActionRow(
+                    `Role: ${targetRoleInfo.label}`,
+                    '\u{1F3F7}\u{FE0F}',
+                    false,
+                    () => {
+                        closeAnimatedModal(document.getElementById('user-view-modal'));
+                        openGroupRoleModal(targetUid, chatId, targetRole, getDisplayName(userData));
+                    }
+                ));
+            }
+
+            // Group Mute / Unmute
+            const groupId = currentChatData?.groupId || chatId;
+            let isMutedInGroup = false;
+            try {
+                const gSnap = await get(ref(db, `groups/${groupId}/mutedUsers/${targetUid}`));
+                isMutedInGroup = gSnap.exists() && gSnap.val() === true;
+            } catch (e) {}
+
             modSection.appendChild(makeActionRow(
-                `Role: ${targetRoleInfo.label}`,
-                '\u{1F3F7}\u{FE0F}',
+                isMutedInGroup ? 'Unmute User (Group)' : 'Mute User (Group)',
+                isMutedInGroup ? '\u{1F50A}' : '\u{1F507}',
                 false,
-                () => {
+                async () => {
                     closeAnimatedModal(document.getElementById('user-view-modal'));
-                    openGroupRoleModal(targetUid, chatId, targetRole, getDisplayName(userData));
+                    await window.toggleUserMute(groupId, targetUid, !isMutedInGroup);
                 }
             ));
-
-            // Mute / Unmute
-            const isMuted = targetMemberData?.mutedUntil && targetMemberData.mutedUntil > Date.now();
-            if (isMuted) {
-                modSection.appendChild(makeActionRow('Unmute User', '\u{1F50A}', false, async () => {
-                    try {
-                        await update(ref(db, `members/${currentChatId}/${targetUid}`), {
-                            mutedUntil: null,
-                            muteReason: null
-                        });
-                        closeAnimatedModal(document.getElementById('user-view-modal'));
-                    } catch (err) {
-                        console.error("Error unmuting user:", err);
-                        showNotification("Failed to unmute user: " + err.message, "error");
-                    }
-                }));
-            } else {
-                modSection.appendChild(makeActionRow('Mute User', '\u{1F507}', false, () => {
-                    openMuteModal(targetUid, userData.displayName || (userData.email ? userData.email.split('@')[0] : "User"));
-                }));
-            }
         }
 
         // ── 4. DANGER ZONE ──
@@ -4704,6 +4705,10 @@ function openGroupRoleModal(targetUid, chatId, currentRole = 'member', targetNam
         card.onclick = async () => {
             try {
                 await update(ref(db, `members/${chatId}/${targetUid}`), { role: role.id });
+                const gid = currentChatData?.groupId || chatId;
+                if (gid) {
+                    update(ref(db, `groups/${gid}/roles`), { [targetUid]: role.id }).catch(() => {});
+                }
                 updateMessageBadgesForUser(targetUid, role.id);
                 showNotification(`Role updated to ${role.label} for ${targetName}`, 'success');
                 closeAnimatedModal(modal);
@@ -5413,6 +5418,15 @@ async function openChat(chatId, title) {
     if (activeMessagesOff) activeMessagesOff();
     if (activeTypingOff) activeTypingOff();
     if (activeChatPartnerOff) activeChatPartnerOff();
+    if (activeGroupMuteOff) { activeGroupMuteOff(); activeGroupMuteOff = null; }
+
+    const initialMuteBanner = document.getElementById('group-muted-banner');
+    if (initialMuteBanner) initialMuteBanner.style.display = 'none';
+    const initMsgInput = document.getElementById('message-input');
+    if (initMsgInput) {
+        initMsgInput.style.display = '';
+        initMsgInput.disabled = false;
+    }
 
     // Clear caches for new chat context
     currentChatMemberNames.clear();
@@ -5429,6 +5443,23 @@ async function openChat(chatId, title) {
         currentChatData = chatData;
         updatePinnedMessageBanner(chatData, chatId);
         viewedMessagesInSession.clear();
+
+        const isGroup = chatData.isGroup === true || chatData.type === 'group' || !!chatData.groupId;
+        const groupId = chatData.groupId || chatId;
+
+        if (activeGroupMuteOff) {
+            activeGroupMuteOff();
+            activeGroupMuteOff = null;
+        }
+
+        if (isGroup && groupId) {
+            activeGroupMuteOff = onValue(ref(db, `groups/${groupId}`), (groupSnap) => {
+                const groupData = groupSnap.val() || {};
+                updateGroupMuteUI(groupData, chatData);
+            });
+        } else {
+            updateGroupMuteUI(null, chatData);
+        }
 
         const chatTitleElem = document.getElementById('chat-title-text');
         const chatDescriptionElem = document.getElementById('chat-description-text');
@@ -6777,12 +6808,85 @@ function createTypingIndicator() {
     return el;
 }
 
+function updateGroupMuteUI(groupData, chatData = currentChatData) {
+    const myUid = auth.currentUser?.uid;
+    const isGroup = chatData?.isGroup === true || chatData?.type === 'group' || !!chatData?.groupId;
+    const isMutedByMod = isGroup && myUid && !!(groupData?.mutedUsers && groupData.mutedUsers[myUid]);
+
+    const input = document.getElementById('message-input');
+    const sendBtn = document.getElementById('send-btn');
+    const plusBtn = document.getElementById('plus-btn');
+    const cameraBtn = document.getElementById('camera-btn');
+    const emojiBtn = document.getElementById('emoji-btn');
+    const banner = document.getElementById('group-muted-banner');
+    const typingInd = document.getElementById('typing-indicator');
+
+    if (isMutedByMod) {
+        if (input) {
+            input.disabled = true;
+            input.placeholder = "You have been muted by a moderator.";
+            input.style.display = 'none';
+        }
+        if (sendBtn) sendBtn.style.display = 'none';
+        if (plusBtn) {
+            plusBtn.disabled = true;
+            plusBtn.style.display = 'none';
+        }
+        if (cameraBtn) {
+            cameraBtn.disabled = true;
+            cameraBtn.style.display = 'none';
+        }
+        if (emojiBtn) {
+            emojiBtn.disabled = true;
+            emojiBtn.style.display = 'none';
+        }
+        if (typingInd) typingInd.style.display = 'none';
+
+        if (banner) {
+            banner.innerText = "You have been muted by a moderator.";
+            banner.style.display = 'block';
+        }
+    } else {
+        if (banner) {
+            banner.style.display = 'none';
+        }
+        if (input) {
+            input.style.display = '';
+        }
+        if (plusBtn) {
+            plusBtn.disabled = false;
+            plusBtn.style.display = '';
+        }
+        if (cameraBtn) {
+            cameraBtn.disabled = false;
+        }
+        if (emojiBtn) {
+            emojiBtn.disabled = false;
+            emojiBtn.style.display = '';
+        }
+        checkMuteStatus();
+    }
+}
+window.updateGroupMuteUI = updateGroupMuteUI;
+
 function checkMuteStatus() {
     const myUid = auth.currentUser.uid;
     const myData = currentChatMemberData?.[myUid];
     const input = document.getElementById('message-input');
     const sendBtn = document.getElementById('send-btn');
     const typingInd = document.getElementById('typing-indicator');
+    const banner = document.getElementById('group-muted-banner');
+
+    if (banner && banner.style.display === 'block') {
+        if (input) {
+            input.disabled = true;
+            input.style.display = 'none';
+        }
+        if (sendBtn) sendBtn.style.display = 'none';
+        if (typingInd) typingInd.style.display = 'none';
+        return;
+    }
+
     const chatRef = ref(db, `chats/${currentChatId}`);
 
     // Get chat type to check for Channel read-only mode
@@ -7079,6 +7183,18 @@ async function sendImageMessage(imageData, targetChatId = null) {
         return;
     }
 
+    const isGroupChat = currentChatData?.isGroup === true || currentChatData?.type === 'group' || !!currentChatData?.groupId;
+    const currentGroupId = currentChatData?.groupId || destChatId;
+    if (isGroupChat && currentGroupId) {
+        try {
+            const gSnap = await get(ref(db, `groups/${currentGroupId}/mutedUsers/${auth.currentUser?.uid}`));
+            if (gSnap.exists() && gSnap.val() === true) {
+                showNotification("You have been muted by a moderator.", "error");
+                return;
+            }
+        } catch (e) {}
+    }
+
     console.log('[UPLOAD] Storage reference created: preparing image payload...');
     // Yield to let UI update and ensure non-blocking execution
     await new Promise(r => setTimeout(r, 0));
@@ -7191,7 +7307,19 @@ async function renderMembersList(msnap, groupCreatorId) {
     let memberUids = Object.keys(membersMap);
     const myUid = auth.currentUser.uid;
     const amICreator = myUid === groupCreatorId;
-    const amIAdmin = membersMap[myUid]?.role === 'admin';
+    const myRole = membersMap[myUid]?.role || currentChatMemberData?.[myUid]?.role || 'member';
+    const amIAdmin = myRole === 'admin' || amICreator;
+    const amIMod = myRole === 'mod';
+    const canModerate = amIAdmin || amIMod;
+
+    const groupId = currentChatData?.groupId || currentChatId;
+    let mutedUsers = {};
+    if (groupId) {
+        try {
+            const gSnap = await get(ref(db, `groups/${groupId}`));
+            mutedUsers = gSnap.val()?.mutedUsers || {};
+        } catch (e) {}
+    }
 
     // Sub-channel creation button logic
     const subChannelBtn = document.getElementById('open-subchannel-modal-btn');
@@ -7272,6 +7400,25 @@ async function renderMembersList(msnap, groupCreatorId) {
                     </div>
                 </div>
             `;
+            if (canModerate && member.uid !== myUid && !member.isCreator) {
+                const isMuted = !!mutedUsers[member.uid];
+                const muteBtn = document.createElement('button');
+                muteBtn.className = 'glass-btn-secondary mute-toggle-btn';
+                muteBtn.style.cssText = `padding: 3px 8px; font-size: 11px; border-radius: 6px; margin-left: 8px; cursor: pointer; flex-shrink: 0; background: ${isMuted ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.08)'}; color: ${isMuted ? '#f87171' : '#fff'}; border: 1px solid ${isMuted ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.15)'}; font-weight: 600;`;
+                muteBtn.innerText = isMuted ? 'Unmute' : 'Mute';
+                muteBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    const willMute = muteBtn.innerText === 'Mute';
+                    await window.toggleUserMute(groupId, member.uid, willMute);
+                    mutedUsers[member.uid] = willMute ? true : null;
+                    muteBtn.innerText = willMute ? 'Unmute' : 'Mute';
+                    muteBtn.style.background = willMute ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.08)';
+                    muteBtn.style.color = willMute ? '#f87171' : '#fff';
+                    muteBtn.style.borderColor = willMute ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.15)';
+                };
+                const contentDiv = div.querySelector('.member-item-content') || div;
+                contentDiv.appendChild(muteBtn);
+            }
             twemoji.parse(div);
             
             // Update cache for tooltips
@@ -7345,6 +7492,21 @@ async function sendMessage() {
     const myUid = auth.currentUser.uid;
     const myData = currentChatMemberData?.[myUid];
     if (myData && myData.mutedUntil && myData.mutedUntil > Date.now()) return;
+
+    // Server-level and group mod mute check
+    const isGroup = currentChatData?.isGroup === true || currentChatData?.type === 'group' || !!currentChatData?.groupId;
+    const groupId = currentChatData?.groupId || currentChatId;
+    if (isGroup && groupId) {
+        try {
+            const gSnap = await get(ref(db, `groups/${groupId}/mutedUsers/${myUid}`));
+            if (gSnap.exists() && gSnap.val() === true) {
+                showNotification("You have been muted by a moderator.", "error");
+                return;
+            }
+        } catch (e) {
+            console.warn("Mute check error in sendMessage:", e);
+        }
+    }
 
     let stickerToSend = null;
     if (currentStickerPickerMessageId) { // If a sticker was selected from the picker
@@ -8146,6 +8308,24 @@ if (cameraInput) {
 }
 
 function updateInputButtons() {
+    const banner = document.getElementById('group-muted-banner');
+    if (banner && banner.style.display === 'block') {
+        const input = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const plusBtn = document.getElementById('plus-btn');
+        const cameraBtn = document.getElementById('camera-btn');
+        const emojiBtn = document.getElementById('emoji-btn');
+        if (input) {
+            input.disabled = true;
+            input.style.display = 'none';
+        }
+        if (sendBtn) sendBtn.style.display = 'none';
+        if (plusBtn) plusBtn.style.display = 'none';
+        if (cameraBtn) cameraBtn.style.display = 'none';
+        if (emojiBtn) emojiBtn.style.display = 'none';
+        return;
+    }
+
     const input = document.getElementById('message-input');
     const sendBtn = document.getElementById('send-btn');
     const plusBtn = document.getElementById('plus-btn');
@@ -8269,6 +8449,8 @@ document.getElementById('confirm-creation-btn').onclick = async () => {
         allMembers.forEach(uid => {
             updates[`/user_chats/${uid}/${chatId}`] = true;
             updates[`/members/${chatId}/${uid}`] = { role: uid === myUid ? 'admin' : 'member' };
+            updates[`/groups/${groupId}/members/${uid}`] = true;
+            updates[`/groups/${groupId}/roles/${uid}`] = uid === myUid ? 'admin' : 'member';
         });
 
         await update(ref(db), updates);
@@ -9451,6 +9633,23 @@ async function openGroupInfoModal(chatId, chatData) {
         };
     }
 
+    const groupId = chatData.groupId || chatId;
+    const inviteBtn = document.getElementById('group-info-invite-btn');
+    if (inviteBtn) {
+        inviteBtn.onclick = async () => {
+            let friendIdInput = null;
+            if (typeof showConfirm === 'function') {
+                friendIdInput = await showConfirm("Invite Member", "Enter Orion Friend ID to invite:", true, "", "Invite", "Cancel");
+            } else {
+                friendIdInput = window.prompt("Enter Orion Friend ID to invite:");
+            }
+            if (friendIdInput && friendIdInput.trim()) {
+                await window.inviteToGroup(groupId, friendIdInput.trim());
+                openGroupInfoModal(chatId, chatData);
+            }
+        };
+    }
+
     listEl.innerHTML = '<div style="text-align: center; padding: 20px; opacity: 0.5;">Loading members...</div>';
 
     try {
@@ -9459,6 +9658,21 @@ async function openGroupInfoModal(chatId, chatData) {
         const memberUids = Object.keys(membersMap);
         if (countEl) countEl.innerText = memberUids.length;
         if (statsEl) statsEl.innerText = `${memberUids.length} member${memberUids.length !== 1 ? 's' : ''} \u2022 ${chatData.isChannel ? 'Broadcast Channel' : 'Group Chat'}`;
+
+        const groupSnap = await get(ref(db, `groups/${groupId}`));
+        const groupData = groupSnap.val() || {};
+        const mutedUsers = groupData.mutedUsers || {};
+
+        const myRole = membersMap[myUid]?.role || currentChatMemberData?.[myUid]?.role || 'member';
+        const isAdmin = isCreator || myRole === 'admin';
+        const isMod = myRole === 'mod';
+        const canModerate = isAdmin || isMod;
+
+        if (canModerate && myUid) {
+            update(ref(db, `groups/${groupId}/roles`), {
+                [myUid]: isAdmin ? 'admin' : 'mod'
+            }).catch(() => {});
+        }
 
         const detailsPromises = memberUids.map(async (uid) => {
             const uSnap = await get(ref(db, `users/${uid}`));
@@ -9499,6 +9713,24 @@ async function openGroupInfoModal(chatId, chatData) {
                     ${m.isCreator ? '<span style="font-size: 11px; color: #ffd700; font-weight: 600;">Group Creator</span>' : (m.role === 'admin' ? '<span style="font-size: 11px; color: #ff4d6d; font-weight: 600;">Admin</span>' : '')}
                 </div>
             `;
+            if (canModerate && m.uid !== myUid && !m.isCreator) {
+                const isMuted = !!mutedUsers[m.uid];
+                const muteBtn = document.createElement('button');
+                muteBtn.className = 'glass-btn-secondary mute-toggle-btn';
+                muteBtn.style.cssText = `padding: 4px 10px; font-size: 12px; border-radius: 8px; margin-left: auto; cursor: pointer; flex-shrink: 0; background: ${isMuted ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.08)'}; color: ${isMuted ? '#f87171' : '#fff'}; border: 1px solid ${isMuted ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.15)'}; font-weight: 600;`;
+                muteBtn.innerText = isMuted ? 'Unmute' : 'Mute';
+                muteBtn.onclick = async (e) => {
+                    e.stopPropagation();
+                    const willMute = muteBtn.innerText === 'Mute';
+                    await window.toggleUserMute(groupId, m.uid, willMute);
+                    mutedUsers[m.uid] = willMute ? true : null;
+                    muteBtn.innerText = willMute ? 'Unmute' : 'Mute';
+                    muteBtn.style.background = willMute ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.08)';
+                    muteBtn.style.color = willMute ? '#f87171' : '#fff';
+                    muteBtn.style.borderColor = willMute ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.15)';
+                };
+                row.appendChild(muteBtn);
+            }
             twemoji.parse(row);
             row.onclick = () => {
                 closeAnimatedModal(modal, () => {
@@ -9775,6 +10007,72 @@ document.getElementById('confirm-add-members-btn').onclick = async () => {
     } catch (err) {
         console.error(err);
         showNotification("Failed to add members", "error");
+    }
+};
+
+/* ---------------- GROUP MODERATOR ACTIONS (MUTE & INVITE) ---------------- */
+
+window.toggleUserMute = async function(groupId, targetUserId, muteStatus) {
+    try {
+        await update(ref(db, `groups/${groupId}/mutedUsers`), {
+            [targetUserId]: muteStatus ? true : null
+        });
+        showNotification(muteStatus ? "User muted" : "User unmuted", "success");
+    } catch (err) {
+        console.error("toggleUserMute error:", err);
+        showNotification("Failed to update mute status. Are you a mod?", "error");
+    }
+};
+
+window.inviteToGroup = async function(groupId, friendId) {
+    try {
+        const cleanCode = String(friendId).trim();
+        // Look up friend UID by friendID code
+        let userQuery = query(ref(db, 'users'), orderByChild('friendID'), equalTo(cleanCode));
+        let snapshot = await get(userQuery);
+        if (!snapshot.exists()) {
+            userQuery = query(ref(db, 'users'), orderByChild('friendId'), equalTo(cleanCode));
+            snapshot = await get(userQuery);
+        }
+        if (!snapshot.exists()) {
+            userQuery = query(ref(db, 'users'), orderByChild('friendId'), equalTo(cleanCode.toUpperCase()));
+            snapshot = await get(userQuery);
+        }
+        if (!snapshot.exists()) return showNotification("User not found", "error");
+        
+        const targetUid = Object.keys(snapshot.val())[0];
+        await update(ref(db, `groups/${groupId}/members`), {
+            [targetUid]: true
+        });
+
+        // Also sync membership to /members/ and /user_chats/ so the invited member has instant access in UI
+        try {
+            const chatSnap = await get(ref(db, `chats/${groupId}`));
+            if (chatSnap.exists()) {
+                await update(ref(db), {
+                    [`/members/${groupId}/${targetUid}`]: { role: 'member' },
+                    [`/user_chats/${targetUid}/${groupId}`]: true
+                });
+            } else {
+                const groupChatsSnap = await get(query(ref(db, 'chats'), orderByChild('groupId'), equalTo(groupId)));
+                if (groupChatsSnap.exists()) {
+                    const extraUpdates = {};
+                    groupChatsSnap.forEach(snap => {
+                        const cid = snap.key;
+                        extraUpdates[`/members/${cid}/${targetUid}`] = { role: 'member' };
+                        extraUpdates[`/user_chats/${targetUid}/${cid}`] = true;
+                    });
+                    await update(ref(db), extraUpdates);
+                }
+            }
+        } catch (e) {
+            console.warn("Extra sync for inviteToGroup:", e);
+        }
+
+        showNotification("User added to group!", "success");
+    } catch (err) {
+        console.error("inviteToGroup error:", err);
+        showNotification("Failed to add user", "error");
     }
 };
 

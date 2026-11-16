@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Feature Addition (Moderator Tools):* Implemented group-level mod actions. Added `mutedUsers` node in Firebase rules to block message writes at the server level. Added `toggleUserMute` and `inviteToGroup` logic, disabled the chat input UI for muted users, and exposed mod controls in the group details screen.
+
 - *Database Architecture Fix:* Querying users by friend code triggered an `Index not defined` error because Firebase blocked the unindexed child property sort. Solution: Added `".indexOn": ["friendID"]` to the database rules to enable authorized querying and resolve the crash.
 
 - *Attachment Menu Rollback & Clipboard Paste:* Reverted the standalone `#attachment-menu` overwrite to restore the original attachment menu containing Games and Polls. Added a single `Clipboard paste` option inside the existing menu that invokes `navigator.clipboard.read()` to prompt for permission and paste the latest copied image or text.

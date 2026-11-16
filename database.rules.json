@@ -3,9 +3,22 @@
     ".read": "auth != null",
     ".write": "auth != null",
     "users": {
-      ".indexOn": ["friendID"],
+      ".indexOn": ["friendID", "friendId"],
       ".read": true,
       ".write": true
+    },
+    "groups": {
+      "$groupId": {
+        "messages": {
+          ".write": "data.parent().child('members').child(auth.uid).exists() && !data.parent().child('mutedUsers').child(auth.uid).exists()"
+        },
+        "mutedUsers": {
+          ".write": "data.parent().child('roles').child(auth.uid).val() === 'admin' || data.parent().child('roles').child(auth.uid).val() === 'mod'"
+        },
+        "members": {
+          ".write": "data.parent().child('roles').child(auth.uid).val() === 'admin' || data.parent().child('roles').child(auth.uid).val() === 'mod'"
+        }
+      }
     },
     "messages": {
       "$chatId": {
