@@ -1,6 +1,6 @@
 {
-  "version": "1.2.17",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.17/bundle.zip",
-  "checksum": "faa4d5749afdf9c33810fef6f963890ea291361d9f623b9f2f4c8e35db908c9a",
-  "notes": "Restored attachment menu and added Clipboard paste option"
+  "version": "1.2.18",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.18/bundle.zip",
+  "checksum": "07dfcdf607dd45808b943d059262854b34670490004542e8bd73e0d4a1f71591",
+  "notes": "Fixed database index for adding friends"
 }
