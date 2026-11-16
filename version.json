@@ -1,6 +1,6 @@
 {
-  "version": "1.2.19",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.19/bundle.zip",
-  "checksum": "596fd0b6ac4c80a6a710eb43bb01818bb437724a45c0e60d082debd13448abeb",
-  "notes": "Added group moderation tools (mute and invite)"
+  "version": "1.2.20",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.20/bundle.zip",
+  "checksum": "ebecc1a93e48292dcf6ade0fd0a7404030cac93cb3857bcc68241065835818e1",
+  "notes": "Bug fixes and Doodle Dash improvements. You can now use a paint bucket and pick what you draw!"
 }
