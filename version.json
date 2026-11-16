@@ -1,6 +1,6 @@
 {
-  "version": "1.2.18",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.18/bundle.zip",
-  "checksum": "17522e9d48b9f95c0f4d3e2c08ccb49d5c066382446bc80fe3fadece830a6fbf",
-  "notes": "Fixed database index for adding friends"
+  "version": "1.2.19",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.19/bundle.zip",
+  "checksum": "eefb61b93592a9892f1794fd277bef4cfbe7501fb188fa7c6fac81f2f80f9144",
+  "notes": "Added group moderation tools (mute and invite)"
 }
