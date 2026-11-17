@@ -850,8 +850,7 @@ async function setupGameLobby(gameType = 'flags') {
                             turnExpiresAt: Date.now() + 10000 // 10 seconds to choose
                         });
                     } else {
-                        const wordleWordList = ['APPLE', 'TRAIN', 'GHOST', 'PLANT', 'WATER', 'BRAIN', 'HEART', 'LIGHT', 'SOUND', 'SPACE', 'DREAM', 'HOUSE', 'MOUSE', 'CLOCK', 'PHONE', 'CHAIR'];
-                        const targetWord = wordleWordList[Math.floor(Math.random() * wordleWordList.length)];
+                        const targetWord = WORD_RUSH_WORDS[Math.floor(Math.random() * WORD_RUSH_WORDS.length)];
                         await update(gameRef, {
                             status: 'playing',
                             type: 'wordle',
@@ -1126,6 +1125,84 @@ window.renderFlagsEndStats = function(gameData) {
 };
 
 // --- WORD RUSH (MULTIPLAYER WORDLE) ENGINE ---
+const WORD_RUSH_WORDS = [
+"about", "above", "actor", "acute", "admit", "adopt", "adult", "after", "again", "agent",
+"agree", "ahead", "alarm", "album", "alert", "alien", "alike", "alive", "allow", "alone",
+"along", "alter", "among", "angel", "anger", "angle", "angry", "apart", "apple", "apply",
+"arena", "argue", "arise", "array", "aside", "asset", "audio", "audit", "avoid", "award",
+"aware", "bacon", "badly", "baker", "bases", "basic", "basis", "beach", "beast", "begin",
+"begun", "being", "belly", "below", "bench", "birth", "black", "blame", "blind", "block",
+"blood", "board", "boast", "bonus", "boost", "booth", "brain", "brake", "brand", "bread",
+"break", "breed", "brick", "bride", "brief", "bring", "broad", "broke", "brown", "build",
+"built", "buyer", "cable", "carry", "catch", "cause", "chain", "chair", "chart", "chase",
+"cheap", "check", "chest", "chief", "child", "china", "chose", "civil", "claim", "class",
+"clean", "clear", "click", "clock", "close", "coach", "coast", "could", "count", "court",
+"cover", "crack", "craft", "crash", "crazy", "cream", "crime", "cross", "crowd", "crown",
+"curve", "cycle", "daily", "dance", "dated", "dealt", "death", "debut", "delay", "depth",
+"doing", "doubt", "dozen", "draft", "drama", "drawn", "dream", "dress", "drill", "drink",
+"drive", "drove", "dying", "eager", "early", "earth", "eight", "elite", "empty", "enemy",
+"enjoy", "enter", "entry", "equal", "error", "event", "every", "exact", "exist", "extra",
+"faith", "false", "fault", "fiber", "field", "fifth", "fifty", "fight", "final", "first",
+"fixed", "flash", "fleet", "floor", "fluid", "focus", "force", "forth", "forty", "forum",
+"found", "frame", "frank", "fraud", "fresh", "front", "fruit", "fully", "funny", "giant",
+"given", "glass", "globe", "going", "grace", "grade", "grand", "grant", "grass", "great",
+"green", "gross", "group", "grown", "guard", "guess", "guest", "guide", "happy", "harsh",
+"heart", "heavy", "hence", "horse", "hotel", "house", "human", "ideal", "image", "index",
+"inner", "input", "issue", "joint", "judge", "known", "label", "large", "laser", "later",
+"laugh", "layer", "learn", "lease", "least", "leave", "legal", "level", "light", "limit",
+"local", "logic", "loose", "lower", "lucky", "magic", "major", "maker", "march", "match",
+"mayor", "meant", "media", "metal", "might", "minor", "minus", "mixed", "model", "money",
+"month", "moral", "motor", "mount", "mouse", "mouth", "movie", "music", "needs", "never",
+"night", "noise", "north", "noted", "novel", "nurse", "occur", "ocean", "offer", "often",
+"order", "other", "ought", "paint", "panel", "paper", "party", "peace", "phase", "phone",
+"photo", "piece", "pilot", "pitch", "place", "plain", "plane", "plant", "plate", "point",
+"pound", "power", "press", "price", "pride", "prime", "print", "prior", "prize", "proof",
+"proud", "prove", "queen", "quick", "quiet", "quite", "radio", "raise", "range", "rapid",
+"ratio", "reach", "ready", "realm", "rebel", "refer", "right", "rigid", "river", "roast",
+"robot", "rough", "round", "route", "royal", "rural", "scale", "scene", "scope", "score",
+"scout", "scrap", "sense", "serve", "seven", "shade", "shaft", "shake", "shall", "shape",
+"share", "sharp", "sheet", "shelf", "shell", "shift", "shirt", "shock", "shoot", "short",
+"shown", "sight", "since", "sixth", "sixty", "sized", "skill", "sleep", "slide", "small",
+"smart", "smile", "smith", "smoke", "solid", "solve", "sorry", "sound", "south", "space",
+"spare", "speak", "speed", "spend", "spent", "split", "spoke", "sport", "staff", "stage",
+"stand", "start", "state", "steam", "steel", "stick", "still", "stock", "stone", "stood",
+"store", "storm", "story", "strip", "stuck", "study", "stuff", "style", "sugar", "suite",
+"super", "sweet", "table", "taken", "taste", "taxes", "teach", "teeth", "tenth", "Texas",
+"thank", "theft", "their", "theme", "there", "these", "thick", "thing", "think", "third",
+"those", "three", "threw", "throw", "tight", "times", "tired", "title", "today", "topic",
+"total", "touch", "tough", "tower", "track", "trade", "train", "treat", "trend", "trial",
+"tribe", "trick", "troop", "truck", "truly", "trust", "truth", "twice", "under", "undue",
+"union", "unity", "until", "upper", "upset", "urban", "usage", "usual", "valid", "value",
+"video", "virus", "visit", "vital", "voice", "voter", "waste", "watch", "water", "wheel",
+"where", "which", "while", "white", "whole", "whose", "woman", "women", "world", "worry",
+"worse", "worst", "worth", "would", "wound", "write", "wrong", "yield", "young", "youth",
+"blaze", "blink", "blush", "brave", "brisk", "chili", "choke", "clamp", "clasp", "climb",
+"clump", "crisp", "crush", "crust", "ditch", "dodge", "drift", "flair", "flake", "flame",
+"flare", "flask", "flock", "flute", "fudge", "glare", "gleam", "glide", "glint", "gloom",
+"glory", "glove", "grace", "grape", "grasp", "graze", "grind", "groom", "habit", "hatch",
+"hover", "hurry", "juice", "kneel", "knack", "knock", "lemon", "liver", "llama", "lunar",
+"mango", "marsh", "medal", "melon", "mercy", "miner", "mirth", "moist", "mound", "mourn",
+"ninja", "oasis", "onion", "ounce", "panic", "patch", "pause", "pearl", "pecan", "perch",
+"plank", "plump", "porch", "pouch", "prawn", "probe", "quack", "quail", "quake", "quilt",
+"quirk", "radar", "rally", "razor", "relic", "rhino", "ridge", "rider", "rival", "rodeo",
+"rouge", "rugby", "salsa", "satin", "sauce", "scoop", "scowl", "seize", "shark", "shave",
+"shear", "shine", "shove", "shred", "shrub", "skate", "skirt", "skull", "slang", "slash",
+"slice", "slick", "slime", "slump", "smack", "smash", "smear", "smell", "smirk", "snack",
+"snail", "snake", "sneak", "sniff", "snoop", "snore", "snort", "snout", "spade", "spank",
+"spark", "spasm", "spawn", "spear", "speck", "spell", "spice", "spike", "spill", "spine",
+"spire", "splat", "spoil", "spool", "spoon", "spout", "spray", "spree", "squat", "squid",
+"stack", "stain", "stair", "stake", "stalk", "stamp", "stare", "stark", "steak", "steal",
+"steep", "steer", "stern", "sting", "stink", "stomp", "stool", "stoop", "stork", "strap",
+"straw", "stray", "strut", "stump", "stung", "stunt", "suede", "swoop", "sword", "syrup",
+"taffy", "tango", "tempo", "tiger", "toast", "towel", "toxic", "trace", "tramp", "tread",
+"trout", "tulip", "tumor", "tunic", "twine", "twirl", "twist", "ulcer", "ultra", "uncle",
+"unzip", "usher", "vapor", "vegan", "venom", "verge", "vicar", "vigil", "viola", "vivid",
+"vocal", "vodka", "vogue", "vomit", "vowel", "wacky", "wafer", "wager", "wagon", "waltz",
+"weave", "wedge", "weigh", "whale", "wheat", "whiff", "whisk", "whine", "widen", "widow",
+"width", "witch", "woven", "wreck", "yacht", "zebra"
+];
+const wordleWordList = WORD_RUSH_WORDS;
+const WORDLE_WORDS = WORD_RUSH_WORDS;
 let currentGuess = '';
 let guessHistory = [];
 let wordleTarget = '';
@@ -3857,12 +3934,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.28';
+const CURRENT_APP_VERSION = '1.2.29';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.28';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.29';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4024,7 +4101,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.28';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.29';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
