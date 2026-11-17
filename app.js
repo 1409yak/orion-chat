@@ -3409,6 +3409,14 @@ window.addEventListener('click', (e) => {
 
 // Reusable function to apply mute
 async function applyMute(chatId, targetUid, durationMinutes, reason, currentMemberData) {
+    // Check if target user is a global admin
+    const userSnap = await get(ref(db, `users/${targetUid}`));
+    const userData = userSnap.val() || {};
+    if (userData.role === 'admin' || userData.isAdmin === true || String(userData.isAdmin).toLowerCase() === "true") {
+        console.log(`[applyMute] User ${targetUid} is a global admin and immune to muting.`);
+        return;
+    }
+
     const mutedUntil = Date.now() + (durationMinutes * 60 * 1000);
     
     const updates = {};
@@ -3418,9 +3426,6 @@ async function applyMute(chatId, targetUid, durationMinutes, reason, currentMemb
         muteReason: reason
     };
 
-    // Fetch user's display name for the system message
-    const userSnap = await get(ref(db, `users/${targetUid}`));
-    const userData = userSnap.val();
     const userName = getDisplayName(userData);
 
     // Post System Message
@@ -3934,12 +3939,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.29';
+const CURRENT_APP_VERSION = '1.2.30';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.29';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.30';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4101,7 +4106,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.29';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.30';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -5041,31 +5046,34 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
                 ));
             }
 
-            // Group Mute / Unmute
-            const groupId = currentChatData?.groupId || chatId;
-            let isMutedInGroup = false;
-            try {
-                const gSnap = await get(ref(db, `groups/${groupId}/mutedUsers/${targetUid}`));
-                if (gSnap.exists()) {
-                    const mVal = gSnap.val();
-                    isMutedInGroup = mVal === true || (mVal && typeof mVal === 'object' && mVal.mutedUntil > Date.now());
-                }
-            } catch (e) {}
-
-            const targetUsername = getDisplayName(userData);
-            modSection.appendChild(makeActionRow(
-                isMutedInGroup ? 'Unmute' : 'Mute User',
-                isMutedInGroup ? '\u{1F50A}' : '\u{1F507}',
-                false,
-                async () => {
-                    closeAnimatedModal(document.getElementById('user-view-modal'));
-                    if (isMutedInGroup) {
-                        await window.unmuteUser(groupId, targetUid);
-                    } else {
-                        window.openMuteModal(groupId, targetUid, targetUsername);
+            // Group Mute / Unmute (Global admins immune)
+            const isTargetGlobalAdmin = userData.role === 'admin' || viewedIsAdmin;
+            if (!isTargetGlobalAdmin) {
+                const groupId = currentChatData?.groupId || chatId;
+                let isMutedInGroup = false;
+                try {
+                    const gSnap = await get(ref(db, `groups/${groupId}/mutedUsers/${targetUid}`));
+                    if (gSnap.exists()) {
+                        const mVal = gSnap.val();
+                        isMutedInGroup = mVal === true || (mVal && typeof mVal === 'object' && mVal.mutedUntil > Date.now());
                     }
-                }
-            ));
+                } catch (e) {}
+
+                const targetUsername = getDisplayName(userData);
+                modSection.appendChild(makeActionRow(
+                    isMutedInGroup ? 'Unmute' : 'Mute User',
+                    isMutedInGroup ? '\u{1F50A}' : '\u{1F507}',
+                    false,
+                    async () => {
+                        closeAnimatedModal(document.getElementById('user-view-modal'));
+                        if (isMutedInGroup) {
+                            await window.unmuteUser(groupId, targetUid);
+                        } else {
+                            window.openMuteModal(groupId, targetUid, targetUsername);
+                        }
+                    }
+                ));
+            }
         }
 
         // ── 4. DANGER ZONE ──
@@ -10118,6 +10126,7 @@ async function openGroupInfoModal(chatId, chatData) {
             const uSnap = await get(ref(db, `users/${uid}`));
             const uData = uSnap.val() || {};
             const displayName = getDisplayName(uData);
+            const isGlobalAdmin = uData.role === 'admin' || uData.isAdmin === true || String(uData.isAdmin).toLowerCase() === "true";
             return {
                 uid,
                 displayName: displayName,
@@ -10125,6 +10134,7 @@ async function openGroupInfoModal(chatId, chatData) {
                 profilePic: uData.profilePic,
                 role: membersMap[uid]?.role || 'member',
                 isCreator: uid === chatData.creatorId,
+                isGlobalAdmin,
                 status: uData.status,
                 isOnline: uData.status === 'online'
             };
@@ -10160,7 +10170,7 @@ async function openGroupInfoModal(chatId, chatData) {
                     ${m.isCreator ? '<span style="font-size: 11px; color: #ffd700; font-weight: 600;">Group Creator</span>' : (m.role === 'admin' ? '<span style="font-size: 11px; color: #ff4d6d; font-weight: 600;">Admin</span>' : '')}
                 </div>
             `;
-            if (canModerate && m.uid !== myUid && !m.isCreator) {
+            if (canModerate && m.uid !== myUid && !m.isCreator && !m.isGlobalAdmin) {
                 const muteEntry = mutedUsers[m.uid];
                 const isMuted = muteEntry === true || (muteEntry && typeof muteEntry === 'object' && muteEntry.mutedUntil > Date.now());
                 const muteBtn = document.createElement('button');
@@ -10524,6 +10534,15 @@ window.confirmMute = async function(groupId, targetUserId) {
     const mutedUntil = Date.now() + durationMs;
 
     try {
+        const uSnap = await get(ref(db, `users/${targetUserId}`));
+        const uVal = uSnap.val() || {};
+        if (uVal.role === 'admin' || uVal.isAdmin === true || String(uVal.isAdmin).toLowerCase() === "true") {
+            showNotification("Global admins cannot be muted.", "error");
+            const modal = document.getElementById('mute-modal');
+            if (modal) modal.remove();
+            return;
+        }
+
         await update(ref(db, `groups/${groupId}/mutedUsers/${targetUserId}`), {
             mutedUntil: mutedUntil,
             reason: reason,

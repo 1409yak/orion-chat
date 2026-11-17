@@ -13,7 +13,9 @@
           ".write": "data.parent().child('members').child(auth.uid).exists() && (!data.parent().child('mutedUsers').child(auth.uid).exists() || data.parent().child('mutedUsers').child(auth.uid).child('mutedUntil').val() < now)"
         },
         "mutedUsers": {
-          ".write": "data.parent().child('roles').child(auth.uid).val() === 'admin' || data.parent().child('roles').child(auth.uid).val() === 'mod'"
+          "$mutedUid": {
+            ".write": "(data.parent().parent().child('roles').child(auth.uid).val() === 'admin' || data.parent().parent().child('roles').child(auth.uid).val() === 'mod') && root.child('users').child($mutedUid).child('role').val() !== 'admin' && root.child('users').child($mutedUid).child('isAdmin').val() !== true && root.child('users').child($mutedUid).child('isAdmin').val() !== 'true'"
+          }
         },
         "members": {
           ".write": "data.parent().child('roles').child(auth.uid).val() === 'admin' || data.parent().child('roles').child(auth.uid).val() === 'mod'"

@@ -19,6 +19,10 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Moderation Logic:* Prevented global Admins from being muted. Applied a server-side Firebase rule block checking `root.child('users')` for the admin role, and removed the Mute UI button on client-side profiles for admin accounts.
+
+- *Game Expansion:* Massively expanded the Word Rush 5-letter dictionary array with over 400 new valid 5-letter words to prevent replay repetition, leaving the Doodle Dash array completely intact.
+
 - *UI & Game Expansion:* Applied a `.substring(0, 15)` limit to all username rendering and profile saves to prevent UI breaking from long names. Injected minimal `👑` and `🛡️` emojis to the side panel to indicate roles without wasting space. Massively expanded the `DOODLE_WORDS` array with hundreds of new entries to drastically reduce game repetition.
 
 - UI Polish: Replaced the ugly native <select> dropdown in the mute modal with a premium CSS pill-selector grid. Removed group role badges from the side panel to reduce clutter, and fixed the profile modal layout by placing the role badge in a flex-column directly beneath the username to prevent overlap.
