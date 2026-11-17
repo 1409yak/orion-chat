@@ -1,6 +1,6 @@
 {
-  "version": "1.2.27",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.27/bundle.zip",
-  "checksum": "8ec564d1c7f925abd4699b185143f295f6c95019f823c9f5168f448e93bcfc10",
-  "notes": "UI cleanups for roles and moderation tools"
+  "version": "1.2.28",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.28/bundle.zip",
+  "checksum": "73e9f091b8a6ef204c1c062cd489f218f806b05ab39aef8b89e0bebbe37df67e",
+  "notes": "Added role icons, enforced name limits, and massively expanded the game dictionary!"
 }
