@@ -59,6 +59,12 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 const messaging = getMessaging(app);
 
+// Global currency formatter
+window.formatMoney = function(amount) {
+    return Number(amount || 0).toLocaleString('en-US');
+};
+const formatMoney = window.formatMoney;
+
 let currentChatId = null;
 let currentChatData = null;
 let currentChatCreatorId = null; // Store globally for profile viewing context
@@ -888,6 +894,34 @@ function initFlagGame() {
 }
 window.initFlagGame = initFlagGame;
 
+window.closeFlagsGame = function() {
+    const ui = document.getElementById('flags-game-ui'); // Match your exact ID
+    if (ui) ui.style.display = 'none';
+    if (window.flagsGameInterval) {
+        clearInterval(window.flagsGameInterval);
+        window.flagsGameInterval = null;
+    }
+    if (gameTimerInterval) {
+        clearInterval(gameTimerInterval);
+        gameTimerInterval = null;
+    }
+    if (flagsGameUnsub) {
+        flagsGameUnsub();
+        flagsGameUnsub = null;
+    }
+    const screen = document.getElementById('flag-game-screen');
+    if (screen) {
+        closeAnimatedModal(screen);
+        screen.style.display = 'none';
+    }
+    // Clear the end screen if it's visible
+    const endScreen = document.getElementById('flags-end-screen');
+    if (endScreen) {
+        endScreen.style.display = 'none';
+        endScreen.innerHTML = '';
+    }
+};
+
 function startLocalGameUI(gameData) {
     const gameId = currentChatId;
     closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
@@ -896,7 +930,10 @@ function startLocalGameUI(gameData) {
     
     // Unlock input pointer events when a game starts
     const flagsUi = document.getElementById('flags-game-ui');
-    if (flagsUi) flagsUi.style.pointerEvents = 'auto';
+    if (flagsUi) {
+        flagsUi.style.display = 'block';
+        flagsUi.style.pointerEvents = 'auto';
+    }
 
     // Ensure initial visibility is correct
     const flagsTimer = document.getElementById('flags-timer');
@@ -908,7 +945,12 @@ function startLocalGameUI(gameData) {
     document.getElementById('podium-area').style.display = 'none';
     document.getElementById('game-leaderboard').style.display = 'block';
     const endStatsEl = document.getElementById('flags-end-screen');
-    if (endStatsEl) endStatsEl.innerHTML = '';
+    if (endStatsEl) {
+        endStatsEl.style.display = 'block';
+        endStatsEl.innerHTML = '';
+    }
+    const scoreDisplay = document.getElementById('flags-score-display');
+    if (scoreDisplay) scoreDisplay.innerText = '$0';
     
     availableFlags = [...COUNTRIES_LIST]; // Refresh flag pool for session
     nextFlagRound();
@@ -971,10 +1013,12 @@ function startLocalGameUI(gameData) {
         if (previousScore !== undefined && currentScore < previousScore) {
             const amountLost = previousScore - currentScore;
             if (typeof showNotification === 'function') {
-                showNotification(`🚨 You were robbed of $${amountLost}!`, "error");
+                showNotification(`🚨 You were robbed of $${formatMoney(amountLost)}!`, "error");
             }
         }
         previousScore = currentScore; // Update tracker
+
+        document.getElementById('flags-score-display').innerText = `$${formatMoney(currentScore)}`;
 
         // Update leaderboard
         const players = currentData.players || {};
@@ -982,7 +1026,7 @@ function startLocalGameUI(gameData) {
         if (leader) {
             leader.innerHTML = Object.values(players)
                 .sort((a, b) => (b.gold || 0) - (a.gold || 0))
-                .map(p => `<div><strong>${escapeHTML(p.name || 'Player')}</strong>: ${p.gold || 0} Gold</div>`)
+                .map(p => `<div><strong>${escapeHTML(p.name || 'Player')}</strong>: $${formatMoney(p.gold || 0)}</div>`)
                 .join('');
         }
     });
@@ -1043,7 +1087,7 @@ async function showPodium(customPlayers = null) {
 
         const scoreLabel = isWordle
             ? (p.scoreLabel || (p.won ? `${p.attempts || 0}/6 \u{2B50}` : 'X/6'))
-            : `${p.gold || 0} Gold`;
+            : `$${formatMoney(p.gold || 0)}`;
 
         return `
             <div class="podium-card ${i < 3 ? 'top-three' : ''}">
@@ -1110,10 +1154,10 @@ window.renderFlagsEndStats = function(gameData) {
         <div class="flags-end-stats" style="margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.4); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
             <h3 style="margin: 0 0 10px 0; color: #ffeb3b; text-align: center;">📊 Match Awards</h3>
             <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; line-height: 1.8;">
-                <li>🏆 <strong>Biggest Brain:</strong> ${mostEarned.name} ($${mostEarned.val} earned)</li>
-                <li>🥷 <strong>Master Thief:</strong> ${mostStolen.name} ($${mostStolen.val} stolen)</li>
-                <li>🎯 <strong>Favorite Target:</strong> ${mostRobbed.name} (${mostRobbed.val} times robbed)</li>
-                <li>📉 <strong>Biggest Victim:</strong> ${mostLost.name} ($${mostLost.val} lost to thieves)</li>
+                <li>🏆 <strong>Biggest Brain:</strong> ${mostEarned.name} ($${formatMoney(mostEarned.val)} earned)</li>
+                <li>🥷 <strong>Master Thief:</strong> ${mostStolen.name} ($${formatMoney(mostStolen.val)} stolen)</li>
+                <li>🎯 <strong>Favorite Target:</strong> ${mostRobbed.name} (${formatMoney(mostRobbed.val)} times robbed)</li>
+                <li>📉 <strong>Biggest Victim:</strong> ${mostLost.name} ($${formatMoney(mostLost.val)} lost)</li>
             </ul>
         </div>
     `;
@@ -2182,7 +2226,7 @@ window.pickChest = async (idx, event) => {
 
     if (typeof rawResult === 'number') {
         goldChange = rawResult;
-        displayLabel = (goldChange > 0 ? "+" : "") + goldChange + " Gold!";
+        displayLabel = (goldChange > 0 ? "+" : "") + formatMoney(goldChange) + " Gold!";
     } else if (typeof rawResult === 'string' && rawResult.toLowerCase().includes("steal")) {
         const stealPercent = rawResult.includes("10") ? 0.10 : 0.25;
         const stealPercentStr = rawResult.includes("10") ? "10%" : "25%";
@@ -2254,7 +2298,7 @@ window.pickChest = async (idx, event) => {
             case "-10%": goldChange = -Math.floor(currentGold * 0.10); break;
             case "-25%": goldChange = -Math.floor(currentGold * 0.25); break;
         }
-        displayLabel = (rawResult.includes("%") || rawResult.includes("x")) ? rawResult.toUpperCase() : (goldChange > 0 ? "+" : "") + goldChange + " Gold!";
+        displayLabel = (rawResult.includes("%") || rawResult.includes("x")) ? rawResult.toUpperCase() : (goldChange > 0 ? "+" : "") + formatMoney(goldChange) + " Gold!";
     }
 
     chestsContainer.style.display = 'none';
@@ -2449,6 +2493,11 @@ async function compressImageAsync(file, maxWidth = 1280, quality = 0.8) {
         reader.readAsDataURL(sourceFile);
     });
 }
+
+// Global currency formatter
+window.formatMoney = function(amount) {
+    return Number(amount || 0).toLocaleString('en-US');
+};
 
 // Helper to prevent XSS by escaping HTML special characters
 function escapeHTML(str) {
@@ -3939,12 +3988,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.30';
+const CURRENT_APP_VERSION = '1.2.31';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.30';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.31';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4106,7 +4155,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.30';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.31';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();

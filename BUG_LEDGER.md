@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Game UI Fixes:* Wired up `closeFlagsGame()` to properly hide the World Flags UI and clear the `flagsGameInterval` to prevent background memory leaks. Introduced a global `formatMoney` helper using `toLocaleString('en-US')` to render large currency values with commas across the game UI and stats panel.
+
 - *Moderation Logic:* Prevented global Admins from being muted. Applied a server-side Firebase rule block checking `root.child('users')` for the admin role, and removed the Mute UI button on client-side profiles for admin accounts.
 
 - *Game Expansion:* Massively expanded the Word Rush 5-letter dictionary array with over 400 new valid 5-letter words to prevent replay repetition, leaving the Doodle Dash array completely intact.
