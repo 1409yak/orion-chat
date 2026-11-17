@@ -1,6 +1,6 @@
 {
-  "version": "1.2.23",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.23/bundle.zip",
-  "checksum": "2d66a92ae05c33ebf7289708c8c4b96244a733b7349aa50c89bbd43a76878d58",
-  "notes": "Fixed image downloading bug"
+  "version": "1.2.24",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.24/bundle.zip",
+  "checksum": "9f686881035182160aa49c318869269c8ba3b84c0756f9c6b55cdb0741e2e77c",
+  "notes": "UI cleanups: Fixed message menu alignment and decluttered the group members list."
 }
