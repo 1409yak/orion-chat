@@ -1,6 +1,6 @@
 {
-  "version": "1.2.29",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.29/bundle.zip",
-  "checksum": "77289bab92576edbe49df815274f11df385174f5dfe1e14d43da16b6408bf059",
-  "notes": "Massive dictionary expansion for Word Rush!"
+  "version": "1.2.30",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.30/bundle.zip",
+  "checksum": "1a86c8516b800c98a8240c43c4e3f71dbfb0a2133119427b09ba9c0e1ee5b159",
+  "notes": "Moderation improvements: Global admins are now immune to mutes."
 }
