@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *UI & UX Fix:* The group members side panel was clipping long lists without allowing scrolling. Solution: Applied `overflow-y: auto` and a flexible height constraint to the CSS wrapper. Upgraded the member rendering routine in `app.js` to sort the array before DOM injection, prioritizing online users at the top followed by alphabetical sorting.
+
 - *World Flags Optimization:* Replaced intrusive full-screen red victim flash with a top-right notification toast. Fixed game timer desync by moving finish enforcement to a Firebase `status === 'finished'` state that strictly halts local inputs. Added an endgame stats engine tracking `earned`, `stolenAmount`, `timesRobbed`, and `lostToRobbers`.
 
 - *Doodle Dash Upgrade:* Enforced a 30s minimum timer, injected a 10s progressive hint system with a <Word> (<Length>) <Time> UI layout, massively expanded the dictionary to over 300 words, added a 10s drawer selection phase, and implemented a BFS flood-fill algorithm for a new canvas bucket tool.

@@ -3858,12 +3858,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.21';
+const CURRENT_APP_VERSION = '1.2.22';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.21';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.22';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4025,7 +4025,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.21';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.22';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -7694,13 +7694,17 @@ async function renderMembersList(msnap, groupCreatorId) {
     // Fetch all member details first
     const memberDetailsPromises = memberUids.map(async (mUid) => {
         const uSnap = await get(ref(db, `users/${mUid}`));
-        const uData = uSnap.val();
+        const uData = uSnap.val() || {};
+        const displayName = getDisplayName(uData);
         return { 
             uid: mUid,
-            displayName: getDisplayName(uData),
+            displayName: displayName,
+            username: displayName || uData.username || '',
             profilePic: uData?.profilePic,
             isCreator: mUid === groupCreatorId,
-            role: membersMap[mUid]?.role || 'member'
+            role: membersMap[mUid]?.role || 'member',
+            status: uData?.status,
+            isOnline: uData?.status === 'online'
         };
     });
     const memberDetails = await Promise.all(memberDetailsPromises);
@@ -7711,11 +7715,21 @@ async function renderMembersList(msnap, groupCreatorId) {
         currentChatMemberPics.set(m.uid, m.profilePic);
     });
 
-    // Sort members: creator first, then others alphabetically by display name
+    // Prioritize users currently marked as online, then group creator, then alphabetically
     memberDetails.sort((a, b) => {
-        if (a.isCreator && !b.isCreator) return -1;
-        if (!a.isCreator && b.isCreator) return 1;
-        return a.displayName.localeCompare(b.displayName);
+        const aOnline = (a.status === 'online' || a.isOnline) ? 1 : 0;
+        const bOnline = (b.status === 'online' || b.isOnline) ? 1 : 0;
+
+        // If one is online and the other isn't, online goes first
+        if (bOnline !== aOnline) {
+            return bOnline - aOnline;
+        }
+        // If both have the same status, group creator goes first
+        if (a.isCreator !== b.isCreator) {
+            return a.isCreator ? -1 : 1;
+        }
+        // If both have the same status, sort alphabetically by username
+        return (a.username || a.displayName || '').localeCompare(b.username || b.displayName || '');
     });
 
     for (const member of memberDetails) {
@@ -10029,20 +10043,27 @@ async function openGroupInfoModal(chatId, chatData) {
         const detailsPromises = memberUids.map(async (uid) => {
             const uSnap = await get(ref(db, `users/${uid}`));
             const uData = uSnap.val() || {};
+            const displayName = getDisplayName(uData);
             return {
                 uid,
-                displayName: getDisplayName(uData),
+                displayName: displayName,
+                username: displayName || uData.username || '',
                 profilePic: uData.profilePic,
                 role: membersMap[uid]?.role || 'member',
                 isCreator: uid === chatData.creatorId,
-                status: uData.status
+                status: uData.status,
+                isOnline: uData.status === 'online'
             };
         });
         const details = await Promise.all(detailsPromises);
         details.sort((a, b) => {
-            if (a.isCreator && !b.isCreator) return -1;
-            if (!a.isCreator && b.isCreator) return 1;
-            return a.displayName.localeCompare(b.displayName);
+            const aOnline = (a.status === 'online' || a.isOnline) ? 1 : 0;
+            const bOnline = (b.status === 'online' || b.isOnline) ? 1 : 0;
+            if (bOnline !== aOnline) {
+                return bOnline - aOnline;
+            }
+            if (a.isCreator !== b.isCreator) return a.isCreator ? -1 : 1;
+            return (a.username || a.displayName || '').localeCompare(b.username || b.displayName || '');
         });
 
         listEl.innerHTML = '';

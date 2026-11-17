@@ -425,6 +425,28 @@ body {
     display: flex; 
     flex-direction: column; 
     flex-shrink: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+.members-list,
+#members-list-content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+}
+.members-list::-webkit-scrollbar,
+#members-list-content::-webkit-scrollbar,
+.glass-members-sidebar::-webkit-scrollbar {
+    width: 4px;
+}
+.members-list::-webkit-scrollbar-thumb,
+#members-list-content::-webkit-scrollbar-thumb,
+.glass-members-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
 }
 .member-item { padding: 12px 20px; font-size: 14px; cursor: pointer; transition: 0.2s; border-bottom: 1px solid rgba(255,255,255,0.02); }
 
@@ -1907,8 +1929,10 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
         padding-top: 10px;
     }
     /* Adjust padding of members-list-content to not overlap with close button */
-    #members-list-content {
+    #members-list-content,
+    .members-list {
         padding-top: 50px; /* Make space for the close button */
+        padding-bottom: 24px;
     }
 
     body.members-open #chat-members-sidebar.glass-members-sidebar {
