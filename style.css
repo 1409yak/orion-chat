@@ -455,7 +455,8 @@ body {
 .tag { background: var(--accent); padding: 5px 10px; border-radius: 20px; font-size: 12px; cursor: pointer; }
 
 /* Messages */
-.msg-wrapper { 
+.msg-wrapper,
+.message-wrapper { 
     display: flex; 
     flex-direction: column; 
     max-width: 85%; 
@@ -754,10 +755,13 @@ input {
     }
 }
 
-.msg-action-menu {
+.msg-action-menu,
+.message-action-menu {
     position: absolute;
     right: 0;
-    top: 25px; /* Appear slightly below the arrow */
+    top: 0px;
+    margin-top: 0;
+    margin-bottom: 0;
     background: rgba(15, 15, 25, 0.8);
     backdrop-filter: blur(25px);
     border: 1px solid var(--glass-border);
@@ -785,9 +789,11 @@ input {
     z-index: 501;
 }
 
-.rcv .msg-action-menu {
+.rcv .msg-action-menu,
+.rcv .message-action-menu {
     right: auto;
     left: 0;
+    top: 0px;
 }
 
 .msg-action-menu button {
@@ -2289,10 +2295,12 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
 
     /* Message Bubble & Action Menu Constraints */
     .msg-wrapper { max-width: 85% !important; min-width: 0 !important; }
-    .sent .msg-action-menu {
+    .sent .msg-action-menu,
+    .sent .message-action-menu {
         right: auto;
         left: 0;
         margin-left: 0;
+        top: 0px;
     }
     #reply-preview-bar, #edit-preview-bar {
         bottom: 85px;

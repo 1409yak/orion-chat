@@ -2927,8 +2927,8 @@ function positionActionMenu(actionMenu, bubble, wrap, e) {
     actionMenu.style.transform = '';
     actionMenu.style.right = 'auto';
     actionMenu.style.left = '0px';
-    actionMenu.style.top = '100%';
     actionMenu.style.bottom = 'auto';
+    actionMenu.style.top = `${bubble.offsetTop || 0}px`;
     actionMenu.style.display = 'flex';
 
     wrap.style.zIndex = '100';
@@ -2941,13 +2941,8 @@ function positionActionMenu(actionMenu, bubble, wrap, e) {
     const parentRect = (actionMenu.offsetParent || bubble).getBoundingClientRect();
     const padding = 10;
 
-    if (bubbleRect.bottom + menuRect.height + padding > window.innerHeight) {
-        actionMenu.style.top = 'auto';
-        actionMenu.style.bottom = '100%';
-    } else {
-        actionMenu.style.bottom = 'auto';
-        actionMenu.style.top = '100%';
-    }
+    actionMenu.style.bottom = 'auto';
+    actionMenu.style.top = `${bubble.offsetTop || 0}px`;
 
     const rawX = (e && typeof e.clientX === 'number' && e.clientX > 0) ? e.clientX : bubbleRect.left;
     let leftPos = rawX;
@@ -3858,12 +3853,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.23';
+const CURRENT_APP_VERSION = '1.2.24';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.23';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.24';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4025,7 +4020,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.23';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.24';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6654,6 +6649,8 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     const closeActionMenu = () => {
         actionMenu.style.display = 'none';
         actionMenu.style.transform = '';
+        actionMenu.style.top = '';
+        actionMenu.style.bottom = '';
         wrap.style.zIndex = '';
         wrap.style.position = '';
         bubble.style.zIndex = '';
@@ -7055,6 +7052,8 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
     const closeStickerActionMenu = () => {
         actionMenu.style.display = 'none';
         actionMenu.style.transform = '';
+        actionMenu.style.top = '';
+        actionMenu.style.bottom = '';
         wrap.style.zIndex = '';
         wrap.style.position = '';
         bubble.style.zIndex = '';
@@ -7766,25 +7765,6 @@ async function renderMembersList(msnap, groupCreatorId) {
                     </div>
                 </div>
             `;
-            if (canModerate && member.uid !== myUid && !member.isCreator) {
-                const isMuted = !!mutedUsers[member.uid];
-                const muteBtn = document.createElement('button');
-                muteBtn.className = 'glass-btn-secondary mute-toggle-btn';
-                muteBtn.style.cssText = `padding: 3px 8px; font-size: 11px; border-radius: 6px; margin-left: 8px; cursor: pointer; flex-shrink: 0; background: ${isMuted ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.08)'}; color: ${isMuted ? '#f87171' : '#fff'}; border: 1px solid ${isMuted ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.15)'}; font-weight: 600;`;
-                muteBtn.innerText = isMuted ? 'Unmute' : 'Mute';
-                muteBtn.onclick = async (e) => {
-                    e.stopPropagation();
-                    const willMute = muteBtn.innerText === 'Mute';
-                    await window.toggleUserMute(groupId, member.uid, willMute);
-                    mutedUsers[member.uid] = willMute ? true : null;
-                    muteBtn.innerText = willMute ? 'Unmute' : 'Mute';
-                    muteBtn.style.background = willMute ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.08)';
-                    muteBtn.style.color = willMute ? '#f87171' : '#fff';
-                    muteBtn.style.borderColor = willMute ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.15)';
-                };
-                const contentDiv = div.querySelector('.member-item-content') || div;
-                contentDiv.appendChild(muteBtn);
-            }
             twemoji.parse(div);
             
             // Update cache for tooltips

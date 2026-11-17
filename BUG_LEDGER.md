@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *UI Refinement:* The message action menu (Reply/Pin) floated too high above the message box; adjusted CSS positioning to align `top: 0` with the message wrapper. Removed mod Mute buttons from the group members side panel to declutter the UI, restricting mute actions to the user profile screen.
+
 - *Media Download Fix:* Attempting to download images via JS `fetch()` triggered strict CORS policy blocks from Google Drive's thumbnail endpoint. Solution: Ripped out the `fetch` logic and implemented a regex ID extractor that constructs a `uc?export=download` URL, utilizing a temporary anchor tag to force a native browser download and bypass cross-origin restrictions.
 
 - *UI & UX Fix:* The group members side panel was clipping long lists without allowing scrolling. Solution: Applied `overflow-y: auto` and a flexible height constraint to the CSS wrapper. Upgraded the member rendering routine in `app.js` to sort the array before DOM injection, prioritizing online users at the top followed by alphabetical sorting.
