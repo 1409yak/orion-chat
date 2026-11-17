@@ -1545,6 +1545,12 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
     box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.3); /* Adds depth to show it's on top */
 }
 #message-input { flex: 1; background: none; border: none; color: var(--text); padding: 10px; outline: none; z-index: 10; user-select: text; }
+#message-input:focus,
+#message-input:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+}
 #message-input::placeholder { color: var(--text); opacity: 0.5; }
 
 .send-icon-btn { width: 40px; height: 40px; background: var(--accent); border: none; border-radius: 50%; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
@@ -4093,6 +4099,12 @@ body.theme-high-contrast .input-wrapper { border: 2px solid #fff; background: #0
 /* Visible keyboard focus everywhere */
 button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible,
 .user-profile-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+#message-input:focus,
+#message-input:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+}
 
 /* Sidebar: profile card + clear primary / secondary actions */
 .user-profile-btn { margin: 14px 14px 10px; }
@@ -4249,7 +4261,6 @@ body.liquid-glass .setting-card input {
         0 8px 22px rgb(0 0 0 / .2);
     transition: box-shadow .35s ease, border-color .35s ease, background .35s ease;
 }
-body.liquid-glass .input-wrapper:focus-within,
 body.liquid-glass .sidebar-search input:focus,
 body.liquid-glass .setting-card input:focus {
     border-color: color-mix(in srgb, var(--accent) 55%, #fff);
@@ -4259,7 +4270,16 @@ body.liquid-glass .setting-card input:focus {
         0 0 0 3px color-mix(in srgb, var(--accent) 32%, transparent),
         0 10px 30px color-mix(in srgb, var(--accent) 38%, transparent);
 }
+body.liquid-glass .input-wrapper:focus-within {
+    outline: none !important;
+}
 body.liquid-glass .input-wrapper #message-input { background: transparent; box-shadow: none; }
+body.liquid-glass .input-wrapper #message-input:focus,
+body.liquid-glass .input-wrapper #message-input:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+}
 body.liquid-glass #message-input::placeholder { opacity: .6; }
 body.liquid-glass #message-input::selection { background: color-mix(in srgb, var(--accent) 55%, transparent); color: inherit; }
 
@@ -5562,6 +5582,17 @@ body.theme-light .pinned-item:hover {
         transform-origin: 0 0 !important;
     }
 }
+
+/* Chat Input Focus Normalization: Clean flat styling without outline or glow */
+#message-input:focus,
+#message-input:focus-visible,
+.input-wrapper #message-input:focus,
+.input-wrapper #message-input:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+}
+
 
 
 

@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *UI Refinement:* Removed the default teal focus outline and box-shadow from the chat text input to maintain a flat, clean design when typing.
+
 - *UI Refinement:* The message action menu (Reply/Pin) floated too high above the message box; adjusted CSS positioning to align `top: 0` with the message wrapper. Removed mod Mute buttons from the group members side panel to declutter the UI, restricting mute actions to the user profile screen.
 
 - *Media Download Fix:* Attempting to download images via JS `fetch()` triggered strict CORS policy blocks from Google Drive's thumbnail endpoint. Solution: Ripped out the `fetch` logic and implemented a regex ID extractor that constructs a `uc?export=download` URL, utilizing a temporary anchor tag to force a native browser download and bypass cross-origin restrictions.
