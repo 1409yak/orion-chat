@@ -1,6 +1,6 @@
 {
   "version": "1.2.30",
   "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.30/bundle.zip",
-  "checksum": "1a86c8516b800c98a8240c43c4e3f71dbfb0a2133119427b09ba9c0e1ee5b159",
+  "checksum": "97a7535a3bc3c15a1d9dd91c444930b329a91153ef1129d81dd319da26fa65ac",
   "notes": "Moderation improvements: Global admins are now immune to mutes."
 }
