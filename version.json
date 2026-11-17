@@ -1,6 +1,6 @@
 {
-  "version": "1.2.21",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.21/bundle.zip",
-  "checksum": "d9d30d73707c42b95f2cfd627f28049e1e1db835f61dc420e145217cc502bb9c",
-  "notes": "World Flags improvements and bug fixes!"
+  "version": "1.2.22",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.22/bundle.zip",
+  "checksum": "31bfea1201f074b63b430510be400454933cf38a83f870fba9b8155686661e36",
+  "notes": "UI improvements. Online members now appear at the top of the group list!"
 }
