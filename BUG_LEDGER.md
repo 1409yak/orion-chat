@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- UI Polish: Replaced the ugly native <select> dropdown in the mute modal with a premium CSS pill-selector grid. Removed group role badges from the side panel to reduce clutter, and fixed the profile modal layout by placing the role badge in a flex-column directly beneath the username to prevent overlap.
+
 - *Moderation Upgrade:* Replaced binary mute toggle with an advanced timed mute modal (15m, 1h, 24h, 1w, Perm) requiring a reason. Updated `database.rules.json` to validate `mutedUntil < now`. Updated the muted user UI to display an informative read-only banner showing the expiration date and reason.
 
 - *UI Refinement:* Removed the default teal focus outline and box-shadow from the chat text input to maintain a flat, clean design when typing.

@@ -3853,12 +3853,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.26';
+const CURRENT_APP_VERSION = '1.2.27';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.26';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.27';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4020,7 +4020,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.26';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.27';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4859,27 +4859,32 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
     viewTypeElem.innerText = viewedDisplayType;
 
     const nameElem = document.getElementById('view-user-name');
-    nameElem.className = 'uv-name' + (isTargetPremium && userData.nameplate ? ` nameplate-applied ${userData.nameplate}` : '');
-    nameElem.innerText = getDisplayName(userData);
-    
+    const username = getDisplayName(userData);
     const chatInfo = chatId ? (allChatsStore.get(chatId) || (chatId === currentChatId ? currentChatData : null)) : null;
     const isGroupChat = !!(chatInfo ? (chatInfo.isGroup || chatInfo.isChannel) : (currentChatData?.isGroup || currentChatData?.isChannel));
 
-    // Group-exclusive role badge: strictly only shown in groups
+    let role = '';
     if (chatId && isGroupChat) {
-        const targetMemberRole = currentChatMemberData?.[targetUid]?.role || 'member';
-        const groupRole = getGroupRoleInfo(targetMemberRole);
-        if (groupRole && groupRole.badge) {
-            const roleBadgeSpan = document.createElement('span');
-            roleBadgeSpan.className = 'custom-user-badge uv-group-role';
-            roleBadgeSpan.innerText = groupRole.badge;
-            if (groupRole.color) {
-                roleBadgeSpan.style.borderColor = groupRole.color + '55';
-                roleBadgeSpan.style.color = groupRole.color;
+        if (targetUid === groupCreatorId) {
+            role = 'Creator';
+        } else {
+            const targetMemberRole = currentChatMemberData?.[targetUid]?.role || 'member';
+            const groupRole = getGroupRoleInfo(targetMemberRole);
+            if (groupRole && groupRole.label && groupRole.label !== 'Member') {
+                role = groupRole.label;
+            } else if (targetMemberRole && targetMemberRole !== 'member') {
+                role = targetMemberRole;
             }
-            nameElem.appendChild(roleBadgeSpan);
         }
     }
+
+    nameElem.className = 'uv-name';
+    nameElem.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; gap:6px; margin-bottom:15px;">
+            <h2 style="margin:0; font-size:20px;" class="${isTargetPremium && userData.nameplate ? `nameplate-applied ${userData.nameplate}` : ''}">${escapeHTML(username)}</h2>
+            ${role ? `<span style="background:rgba(255,215,0,0.15); color:#ffd700; padding:4px 10px; border-radius:12px; font-size:12px; font-weight:600; letter-spacing:0.5px;">${role.toUpperCase()}</span>` : ''}
+        </div>
+    `;
     twemoji.parse(nameElem);
 
     const actions = document.getElementById('user-view-actions');
@@ -7756,12 +7761,7 @@ async function renderMembersList(msnap, groupCreatorId) {
                         <span class="status-dot ${status === 'online' ? 'online' : ''}"></span>
                     </div>
                     <div style="flex: 1; min-width: 0;">
-                        ${member.isCreator ? '<span class="group-creator-label">Group creator</span>' : ''}
-                        ${memberRole === 'admin' ? '<span class="admin-label">Admin</span>' : ''}
-                        <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
-                            <span class="${nameplateClass}">${escapeHTML(displayName)}</span>
-                            ${badgeHtml}
-                        </div>
+                        <span class="${nameplateClass}">${escapeHTML(displayName)}</span>
                     </div>
                 </div>
             `;
@@ -10379,13 +10379,14 @@ window.openMuteModal = function(groupId, targetUserId, targetUsername) {
             <h3 style="margin:0 0 16px 0;font-size:18px;text-align:center;color:#ff4757;">Mute ${targetUsername}</h3>
             
             <label style="display:block;margin-bottom:6px;font-size:13px;opacity:0.8;">Duration</label>
-            <select id="mute-duration" style="width:100%;padding:10px;margin-bottom:16px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:#fff;outline:none;font-size:14px;">
-                <option value="900000">15 Minutes</option>
-                <option value="3600000">1 Hour</option>
-                <option value="86400000">24 Hours</option>
-                <option value="604800000">1 Week</option>
-                <option value="4102444800000">Permanent (Year 2100)</option>
-            </select>
+            <div id="mute-duration-container" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+                <button type="button" class="mute-pill active" data-val="900000" style="flex:1;min-width:70px;padding:8px;background:#ff4757;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;">15m</button>
+                <button type="button" class="mute-pill" data-val="3600000" style="flex:1;min-width:70px;padding:8px;background:rgba(255,255,255,0.1);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;">1h</button>
+                <button type="button" class="mute-pill" data-val="86400000" style="flex:1;min-width:70px;padding:8px;background:rgba(255,255,255,0.1);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;">24h</button>
+                <button type="button" class="mute-pill" data-val="604800000" style="flex:1;min-width:70px;padding:8px;background:rgba(255,255,255,0.1);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;">1w</button>
+                <button type="button" class="mute-pill" data-val="4102444800000" style="flex:1;min-width:70px;padding:8px;background:rgba(255,255,255,0.1);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;">Perm</button>
+            </div>
+            <input type="hidden" id="mute-duration-val" value="900000">
 
             <label style="display:block;margin-bottom:6px;font-size:13px;opacity:0.8;">Reason</label>
             <input type="text" id="mute-reason" placeholder="e.g., Spamming, Toxic behavior..." autocomplete="off" style="width:100%;padding:10px;margin-bottom:20px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:#fff;outline:none;font-size:14px;box-sizing:border-box;">
@@ -10397,6 +10398,18 @@ window.openMuteModal = function(groupId, targetUserId, targetUsername) {
         </div>
     `;
     document.body.appendChild(modal);
+
+    const pills = document.querySelectorAll('.mute-pill');
+    pills.forEach(pill => {
+        pill.onclick = function() {
+            pills.forEach(p => { p.style.background = 'rgba(255,255,255,0.1)'; p.style.fontWeight = 'normal'; p.classList.remove('active'); });
+            this.style.background = '#ff4757';
+            this.style.fontWeight = '600';
+            this.classList.add('active');
+            document.getElementById('mute-duration-val').value = this.getAttribute('data-val');
+        };
+    });
+
     const reasonInput = document.getElementById('mute-reason');
     if (reasonInput) {
         reasonInput.addEventListener('keydown', (e) => {
@@ -10410,7 +10423,7 @@ window.openMuteModal = function(groupId, targetUserId, targetUsername) {
 };
 
 window.confirmMute = async function(groupId, targetUserId) {
-    const durationMs = parseInt(document.getElementById('mute-duration').value);
+    const durationMs = parseInt(document.getElementById('mute-duration-val').value);
     const reason = document.getElementById('mute-reason').value.trim() || "No reason provided";
     const mutedUntil = Date.now() + durationMs;
 
