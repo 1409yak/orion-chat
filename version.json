@@ -1,6 +1,6 @@
 {
-  "version": "1.2.26",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.26/bundle.zip",
-  "checksum": "d590b017bd85517365993493c4dc8df286901da1bc091720b3b7b4c64aec0173",
-  "notes": "Upgraded moderation tools with timed mutes and reasons"
+  "version": "1.2.27",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.27/bundle.zip",
+  "checksum": "8ec564d1c7f925abd4699b185143f295f6c95019f823c9f5168f448e93bcfc10",
+  "notes": "UI cleanups for roles and moderation tools"
 }
