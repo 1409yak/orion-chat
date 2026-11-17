@@ -1,6 +1,6 @@
 {
-  "version": "1.2.24",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.24/bundle.zip",
-  "checksum": "9f686881035182160aa49c318869269c8ba3b84c0756f9c6b55cdb0741e2e77c",
-  "notes": "UI cleanups: Fixed message menu alignment and decluttered the group members list."
+  "version": "1.2.25",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.25/bundle.zip",
+  "checksum": "4e737bf92e4340617d1cb9875cdffb418a822402b6ff96efbb830ab18236758c",
+  "notes": "UI cleanups: Removed glowing outline from chat input."
 }
