@@ -1,6 +1,6 @@
 {
-  "version": "1.2.25",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.25/bundle.zip",
-  "checksum": "4e737bf92e4340617d1cb9875cdffb418a822402b6ff96efbb830ab18236758c",
-  "notes": "UI cleanups: Removed glowing outline from chat input."
+  "version": "1.2.26",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.26/bundle.zip",
+  "checksum": "d590b017bd85517365993493c4dc8df286901da1bc091720b3b7b4c64aec0173",
+  "notes": "Upgraded moderation tools with timed mutes and reasons"
 }
