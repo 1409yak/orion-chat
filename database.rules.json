@@ -10,7 +10,7 @@
     "groups": {
       "$groupId": {
         "messages": {
-          ".write": "data.parent().child('members').child(auth.uid).exists() && !data.parent().child('mutedUsers').child(auth.uid).exists()"
+          ".write": "data.parent().child('members').child(auth.uid).exists() && (!data.parent().child('mutedUsers').child(auth.uid).exists() || data.parent().child('mutedUsers').child(auth.uid).child('mutedUntil').val() < now)"
         },
         "mutedUsers": {
           ".write": "data.parent().child('roles').child(auth.uid).val() === 'admin' || data.parent().child('roles').child(auth.uid).val() === 'mod'"

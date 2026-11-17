@@ -3853,12 +3853,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.25';
+const CURRENT_APP_VERSION = '1.2.26';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.25';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.26';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4020,7 +4020,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.25';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.26';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4960,16 +4960,24 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
             let isMutedInGroup = false;
             try {
                 const gSnap = await get(ref(db, `groups/${groupId}/mutedUsers/${targetUid}`));
-                isMutedInGroup = gSnap.exists() && gSnap.val() === true;
+                if (gSnap.exists()) {
+                    const mVal = gSnap.val();
+                    isMutedInGroup = mVal === true || (mVal && typeof mVal === 'object' && mVal.mutedUntil > Date.now());
+                }
             } catch (e) {}
 
+            const targetUsername = getDisplayName(userData);
             modSection.appendChild(makeActionRow(
-                isMutedInGroup ? 'Unmute User (Group)' : 'Mute User (Group)',
+                isMutedInGroup ? 'Unmute' : 'Mute User',
                 isMutedInGroup ? '\u{1F50A}' : '\u{1F507}',
                 false,
                 async () => {
                     closeAnimatedModal(document.getElementById('user-view-modal'));
-                    await window.toggleUserMute(groupId, targetUid, !isMutedInGroup);
+                    if (isMutedInGroup) {
+                        await window.unmuteUser(groupId, targetUid);
+                    } else {
+                        window.openMuteModal(groupId, targetUid, targetUsername);
+                    }
                 }
             ));
         }
@@ -5769,6 +5777,10 @@ async function openChat(chatId, title) {
 
     const initialMuteBanner = document.getElementById('group-muted-banner');
     if (initialMuteBanner) initialMuteBanner.style.display = 'none';
+    const initMuteBanner = document.getElementById('mute-banner');
+    if (initMuteBanner) initMuteBanner.remove();
+    const initMsgWrapper = document.getElementById('message-input-wrapper') || document.querySelector('.input-wrapper');
+    if (initMsgWrapper) initMsgWrapper.style.display = 'flex';
     const initMsgInput = document.getElementById('message-input');
     if (initMsgInput) {
         initMsgInput.style.display = '';
@@ -7160,61 +7172,43 @@ function createTypingIndicator() {
 }
 
 function updateGroupMuteUI(groupData, chatData = currentChatData) {
-    const myUid = auth.currentUser?.uid;
+    if (!auth.currentUser) return;
     const isGroup = chatData?.isGroup === true || chatData?.type === 'group' || !!chatData?.groupId;
-    const isMutedByMod = isGroup && myUid && !!(groupData?.mutedUsers && groupData.mutedUsers[myUid]);
 
-    const input = document.getElementById('message-input');
-    const sendBtn = document.getElementById('send-btn');
-    const plusBtn = document.getElementById('plus-btn');
-    const cameraBtn = document.getElementById('camera-btn');
-    const emojiBtn = document.getElementById('emoji-btn');
-    const banner = document.getElementById('group-muted-banner');
-    const typingInd = document.getElementById('typing-indicator');
+    const inputWrapper = document.getElementById('message-input-wrapper') || document.querySelector('.input-wrapper');
+    const legacyBanner = document.getElementById('group-muted-banner');
+    if (legacyBanner) legacyBanner.style.display = 'none';
 
-    if (isMutedByMod) {
-        if (input) {
-            input.disabled = true;
-            input.placeholder = "You have been muted by a moderator.";
-            input.style.display = 'none';
+    let muteData = isGroup && groupData && groupData.mutedUsers && groupData.mutedUsers[auth.currentUser.uid];
+    if (muteData === true) {
+        muteData = { mutedUntil: 4102444800000, reason: "Muted by a moderator" };
+    }
+
+    if (muteData && typeof muteData === 'object' && muteData.mutedUntil > Date.now()) {
+        // User is currently muted
+        const dateStr = new Date(muteData.mutedUntil).toLocaleString();
+        const timeStr = muteData.mutedUntil > 4000000000000 ? "Permanently" : `until ${dateStr}`;
+
+        // Hide chat input and show banner
+        if (inputWrapper) inputWrapper.style.display = 'none';
+        
+        let banner = document.getElementById('mute-banner');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'mute-banner';
+            banner.style.cssText = 'padding:12px;background:rgba(255,71,87,0.15);color:#ff4757;text-align:center;border-top:1px solid rgba(255,71,87,0.3);font-size:13px;line-height:1.5;';
+            const chatContainer = document.getElementById('chat-container') || document.querySelector('.chat-container') || document.querySelector('.glass-main');
+            if (chatContainer) chatContainer.appendChild(banner);
         }
-        if (sendBtn) sendBtn.style.display = 'none';
-        if (plusBtn) {
-            plusBtn.disabled = true;
-            plusBtn.style.display = 'none';
-        }
-        if (cameraBtn) {
-            cameraBtn.disabled = true;
-            cameraBtn.style.display = 'none';
-        }
-        if (emojiBtn) {
-            emojiBtn.disabled = true;
-            emojiBtn.style.display = 'none';
-        }
+        banner.innerHTML = `🚫 You are muted <strong>${timeStr}</strong><br><span style="opacity:0.8">Reason: ${muteData.reason || "No reason provided"}</span>`;
+
+        const typingInd = document.getElementById('typing-indicator');
         if (typingInd) typingInd.style.display = 'none';
-
-        if (banner) {
-            banner.innerText = "You have been muted by a moderator.";
-            banner.style.display = 'block';
-        }
     } else {
-        if (banner) {
-            banner.style.display = 'none';
-        }
-        if (input) {
-            input.style.display = '';
-        }
-        if (plusBtn) {
-            plusBtn.disabled = false;
-            plusBtn.style.display = '';
-        }
-        if (cameraBtn) {
-            cameraBtn.disabled = false;
-        }
-        if (emojiBtn) {
-            emojiBtn.disabled = false;
-            emojiBtn.style.display = '';
-        }
+        // User is not muted (or mute expired)
+        if (inputWrapper) inputWrapper.style.display = 'flex';
+        const banner = document.getElementById('mute-banner');
+        if (banner) banner.remove();
         checkMuteStatus();
     }
 }
@@ -7227,8 +7221,9 @@ function checkMuteStatus() {
     const sendBtn = document.getElementById('send-btn');
     const typingInd = document.getElementById('typing-indicator');
     const banner = document.getElementById('group-muted-banner');
+    const muteBanner = document.getElementById('mute-banner');
 
-    if (banner && banner.style.display === 'block') {
+    if ((banner && banner.style.display === 'block') || muteBanner) {
         if (input) {
             input.disabled = true;
             input.style.display = 'none';
@@ -7539,9 +7534,14 @@ async function sendImageMessage(imageData, targetChatId = null) {
     if (isGroupChat && currentGroupId) {
         try {
             const gSnap = await get(ref(db, `groups/${currentGroupId}/mutedUsers/${auth.currentUser?.uid}`));
-            if (gSnap.exists() && gSnap.val() === true) {
-                showNotification("You have been muted by a moderator.", "error");
-                return;
+            if (gSnap.exists()) {
+                const mVal = gSnap.val();
+                const isCurrentlyMuted = mVal === true || (mVal && typeof mVal === 'object' && mVal.mutedUntil > Date.now());
+                if (isCurrentlyMuted) {
+                    const reasonStr = (mVal && mVal.reason) ? ` Reason: ${mVal.reason}` : '';
+                    showNotification(`You are muted.${reasonStr}`, "error");
+                    return;
+                }
             }
         } catch (e) {}
     }
@@ -7845,9 +7845,14 @@ async function sendMessage() {
     if (isGroup && groupId) {
         try {
             const gSnap = await get(ref(db, `groups/${groupId}/mutedUsers/${myUid}`));
-            if (gSnap.exists() && gSnap.val() === true) {
-                showNotification("You have been muted by a moderator.", "error");
-                return;
+            if (gSnap.exists()) {
+                const mVal = gSnap.val();
+                const isCurrentlyMuted = mVal === true || (mVal && typeof mVal === 'object' && mVal.mutedUntil > Date.now());
+                if (isCurrentlyMuted) {
+                    const reasonStr = (mVal && mVal.reason) ? ` Reason: ${mVal.reason}` : '';
+                    showNotification(`You are muted.${reasonStr}`, "error");
+                    return;
+                }
             }
         } catch (e) {
             console.warn("Mute check error in sendMessage:", e);
@@ -8655,7 +8660,8 @@ if (cameraInput) {
 
 function updateInputButtons() {
     const banner = document.getElementById('group-muted-banner');
-    if (banner && banner.style.display === 'block') {
+    const muteBanner = document.getElementById('mute-banner');
+    if ((banner && banner.style.display === 'block') || muteBanner) {
         const input = document.getElementById('message-input');
         const sendBtn = document.getElementById('send-btn');
         const plusBtn = document.getElementById('plus-btn');
@@ -10059,20 +10065,24 @@ async function openGroupInfoModal(chatId, chatData) {
                 </div>
             `;
             if (canModerate && m.uid !== myUid && !m.isCreator) {
-                const isMuted = !!mutedUsers[m.uid];
+                const muteEntry = mutedUsers[m.uid];
+                const isMuted = muteEntry === true || (muteEntry && typeof muteEntry === 'object' && muteEntry.mutedUntil > Date.now());
                 const muteBtn = document.createElement('button');
                 muteBtn.className = 'glass-btn-secondary mute-toggle-btn';
                 muteBtn.style.cssText = `padding: 4px 10px; font-size: 12px; border-radius: 8px; margin-left: auto; cursor: pointer; flex-shrink: 0; background: ${isMuted ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.08)'}; color: ${isMuted ? '#f87171' : '#fff'}; border: 1px solid ${isMuted ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.15)'}; font-weight: 600;`;
                 muteBtn.innerText = isMuted ? 'Unmute' : 'Mute';
                 muteBtn.onclick = async (e) => {
                     e.stopPropagation();
-                    const willMute = muteBtn.innerText === 'Mute';
-                    await window.toggleUserMute(groupId, m.uid, willMute);
-                    mutedUsers[m.uid] = willMute ? true : null;
-                    muteBtn.innerText = willMute ? 'Unmute' : 'Mute';
-                    muteBtn.style.background = willMute ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.08)';
-                    muteBtn.style.color = willMute ? '#f87171' : '#fff';
-                    muteBtn.style.borderColor = willMute ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.15)';
+                    if (isMuted) {
+                        await window.unmuteUser(groupId, m.uid);
+                        mutedUsers[m.uid] = null;
+                        muteBtn.innerText = 'Mute';
+                        muteBtn.style.background = 'rgba(255, 255, 255, 0.08)';
+                        muteBtn.style.color = '#fff';
+                        muteBtn.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+                    } else {
+                        window.openMuteModal(groupId, m.uid, m.displayName);
+                    }
                 };
                 row.appendChild(muteBtn);
             }
@@ -10357,15 +10367,84 @@ document.getElementById('confirm-add-members-btn').onclick = async () => {
 
 /* ---------------- GROUP MODERATOR ACTIONS (MUTE & INVITE) ---------------- */
 
-window.toggleUserMute = async function(groupId, targetUserId, muteStatus) {
+window.openMuteModal = function(groupId, targetUserId, targetUsername) {
+    let modal = document.getElementById('mute-modal');
+    if (modal) modal.remove();
+
+    modal = document.createElement('div');
+    modal.id = 'mute-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;backdrop-filter:blur(4px);';
+    modal.innerHTML = `
+        <div style="background:#1e1e2a;border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:20px;max-width:340px;width:100%;color:#fff;box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+            <h3 style="margin:0 0 16px 0;font-size:18px;text-align:center;color:#ff4757;">Mute ${targetUsername}</h3>
+            
+            <label style="display:block;margin-bottom:6px;font-size:13px;opacity:0.8;">Duration</label>
+            <select id="mute-duration" style="width:100%;padding:10px;margin-bottom:16px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:#fff;outline:none;font-size:14px;">
+                <option value="900000">15 Minutes</option>
+                <option value="3600000">1 Hour</option>
+                <option value="86400000">24 Hours</option>
+                <option value="604800000">1 Week</option>
+                <option value="4102444800000">Permanent (Year 2100)</option>
+            </select>
+
+            <label style="display:block;margin-bottom:6px;font-size:13px;opacity:0.8;">Reason</label>
+            <input type="text" id="mute-reason" placeholder="e.g., Spamming, Toxic behavior..." autocomplete="off" style="width:100%;padding:10px;margin-bottom:20px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:#fff;outline:none;font-size:14px;box-sizing:border-box;">
+
+            <div style="display:flex;gap:10px;">
+                <button type="button" onclick="document.getElementById('mute-modal').remove()" style="flex:1;padding:10px;border-radius:8px;border:none;background:rgba(255,255,255,0.1);color:#fff;cursor:pointer;font-weight:600;">Cancel</button>
+                <button type="button" onclick="confirmMute('${groupId}', '${targetUserId}')" style="flex:1;padding:10px;border-radius:8px;border:none;background:#ff4757;color:#fff;cursor:pointer;font-weight:600;">Mute User</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    const reasonInput = document.getElementById('mute-reason');
+    if (reasonInput) {
+        reasonInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                window.confirmMute(groupId, targetUserId);
+            }
+        });
+        reasonInput.focus();
+    }
+};
+
+window.confirmMute = async function(groupId, targetUserId) {
+    const durationMs = parseInt(document.getElementById('mute-duration').value);
+    const reason = document.getElementById('mute-reason').value.trim() || "No reason provided";
+    const mutedUntil = Date.now() + durationMs;
+
+    try {
+        await update(ref(db, `groups/${groupId}/mutedUsers/${targetUserId}`), {
+            mutedUntil: mutedUntil,
+            reason: reason,
+            mutedBy: auth.currentUser.uid,
+            timestamp: Date.now()
+        });
+        const modal = document.getElementById('mute-modal');
+        if (modal) modal.remove();
+        showNotification("User muted successfully", "success");
+    } catch (err) {
+        showNotification("Failed to mute user. Are you a mod?", "error");
+    }
+};
+
+window.unmuteUser = async function(groupId, targetUserId) {
     try {
         await update(ref(db, `groups/${groupId}/mutedUsers`), {
-            [targetUserId]: muteStatus ? true : null
+            [targetUserId]: null
         });
-        showNotification(muteStatus ? "User muted" : "User unmuted", "success");
+        showNotification("User unmuted", "success");
     } catch (err) {
-        console.error("toggleUserMute error:", err);
-        showNotification("Failed to update mute status. Are you a mod?", "error");
+        showNotification("Failed to unmute user", "error");
+    }
+};
+
+window.toggleUserMute = async function(groupId, targetUserId, muteStatus) {
+    if (muteStatus) {
+        window.openMuteModal(groupId, targetUserId, "User");
+    } else {
+        await window.unmuteUser(groupId, targetUserId);
     }
 };
 

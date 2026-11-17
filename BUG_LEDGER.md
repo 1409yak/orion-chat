@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Moderation Upgrade:* Replaced binary mute toggle with an advanced timed mute modal (15m, 1h, 24h, 1w, Perm) requiring a reason. Updated `database.rules.json` to validate `mutedUntil < now`. Updated the muted user UI to display an informative read-only banner showing the expiration date and reason.
+
 - *UI Refinement:* Removed the default teal focus outline and box-shadow from the chat text input to maintain a flat, clean design when typing.
 
 - *UI Refinement:* The message action menu (Reply/Pin) floated too high above the message box; adjusted CSS positioning to align `top: 0` with the message wrapper. Removed mod Mute buttons from the group members side panel to declutter the UI, restricting mute actions to the user profile screen.
