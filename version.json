@@ -1,6 +1,6 @@
 {
-  "version": "1.2.28",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.28/bundle.zip",
-  "checksum": "73e9f091b8a6ef204c1c062cd489f218f806b05ab39aef8b89e0bebbe37df67e",
-  "notes": "Added role icons, enforced name limits, and massively expanded the game dictionary!"
+  "version": "1.2.29",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.29/bundle.zip",
+  "checksum": "77289bab92576edbe49df815274f11df385174f5dfe1e14d43da16b6408bf059",
+  "notes": "Massive dictionary expansion for Word Rush!"
 }
