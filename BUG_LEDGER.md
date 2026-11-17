@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *UI & Game Expansion:* Applied a `.substring(0, 15)` limit to all username rendering and profile saves to prevent UI breaking from long names. Injected minimal `👑` and `🛡️` emojis to the side panel to indicate roles without wasting space. Massively expanded the `DOODLE_WORDS` array with hundreds of new entries to drastically reduce game repetition.
+
 - UI Polish: Replaced the ugly native <select> dropdown in the mute modal with a premium CSS pill-selector grid. Removed group role badges from the side panel to reduce clutter, and fixed the profile modal layout by placing the role badge in a flex-column directly beneath the username to prevent overlap.
 
 - *Moderation Upgrade:* Replaced binary mute toggle with an advanced timed mute modal (15m, 1h, 24h, 1w, Perm) requiring a reason. Updated `database.rules.json` to validate `mutedUntil < now`. Updated the muted user UI to display an informative read-only banner showing the expiration date and reason.

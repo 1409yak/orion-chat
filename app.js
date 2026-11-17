@@ -299,7 +299,8 @@ function createAuthorElement(msg, onClick) {
     
     const nameSpan = document.createElement('span');
     nameSpan.className = 'author-name-text';
-    nameSpan.innerText = msg.sender_name || (msg.sender_id === 'system' ? 'Orion System' : 'User');
+    const rawSender = msg.sender_name || (msg.sender_id === 'system' ? 'Orion System' : 'User');
+    nameSpan.innerText = String(rawSender).substring(0, 15);
     author.appendChild(nameSpan);
 
     // Explicit badge for System messages
@@ -1414,7 +1415,9 @@ document.addEventListener('input', (e) => {
 });
 
 // --- DOODLE DASH (MULTIPLAYER PICTIONARY) ENGINE ---
-const DOODLE_WORDS = ["apple", "banana", "helicopter", "elephant", "guitar", "mountain", "ocean", "pizza", "robot", "spider", "telescope", "umbrella", "volcano", "window", "zebra", "astronaut", "butterfly", "castle", "dragon", "engine", "firefighter", "ghost", "hospital", "island", "jungle", "kangaroo", "lighthouse", "mermaid", "ninja", "octopus", "penguin", "queen", "rocket", "submarine", "tornado", "unicorn", "vampire", "wizard", "xylophone", "yacht", "zombie", "airplane", "bridge", "camera", "diamond", "eagle", "forest", "galaxy", "hammer", "igloo", "jacket", "kettle", "ladder", "magnet", "needle", "ostrich", "parachute", "quilt", "radar", "scissors", "tractor", "ukulele", "vacuum", "windmill", "yoyo", "zeppelin", "anchor", "balloon", "cactus", "dolphin", "escalator", "fountain", "giraffe", "helmet", "iceberg", "jigsaw", "kayak", "lantern", "microscope", "notebook", "origami", "padlock", "compass", "rainbow", "satellite", "thermometer", "unicycle", "violin", "waterfall", "alligator", "avalanche", "backpack", "barbecue", "basketball", "binoculars", "blizzard", "boomerang", "bulldozer", "campfire", "caterpillar", "chandelier", "cheeseburger", "chocolate", "coconut", "crocodile", "dinosaur", "electricity", "flamingo", "glacier", "hamburger", "hedgehog", "hippopotamus", "hurricane", "jellyfish", "keyboard", "leopard", "limousine", "macaroni", "microphone", "motorcycle", "mushroom", "orchestra", "pancake", "pineapple", "platypus", "porcupine", "rhinoceros", "saxophone", "skeleton", "snowflake", "sombrero", "spaghetti", "squirrel", "strawberry", "sunflower", "symphony", "tarantula", "thunderstorm", "toothbrush", "trampoline", "typewriter", "vegetable", "volleyball", "watermelon", "wheelchair", "woodpecker", "zucchini", "acorn", "alarm", "alien", "ambulance", "ant", "apron", "arch", "arm", "armor", "arrow", "axe", "baby", "bacon", "badge", "bag", "bait", "baker", "ball", "bamboo", "band", "bank", "bar", "barn", "bat", "bath", "bear", "beard", "bed", "bee", "beef", "bell", "belt", "bench", "bike", "bird", "boat", "bone", "book", "boot", "bow", "bowl", "box", "boy", "brain", "branch", "bread", "brick", "broom", "brush", "bug", "bulb", "bull", "bus", "bush", "butter", "button", "cabin", "cable", "cake", "camel", "camp", "can", "candle", "candy", "cane", "cap", "car", "card", "cart", "cat", "cave", "chain", "chair", "chalk", "chef", "cherry", "chess", "chest", "chin", "chip", "church", "circle", "clam", "clock", "cloud", "clown", "club", "coal", "coat", "coin", "comb", "cone", "cook", "cord", "cork", "corn", "cow", "crab", "crane", "crow", "crown", "cube", "cup", "dart", "dash", "date", "deer", "desk", "dial", "dice", "dirt", "dish", "dog", "doll", "door", "dot", "dove", "drop", "drum", "duck", "dust", "ear", "earth", "egg", "elf", "eye", "face", "fan", "farm", "feather", "fence"];
+const DOODLE_WORDS = [
+"apple", "banana", "helicopter", "elephant", "guitar", "mountain", "ocean", "pizza", "robot", "spider", "telescope", "umbrella", "volcano", "window", "zebra", "astronaut", "butterfly", "castle", "dragon", "engine", "firefighter", "ghost", "hospital", "island", "jungle", "kangaroo", "lighthouse", "mermaid", "ninja", "octopus", "penguin", "queen", "rocket", "submarine", "tornado", "unicorn", "vampire", "wizard", "xylophone", "yacht", "zombie", "airplane", "bridge", "camera", "diamond", "eagle", "forest", "galaxy", "hammer", "igloo", "jacket", "kettle", "ladder", "magnet", "needle", "ostrich", "parachute", "quilt", "radar", "scissors", "tractor", "ukulele", "vacuum", "windmill", "yoyo", "zeppelin", "anchor", "balloon", "cactus", "dolphin", "escalator", "fountain", "giraffe", "helmet", "iceberg", "jigsaw", "kayak", "lantern", "microscope", "notebook", "origami", "padlock", "compass", "rainbow", "satellite", "thermometer", "unicycle", "violin", "waterfall", "alligator", "avalanche", "backpack", "barbecue", "basketball", "binoculars", "blizzard", "boomerang", "bulldozer", "campfire", "caterpillar", "chandelier", "cheeseburger", "chocolate", "coconut", "crocodile", "dinosaur", "electricity", "flamingo", "glacier", "hamburger", "hedgehog", "hippopotamus", "hurricane", "jellyfish", "keyboard", "leopard", "limousine", "macaroni", "microphone", "motorcycle", "mushroom", "orchestra", "pancake", "pineapple", "platypus", "porcupine", "rhinoceros", "saxophone", "skeleton", "snowflake", "sombrero", "spaghetti", "squirrel", "strawberry", "sunflower", "symphony", "tarantula", "thunderstorm", "toothbrush", "trampoline", "typewriter", "vegetable", "volleyball", "watermelon", "wheelchair", "woodpecker", "zucchini", "acorn", "alarm", "alien", "ambulance", "ant", "apron", "arch", "arm", "armor", "arrow", "axe", "baby", "bacon", "badge", "bag", "bait", "baker", "ball", "bamboo", "band", "bank", "bar", "barn", "bat", "bath", "bear", "beard", "bed", "bee", "beef", "bell", "belt", "bench", "bike", "bird", "boat", "bone", "book", "boot", "bow", "bowl", "box", "boy", "brain", "branch", "bread", "brick", "broom", "brush", "bug", "bulb", "bull", "bus", "bush", "butter", "button", "cabin", "cable", "cake", "camel", "camp", "can", "candle", "candy", "cane", "cap", "car", "card", "cart", "cat", "cave", "chain", "chair", "chalk", "chef", "cherry", "chess", "chest", "chin", "chip", "church", "circle", "clam", "clock", "cloud", "clown", "club", "coal", "coat", "coin", "comb", "cone", "cook", "cord", "cork", "corn", "cow", "crab", "crane", "crow", "crown", "cube", "cup", "dart", "dash", "date", "deer", "desk", "dial", "dice", "dirt", "dish", "dog", "doll", "door", "dot", "dove", "drop", "drum", "duck", "dust", "ear", "earth", "egg", "elf", "eye", "face", "fan", "farm", "feather", "fence", "fern", "film", "fire", "fish", "flag", "flame", "fly", "fog", "foot", "fork", "frog", "fuel", "game", "gap", "gas", "gate", "gear", "gem", "girl", "glass", "globe", "glove", "goat", "gold", "golf", "goose", "grape", "grass", "grid", "grill", "gum", "hair", "hall", "hand", "harp", "hat", "hawk", "head", "heart", "heel", "hill", "hole", "home", "hook", "horn", "horse", "hose", "house", "hut", "ice", "ink", "iron", "jam", "jar", "jaw", "jeep", "jelly", "jet", "jewel", "juice", "jump", "key", "kid", "king", "kite", "knee", "knife", "knot", "lace", "lake", "lamp", "land", "lane", "leaf", "leg", "lemon", "lens", "lion", "lip", "lock", "log", "loop", "lung", "mail", "map", "mask", "mat", "match", "math", "meal", "meat", "melon", "milk", "mint", "mirror", "moon", "moth", "mouse", "mouth", "mud", "mug", "nail", "name", "neck", "nest", "net", "news", "night", "noise", "nose", "note", "nut", "oar", "oil", "onion", "oven", "owl", "page", "pail", "pain", "paint", "pan", "pants", "paper", "park", "part", "party", "path", "paw", "pea", "peach", "pear", "pen", "pencil", "pet", "pie", "pig", "pill", "pin", "pipe", "plant", "plate", "plug", "plum", "pocket", "poem", "pole", "pond", "pool", "pork", "port", "post", "pot", "potato", "prop", "pump", "pup", "raft", "rag", "rail", "rain", "rake", "ram", "rat", "ray", "rib", "rice", "ring", "river", "road", "rock", "roll", "roof", "room", "root", "rope", "rose", "rub", "rug", "rule", "sack", "sail", "salt", "sand", "saw", "scale", "scarf", "school", "scoop", "seat", "seed", "shark", "sheep", "sheet", "shell", "ship", "shirt", "shoe", "shop", "sign", "silk", "sink", "skate", "skin", "skirt", "sky", "sled", "sleep", "slide", "slug", "snail", "snake", "snow", "soap", "sock", "soil", "song", "soup", "space", "spade", "spark", "spear", "sponge", "spoon", "spot", "spring", "square", "star", "steam", "stem", "step", "stew", "stick", "stone", "stool", "stop", "store", "storm", "story", "stove", "straw", "street", "string", "suit", "sun", "swan", "swing", "sword", "table", "tail", "tank", "tape", "tax", "tea", "tear", "teeth", "tent", "test", "text", "thread", "throat", "thumb", "tick", "tie", "tiger", "time", "tin", "tire", "toad", "toe", "tomato", "tongue", "tool", "tooth", "top", "town", "toy", "track", "trail", "train", "trap", "tree", "trip", "truck", "tube", "tub", "twig", "twin", "vase", "veil", "vein", "vest", "vine", "voice", "wagon", "wall", "walnut", "wasp", "watch", "wave", "wax", "web", "weed", "well", "whale", "wheat", "wheel", "whip", "wind", "wing", "wire", "wolf", "wood", "wool", "worm", "yard", "yarn", "year", "yolk", "zero", "zinc", "zip", "zone"
+];
 
 let currentDoodleRound = -1;
 let currentDoodleStatus = null;
@@ -2385,7 +2388,8 @@ function escapeHTML(str) {
 // Helper to consolidate name resolution and handle fallbacks consistently
 function getDisplayName(userData) {
     if (!userData) return "User";
-    return userData.displayName || (userData.email ? userData.email.split('@')[0] : "User");
+    const raw = userData.displayName || (userData.username || (userData.name || (userData.email ? userData.email.split('@')[0] : "User")));
+    return String(raw).substring(0, 15);
 }
 
 // Helper to safely get a display name for a sticker
@@ -3853,12 +3857,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.27';
+const CURRENT_APP_VERSION = '1.2.28';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.27';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.28';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4020,7 +4024,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.27';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.28';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -7748,11 +7752,17 @@ async function renderMembersList(msnap, groupCreatorId) {
             const isPremium = isAdmin || uData.type === "Premium";
             const nameplateClass = (isPremium && uData.nameplate) ? `nameplate-applied ${uData.nameplate}` : '';
             const memberRole = membersMap[member.uid]?.role || member.role || 'member';
-            const roleInfo = getGroupRoleInfo(memberRole);
-            const badgeHtml = (roleInfo && roleInfo.badge) ? `<span class="custom-user-badge" style="border-color: ${roleInfo.color}55; color: ${roleInfo.color};">${roleInfo.badge}</span>` : '';
-            const displayName = getDisplayName(uData);
+            const isCreator = member.uid === groupCreatorId;
+            const displayUsername = (getDisplayName(uData) || "Unknown").substring(0, 15);
             const status = uData.status;
             const pfp = uData.profilePic;
+
+            let roleIcon = "";
+            if (isCreator || memberRole === 'admin') {
+                roleIcon = `<span style="font-size:12px; margin-left:4px;" title="${isCreator ? 'Creator / Admin' : 'Admin'}">👑</span>`;
+            } else if (memberRole === 'mod') {
+                roleIcon = `<span style="font-size:12px; margin-left:4px;" title="Moderator">🛡️</span>`;
+            }
 
             div.innerHTML = `
                 <div class="member-item-content">
@@ -7760,15 +7770,15 @@ async function renderMembersList(msnap, groupCreatorId) {
                         ${pfp ? `<img src="${pfp}" class="member-avatar-img">` : `<div class="avatar-sm">\u{1F464}</div>`}
                         <span class="status-dot ${status === 'online' ? 'online' : ''}"></span>
                     </div>
-                    <div style="flex: 1; min-width: 0;">
-                        <span class="${nameplateClass}">${escapeHTML(displayName)}</span>
+                    <div style="flex: 1; min-width: 0; display: flex; align-items: center; overflow: hidden;">
+                        <span class="${nameplateClass}" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(displayUsername)}</span>${roleIcon}
                     </div>
                 </div>
             `;
             twemoji.parse(div);
             
             // Update cache for tooltips
-            currentChatMemberNames.set(member.uid, displayName);
+            currentChatMemberNames.set(member.uid, displayUsername);
             currentChatMemberPics.set(member.uid, pfp);
             currentChatMemberBadges.set(member.uid, memberRole);
             updateMessageAvatarsForUser(member.uid, pfp); // Update avatars in existing messages
@@ -9268,18 +9278,14 @@ document.addEventListener('click', (e) => {
     const settingsNameInput = document.getElementById('settings-display-name');
     if (settingsNameInput) {
         const handleNameAutoSave = async () => {
-            const name = settingsNameInput.value.trim();
+            const name = settingsNameInput.value.trim().substring(0, 15);
             const nameMsg = document.getElementById('settings-name-msg');
             if (!name) {
                 if (nameMsg) { nameMsg.innerText = "Name can't be empty."; nameMsg.style.color = '#ff6b6b'; }
                 return;
             }
-            if (name.length > 80) {
-                if (nameMsg) { nameMsg.innerText = "Name is too long (max 80 chars)."; nameMsg.style.color = '#ff6b6b'; }
-                return;
-            }
             try {
-                await update(ref(db, `users/${auth.currentUser.uid}`), { displayName: name });
+                await update(ref(db, `users/${auth.currentUser.uid}`), { displayName: name, username: name });
                 const pf = document.getElementById('profile-display-name');
                 if (pf) pf.value = name;
                 const pfText = document.getElementById('profile-display-name-text');
@@ -9299,6 +9305,19 @@ document.addEventListener('click', (e) => {
         settingsNameInput.onchange = handleNameAutoSave;
         settingsNameInput.onblur = handleNameAutoSave;
     }
+
+    window.saveProfile = async function() {
+        const input = document.getElementById('settings-display-name') || document.getElementById('profile-username-input') || document.getElementById('profile-display-name');
+        if (!input) return;
+        const newUsername = input.value.trim().substring(0, 15);
+        if (!newUsername) return;
+        try {
+            await update(ref(db, `users/${auth.currentUser.uid}`), { displayName: newUsername, username: newUsername });
+            showNotification("Profile saved", "success");
+        } catch (e) {
+            showNotification("Failed to save profile", "error");
+        }
+    };
 
     // Auto-save About Me / Bio on change/blur
     const settingsBioInput = document.getElementById('settings-profile-description');
