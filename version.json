@@ -1,6 +1,6 @@
 {
-  "version": "1.2.31",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.31/bundle.zip",
-  "checksum": "2d6d81be34e4e29cf220a7a9f46ee43e5cd376c4c04e4c7c658d4a9ea816510c",
-  "notes": "UI improvements: Fixed game close button and improved currency formatting!"
+  "version": "1.2.32",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.32/bundle.zip",
+  "checksum": "f799d46b7eb90a028829b3b61f1ea3745d55a909629e1d89fffa0842ddcc31d7",
+  "notes": "Fixed games not starting, added multi-lobby support, live player counters, and an Active Lobby banner!"
 }
