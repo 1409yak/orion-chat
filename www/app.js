@@ -59,6 +59,12 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 const messaging = getMessaging(app);
 
+// Global currency formatter
+window.formatMoney = function(amount) {
+    return Number(amount || 0).toLocaleString('en-US');
+};
+const formatMoney = window.formatMoney;
+
 let currentChatId = null;
 let currentChatData = null;
 let currentChatCreatorId = null; // Store globally for profile viewing context
@@ -71,6 +77,8 @@ let activeMembersOff = null;   // Listener for current chat members
 let activeMessagesOff = null;  // Listener for current chat messages
 let activeChatPartnerOff = null; // Listener for DM partner status
 let activeGroupMuteOff = null; // Listener for group metadata and mute status
+let activeGamesListOff = null; // Listener for active game lobbies in current chat
+const activeLobbyCardUnsubs = new Map(); // Stores { messageId: offFunction } for live lobby card counters
 let currentEditingMessage = null; // To keep track of the message being edited
 let viewedMessagesInSession = new Set(); // To prevent multiple increments in one view
 let currentReplyMessage = null; // To keep track of the message being replied to
@@ -299,7 +307,8 @@ function createAuthorElement(msg, onClick) {
     
     const nameSpan = document.createElement('span');
     nameSpan.className = 'author-name-text';
-    nameSpan.innerText = msg.sender_name || (msg.sender_id === 'system' ? 'Orion System' : 'User');
+    const rawSender = msg.sender_name || (msg.sender_id === 'system' ? 'Orion System' : 'User');
+    nameSpan.innerText = String(rawSender).substring(0, 15);
     author.appendChild(nameSpan);
 
     // Explicit badge for System messages
@@ -570,6 +579,9 @@ applyUiPrefs();
 
 
 // Internal Game Tracking
+let activeGameId = null;
+let activeGameChatId = null;
+let activeLobbyPlayerRef = null;
 let gameStartedLocally = false;
 let canSkipPrize = false;
 let prizeTimeout = null;
@@ -582,6 +594,33 @@ let currentDoodleTurn = -1;
 let isSubmittingDoodleGuess = false;
 let isAdvancingDoodleTurn = false;
 let podiumCloseTimeout = null;
+
+function cleanupLobbyCardListeners() {
+    activeLobbyCardUnsubs.forEach(unsub => {
+        if (typeof unsub === 'function') unsub();
+    });
+    activeLobbyCardUnsubs.clear();
+}
+
+function normalizeGameTypeKey(rawType) {
+    const t = String(rawType || '').toLowerCase().trim();
+    if (t === 'wordle' || t === 'word rush') return 'wordle';
+    if (t === 'doodle' || t === 'doodle dash') return 'doodle';
+    return 'flags';
+}
+
+function getGameDisplayTitle(rawType) {
+    const key = normalizeGameTypeKey(rawType);
+    if (key === 'wordle') return 'Word Rush';
+    if (key === 'doodle') return 'Doodle Dash';
+    return 'World Flags';
+}
+
+function getPlayerDisplayName(playerEntry) {
+    if (!playerEntry) return 'Player';
+    if (typeof playerEntry === 'string') return playerEntry;
+    return playerEntry.name || 'Player';
+}
 
 function cleanupDoodleListeners() {
     doodleUnsubs.forEach(u => {
@@ -598,9 +637,99 @@ function cleanupDoodleListeners() {
 }
 
 // --- GAME LOGIC ---
-async function setupGameLobby(gameType = 'flags') {
+async function startGame(gameId, chatId = activeGameChatId || currentChatId) {
+    if (!chatId || !gameId) {
+        console.error('[Game] startGame called without chatId or gameId:', { chatId, gameId });
+        return;
+    }
+
+    try {
+        const targetGameRef = ref(db, `games/${chatId}/${gameId}`);
+        const freshGameSnap = await get(targetGameRef);
+        const gData = freshGameSnap.val();
+        if (!gData) {
+            console.error('[Game] startGame failed: game node not found at', `games/${chatId}/${gameId}`);
+            showNotification("Game lobby no longer exists.", "error");
+            return;
+        }
+
+        const freshPlayersList = Object.keys(gData.players || {});
+        if (freshPlayersList.length < 2) {
+            return showNotification("Waiting for at least one more player to join!", "error");
+        }
+
+        const lobbyType = normalizeGameTypeKey(gData.type || gData.gameType);
+        const now = Date.now();
+
+        if (lobbyType === 'doodle') {
+            let rounds = 3;
+            const activeRoundBtn = document.querySelector('.round-btn.active');
+            if (activeRoundBtn) rounds = parseInt(activeRoundBtn.getAttribute('data-val'), 10) || 3;
+
+            const firstDrawerUid = freshPlayersList[0];
+            const options = [];
+            while (options.length < 3) {
+                const word = DOODLE_WORDS[Math.floor(Math.random() * DOODLE_WORDS.length)];
+                if (!options.includes(word)) options.push(word);
+            }
+
+            const durationMs = 60000;
+            await update(targetGameRef, {
+                status: 'choosing',
+                type: 'doodle',
+                gameType: 'Doodle Dash',
+                startTime: now,
+                startedAt: now,
+                endTime: now + durationMs,
+                turnOrder: freshPlayersList,
+                currentTurnIndex: 0,
+                currentRound: 1,
+                maxRounds: rounds,
+                drawer: firstDrawerUid,
+                drawerUid: firstDrawerUid,
+                wordOptions: options,
+                turnExpiresAt: now + 10000 // 10 seconds to choose
+            });
+        } else if (lobbyType === 'wordle') {
+            const targetWord = WORD_RUSH_WORDS[Math.floor(Math.random() * WORD_RUSH_WORDS.length)];
+            const durationMs = 5 * 60000;
+            await update(targetGameRef, {
+                status: 'playing',
+                type: 'wordle',
+                gameType: 'Word Rush',
+                targetWord: targetWord,
+                startTime: now,
+                startedAt: now,
+                endTime: now + durationMs
+            });
+        } else {
+            const slider = document.getElementById('game-duration-slider');
+            const duration = (slider ? parseInt(slider.value, 10) : 5) || 5;
+            const durationMs = duration * 60000;
+            await update(targetGameRef, {
+                status: 'playing',
+                type: 'flags',
+                gameType: 'World Flags',
+                duration: duration,
+                startTime: now,
+                startedAt: now,
+                endTime: now + durationMs
+            });
+        }
+    } catch (err) {
+        console.error('[Game] startGame error:', err);
+        showNotification('Could not start game: ' + (err.code || err.message || 'Unknown error'), 'error');
+    }
+}
+window.startGame = startGame;
+
+async function setupGameLobby(gameType = 'flags', existingGameId = null) {
     if (!currentChatId) {
         showNotification("Please select a chat to play games.", "info");
+        return;
+    }
+    if (!auth.currentUser) {
+        showNotification("Please sign in to play games.", "error");
         return;
     }
 
@@ -616,263 +745,239 @@ async function setupGameLobby(gameType = 'flags') {
         wordleGameUnsub();
         wordleGameUnsub = null;
     }
+    if (flagsGameUnsub) {
+        flagsGameUnsub();
+        flagsGameUnsub = null;
+    }
+    if (activeLobbyPlayerRef) {
+        try { await onDisconnect(activeLobbyPlayerRef).cancel(); } catch (_) {}
+        activeLobbyPlayerRef = null;
+    }
     cleanupDoodleListeners();
     currentDoodleTurn = -1;
+    currentDoodleRound = -1;
+    currentDoodleStatus = null;
     isSubmittingDoodleGuess = false;
     isAdvancingDoodleTurn = false;
     gameStartedLocally = false;
 
     try {
-        const gameRef = ref(db, `games/${currentChatId}`);
+        const chatId = currentChatId;
         const myUid = auth.currentUser.uid;
-        
-        const gameSnap = await get(gameRef);
-        let gameData = gameSnap.val();
-        let isCreator = !gameSnap.exists();
-
-        const thirtyMins = 30 * 60 * 1000;
-        if (gameData && gameData.status !== 'finished') {
-            if (Date.now() - (gameData.createdAt || gameData.startedAt || 0) < thirtyMins) {
-                if (gameData.status !== 'lobby') {
-                    return showNotification("A game is already active in this chat!", "error");
-                }
-            } else {
-                console.warn("[Game] Overwriting stale game lobby.");
-                await remove(gameRef);
-                gameData = null;
-                isCreator = true;
-            }
-        }
-
-    // Handle 5-minute empty lobby closure
-    if (gameData && gameData.emptySince && (Date.now() - gameData.emptySince > 5 * 60 * 1000)) {
-        if (gameData.inviteMsgId) {
-            await update(ref(db, `messages/${currentChatId}/${gameData.inviteMsgId}`), { expired: true });
-        }
-        await remove(gameRef);
-        gameData = null;
-        isCreator = true;
-    }
-
-    // Check for previously finished games and purge them
-    if (gameData && gameData.status === 'finished') {
-        await remove(gameRef);
-        gameData = null;
-        isCreator = true;
-    }
-
-    const effectiveType = (!isCreator && gameData && gameData.type) ? gameData.type : gameType;
-    const getGameDisplayTitle = (type) => {
-        if (type === 'wordle') return 'Word Rush';
-        if (type === 'doodle') return 'Doodle Dash';
-        return 'World Flags';
-    };
-    const lobbyTitle = document.getElementById('game-lobby-title');
-    if (lobbyTitle) {
-        lobbyTitle.innerText = `Game Settings: ${getGameDisplayTitle(effectiveType)}`;
-    }
-    const initialDoodleSettings = document.getElementById('doodle-settings');
-    if (initialDoodleSettings) {
-        initialDoodleSettings.style.display = effectiveType === 'doodle' ? 'flex' : 'none';
-    }
-
-    const fgm = document.getElementById('flag-game-lobby-modal');
-    if (fgm) openAnimatedModal(fgm);
-
-    // If creator, setup initial game state and send invite message
-    if (isCreator) {
         const myName = document.getElementById('current-user-name')?.innerText || auth.currentUser.displayName || 'Player';
-        // Initialize generic lobby state safely for both Groups and DMs
-        await update(gameRef, {
-            status: 'lobby',
-            type: effectiveType,
-            creator: myUid,
-            hostId: myUid,
-            players: {
-                [myUid]: {
-                    name: myName,
-                    gold: 0,
-                    score: 0,
-                    joinedAt: serverTimestamp()
+        const isCreator = !existingGameId;
+
+        let gameId = existingGameId;
+        let gameRef;
+        let gameData = null;
+
+        if (isCreator) {
+            gameRef = push(ref(db, `games/${chatId}`));
+            gameId = gameRef.key;
+        } else {
+            gameRef = ref(db, `games/${chatId}/${gameId}`);
+            const gameSnap = await get(gameRef);
+            if (!gameSnap.exists()) {
+                showNotification("This game lobby has closed or expired.", "info");
+                return;
+            }
+            gameData = gameSnap.val();
+
+            // Handle 5-minute empty lobby closure
+            if (gameData && gameData.emptySince && (Date.now() - gameData.emptySince > 5 * 60 * 1000)) {
+                if (gameData.inviteMsgId) {
+                    await update(ref(db, `messages/${chatId}/${gameData.inviteMsgId}`), { expired: true });
                 }
-            },
-            createdAt: Date.now()
-        });
-
-        // Send generic invite message without relying on opponentId
-        const msgRef = push(ref(db, `messages/${currentChatId}`));
-        await update(msgRef, {
-            sender: myUid,
-            sender_id: myUid,
-            sender_name: myName,
-            text: `\u{1F3AE} Created a ${effectiveType} lobby!`,
-            isGameInvite: true,
-            gameInvite: true,
-            gameType: effectiveType,
-            timestamp: Date.now(),
-            createdAt: serverTimestamp(),
-            sender_badge: (isCurrentUserPremium && currentMyBadge) ? currentMyBadge : null
-        });
-
-        await update(gameRef, { inviteMsgId: msgRef.key });
-
-        await update(ref(db, `chats/${currentChatId}`), {
-            last_message: `\u{1F3AE} ${myName} started a game!`,
-            timestamp: serverTimestamp()
-        });
-    }
-
-    // Join the lobby
-    const playerRef = ref(db, `games/${currentChatId}/players/${myUid}`);
-    await update(playerRef, {
-        name: document.getElementById('current-user-name')?.innerText || auth.currentUser.displayName || 'Player',
-        gold: 0,
-        score: 0,
-        joinedAt: serverTimestamp()
-    });
-    await update(gameRef, { emptySince: null });
-    onDisconnect(playerRef).remove();
-    
-    lobbyGameUnsub = onValue(gameRef, async (snap) => {
-        const data = snap.val();
-        if (!data) {
-            closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
-            if (lobbyGameUnsub) {
-                lobbyGameUnsub();
-                lobbyGameUnsub = null;
+                await remove(gameRef);
+                showNotification("This game lobby expired due to inactivity.", "info");
+                return;
             }
-            return;
-        }
-        
-        if ((data.status === 'active' || data.status === 'playing') && !gameStartedLocally) {
-            gameStartedLocally = true;
-            if (lobbyGameUnsub) {
-                lobbyGameUnsub();
-                lobbyGameUnsub = null;
+
+            if (gameData && gameData.status === 'finished') {
+                showNotification("This game has already finished!", "info");
+                return;
             }
-            if (data.type === 'wordle') {
-                closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
-                startWordleGame(data);
-            } else if (data.type === 'doodle' && data.status !== 'finished') {
-                closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
-                startDoodleGame(data);
-            } else {
-                startLocalGameUI(data);
+
+            if (gameData && gameData.status !== 'lobby') {
+                showNotification("This game is already in progress!", "error");
+                return;
             }
-            return;
         }
 
-        const lobbyType = data.type || effectiveType;
+        activeGameId = gameId;
+        activeGameChatId = chatId;
+
+        const effectiveType = normalizeGameTypeKey((!isCreator && gameData) ? (gameData.type || gameData.gameType) : gameType);
+        const displayGameType = getGameDisplayTitle(effectiveType);
+
+        const lobbyTitle = document.getElementById('game-lobby-title');
         if (lobbyTitle) {
-            lobbyTitle.innerText = `Game Settings: ${getGameDisplayTitle(lobbyType)}`;
+            lobbyTitle.innerText = `Game Settings: ${displayGameType}`;
+        }
+        const initialDoodleSettings = document.getElementById('doodle-settings');
+        if (initialDoodleSettings) {
+            initialDoodleSettings.style.display = effectiveType === 'doodle' ? 'flex' : 'none';
+        }
+        const initialDurationGroup = document.getElementById('game-duration-slider')?.closest('.field-group');
+        if (initialDurationGroup) {
+            initialDurationGroup.style.display = (isCreator && effectiveType === 'flags') ? 'block' : 'none';
         }
 
-        const players = data.players || {};
-        const playerUids = Object.keys(players);
-        
-        // Host Transfer Logic: If host is missing, oldest player claims host
-        if (playerUids.length > 0 && (!data.hostId || !players[data.hostId])) {
-            let oldestUid = playerUids[0];
-            let oldestTime = players[oldestUid].joinedAt || Date.now();
-            for (const uid of playerUids) {
-                const pTime = players[uid].joinedAt || Date.now();
-                if (pTime < oldestTime) {
-                    oldestUid = uid;
-                    oldestTime = pTime;
-                }
-            }
-            if (oldestUid === myUid) {
-                update(gameRef, { hostId: myUid });
-            }
-        }
+        const fgm = document.getElementById('flag-game-lobby-modal');
+        if (fgm) openAnimatedModal(fgm);
 
-        const list = document.getElementById('lobby-players-list');
-        if (list) {
-            list.innerHTML = '';
-            playerUids.forEach(uid => {
-                const div = document.createElement('div');
-                div.className = 'selection-item';
-                const isHost = uid === data.hostId;
-                div.innerText = `\u{1F3AE} ${players[uid].name} ${isHost ? '\u{1F451}' : ''}`;
-                list.appendChild(div);
+        // If creator, setup initial game state under games/${chatId}/${gameId} and send invite message
+        if (isCreator) {
+            await set(gameRef, {
+                gameId: gameId,
+                gameType: displayGameType,
+                type: effectiveType,
+                host: myUid,
+                hostId: myUid,
+                creator: myUid,
+                status: 'lobby',
+                players: {
+                    [myUid]: {
+                        name: myName,
+                        gold: 0,
+                        score: 0,
+                        joinedAt: serverTimestamp()
+                    }
+                },
+                createdAt: Date.now()
+            });
+
+            // Send invite message containing gameId and gameType
+            const msgRef = push(ref(db, `messages/${chatId}`));
+            await update(msgRef, {
+                sender: myUid,
+                sender_id: myUid,
+                sender_name: myName,
+                text: `\u{1F3AE} Created a ${displayGameType} lobby!`,
+                isGameInvite: true,
+                gameInvite: true,
+                gameId: gameId,
+                gameType: displayGameType,
+                type: effectiveType,
+                timestamp: Date.now(),
+                createdAt: serverTimestamp(),
+                sender_badge: (isCurrentUserPremium && currentMyBadge) ? currentMyBadge : null
+            });
+
+            await update(gameRef, { inviteMsgId: msgRef.key });
+
+            await update(ref(db, `chats/${chatId}`), {
+                last_message: `\u{1F3AE} ${myName} started a game!`,
+                timestamp: serverTimestamp()
             });
         }
 
-        const startBtn = document.getElementById('start-game-btn');
-        if (startBtn) {
-            const isHost = myUid === data.hostId;
-            const durationGroup = document.getElementById('game-duration-slider').closest('.field-group');
-            if (durationGroup) durationGroup.style.display = (isHost && lobbyType === 'flags') ? 'block' : 'none';
-            const doodleSettings = document.getElementById('doodle-settings');
-            if (doodleSettings) doodleSettings.style.display = (isHost && lobbyType === 'doodle') ? 'flex' : 'none';
-            
-            startBtn.style.display = isHost ? 'block' : 'none';
-            startBtn.disabled = !currentChatData?.isGroup && playerUids.length < 2; // Minimum 2 players
-            startBtn.onclick = async () => {
-                const freshGameSnap = await get(ref(db, `games/${currentChatId}`));
-                const gData = freshGameSnap.val();
-                const freshPlayersList = Object.keys(gData?.players || {});
+        // Join the lobby
+        const playerRef = ref(db, `games/${chatId}/${gameId}/players/${myUid}`);
+        activeLobbyPlayerRef = playerRef;
+        await update(playerRef, {
+            name: myName,
+            gold: 0,
+            score: 0,
+            joinedAt: serverTimestamp()
+        });
+        await update(gameRef, { emptySince: null });
+        onDisconnect(playerRef).remove();
 
-                if (freshPlayersList.length < 2 && currentChatData?.isGroup) {
-                    return showNotification("Waiting for at least one more player to join!", "error");
+        lobbyGameUnsub = onValue(gameRef, async (snap) => {
+            const data = snap.val();
+            if (!data) {
+                closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
+                if (lobbyGameUnsub) {
+                    lobbyGameUnsub();
+                    lobbyGameUnsub = null;
                 }
+                return;
+            }
 
-                if (lobbyType === 'wordle' || lobbyType === 'doodle') {
-                    const typeIsDoodle = lobbyType === 'doodle';
-                    let rounds = 1;
-                    if (typeIsDoodle) {
-                        const activeRoundBtn = document.querySelector('.round-btn.active');
-                        if (activeRoundBtn) rounds = parseInt(activeRoundBtn.getAttribute('data-val'), 10) || 3;
-                    }
-
-                    const playersList = playerUids.length ? playerUids : [auth.currentUser.uid];
-
-                    if (typeIsDoodle) {
-                        const firstDrawerUid = playersList[0];
-                        const options = [];
-                        while (options.length < 3) {
-                            const word = DOODLE_WORDS[Math.floor(Math.random() * DOODLE_WORDS.length)];
-                            if (!options.includes(word)) options.push(word);
-                        }
-
-                        await update(gameRef, {
-                            status: 'choosing',
-                            type: 'doodle',
-                            startedAt: Date.now(),
-                            turnOrder: playersList,
-                            currentTurnIndex: 0,
-                            currentRound: 1,
-                            maxRounds: rounds,
-                            drawer: firstDrawerUid,
-                            drawerUid: firstDrawerUid,
-                            wordOptions: options,
-                            turnExpiresAt: Date.now() + 10000 // 10 seconds to choose
-                        });
-                    } else {
-                        const wordleWordList = ['APPLE', 'TRAIN', 'GHOST', 'PLANT', 'WATER', 'BRAIN', 'HEART', 'LIGHT', 'SOUND', 'SPACE', 'DREAM', 'HOUSE', 'MOUSE', 'CLOCK', 'PHONE', 'CHAIR'];
-                        const targetWord = wordleWordList[Math.floor(Math.random() * wordleWordList.length)];
-                        await update(gameRef, {
-                            status: 'playing',
-                            type: 'wordle',
-                            targetWord: targetWord,
-                            startedAt: Date.now()
-                        });
-                    }
+            if ((data.status === 'playing' || data.status === 'active' || data.status === 'choosing') && !gameStartedLocally) {
+                gameStartedLocally = true;
+                activeGameId = gameId;
+                activeGameChatId = chatId;
+                if (lobbyGameUnsub) {
+                    lobbyGameUnsub();
+                    lobbyGameUnsub = null;
+                }
+                const resolvedType = normalizeGameTypeKey(data.type || data.gameType || effectiveType);
+                if (resolvedType === 'wordle') {
+                    closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
+                    startWordleGame(data, gameId, chatId);
+                } else if (resolvedType === 'doodle' && data.status !== 'finished') {
+                    closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
+                    startDoodleGame(data, gameId, chatId);
                 } else {
-                    const duration = parseInt(document.getElementById('game-duration-slider').value);
-                    await update(gameRef, {
-                        status: 'active',
-                        type: 'flags',
-                        duration: duration,
-                        endTime: Date.now() + (duration * 60000)
-                    });
+                    startLocalGameUI(data, gameId, chatId);
                 }
-            };
-        }
-    });
+                return;
+            }
+
+            if (data.status === 'finished') {
+                closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
+                if (lobbyGameUnsub) {
+                    lobbyGameUnsub();
+                    lobbyGameUnsub = null;
+                }
+                return;
+            }
+
+            const lobbyType = normalizeGameTypeKey(data.type || data.gameType || effectiveType);
+            if (lobbyTitle) {
+                lobbyTitle.innerText = `Game Settings: ${getGameDisplayTitle(lobbyType)}`;
+            }
+
+            const players = data.players || {};
+            const playerUids = Object.keys(players);
+            const currentHostUid = data.hostId || data.host;
+
+            // Host Transfer Logic: If host is missing, oldest player claims host
+            if (playerUids.length > 0 && (!currentHostUid || !players[currentHostUid])) {
+                let oldestUid = playerUids[0];
+                let oldestTime = players[oldestUid]?.joinedAt || Date.now();
+                for (const uid of playerUids) {
+                    const pTime = players[uid]?.joinedAt || Date.now();
+                    if (pTime < oldestTime) {
+                        oldestUid = uid;
+                        oldestTime = pTime;
+                    }
+                }
+                if (oldestUid === myUid) {
+                    update(gameRef, { host: myUid, hostId: myUid });
+                }
+            }
+
+            const list = document.getElementById('lobby-players-list');
+            if (list) {
+                list.innerHTML = '';
+                playerUids.forEach(uid => {
+                    const div = document.createElement('div');
+                    div.className = 'selection-item';
+                    const isHost = uid === currentHostUid;
+                    div.innerText = `\u{1F3AE} ${getPlayerDisplayName(players[uid])} ${isHost ? '\u{1F451}' : ''}`;
+                    list.appendChild(div);
+                });
+            }
+
+            const startBtn = document.getElementById('start-game-btn');
+            if (startBtn) {
+                const isHost = myUid === currentHostUid;
+                const durationGroup = document.getElementById('game-duration-slider')?.closest('.field-group');
+                if (durationGroup) durationGroup.style.display = (isHost && lobbyType === 'flags') ? 'block' : 'none';
+                const doodleSettings = document.getElementById('doodle-settings');
+                if (doodleSettings) doodleSettings.style.display = (isHost && lobbyType === 'doodle') ? 'flex' : 'none';
+
+                startBtn.style.display = isHost ? 'block' : 'none';
+                startBtn.disabled = !currentChatData?.isGroup && playerUids.length < 2; // Minimum 2 players
+                startBtn.onclick = () => startGame(gameId, chatId);
+            }
+        });
     } catch (err) {
         console.error('[Game] Lobby initialization failed:', err);
-        showNotification('Could not start game: ' + (err.code || err.message), 'error');
+        showNotification('Could not open game lobby: ' + (err.code || err.message), 'error');
         const modal = document.getElementById('flag-game-lobby-modal');
         if (modal) closeAnimatedModal(modal);
     }
@@ -888,15 +993,52 @@ function initFlagGame() {
 }
 window.initFlagGame = initFlagGame;
 
-function startLocalGameUI(gameData) {
-    const gameId = currentChatId;
+window.closeFlagsGame = function() {
+    const ui = document.getElementById('flags-game-ui'); // Match your exact ID
+    if (ui) ui.style.display = 'none';
+    if (window.flagsGameInterval) {
+        clearInterval(window.flagsGameInterval);
+        window.flagsGameInterval = null;
+    }
+    if (gameTimerInterval) {
+        clearInterval(gameTimerInterval);
+        gameTimerInterval = null;
+    }
+    if (flagsGameUnsub) {
+        flagsGameUnsub();
+        flagsGameUnsub = null;
+    }
+    gameStartedLocally = false;
+    const screen = document.getElementById('flag-game-screen');
+    if (screen) {
+        closeAnimatedModal(screen);
+        screen.style.display = 'none';
+    }
+    // Clear the end screen if it's visible
+    const endScreen = document.getElementById('flags-end-screen');
+    if (endScreen) {
+        endScreen.style.display = 'none';
+        endScreen.innerHTML = '';
+    }
+};
+
+function startLocalGameUI(gameData, gameId = activeGameId, chatId = activeGameChatId || currentChatId) {
+    if (!chatId || !gameId) {
+        console.error('[Game] startLocalGameUI missing chatId or gameId:', { chatId, gameId });
+        return;
+    }
+    activeGameId = gameId;
+    activeGameChatId = chatId;
     closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
     const flagScreen = document.getElementById('flag-game-screen');
     if (flagScreen) flagScreen.style.display = 'flex';
     
     // Unlock input pointer events when a game starts
     const flagsUi = document.getElementById('flags-game-ui');
-    if (flagsUi) flagsUi.style.pointerEvents = 'auto';
+    if (flagsUi) {
+        flagsUi.style.display = 'block';
+        flagsUi.style.pointerEvents = 'auto';
+    }
 
     // Ensure initial visibility is correct
     const flagsTimer = document.getElementById('flags-timer');
@@ -908,7 +1050,12 @@ function startLocalGameUI(gameData) {
     document.getElementById('podium-area').style.display = 'none';
     document.getElementById('game-leaderboard').style.display = 'block';
     const endStatsEl = document.getElementById('flags-end-screen');
-    if (endStatsEl) endStatsEl.innerHTML = '';
+    if (endStatsEl) {
+        endStatsEl.style.display = 'block';
+        endStatsEl.innerHTML = '';
+    }
+    const scoreDisplay = document.getElementById('flags-score-display');
+    if (scoreDisplay) scoreDisplay.innerText = '$0';
     
     availableFlags = [...COUNTRIES_LIST]; // Refresh flag pool for session
     nextFlagRound();
@@ -927,9 +1074,9 @@ function startLocalGameUI(gameData) {
         if (timeLeft <= 0 && gameData.status !== 'finished') {
             // First client to hit 0 tells Firebase the game is strictly over
             clearInterval(window.flagsGameInterval);
-            await update(ref(db, `games/${gameId}`), { status: 'finished' });
+            await update(ref(db, `games/${chatId}/${gameId}`), { status: 'finished' });
             if (gameData && gameData.inviteMsgId) {
-                update(ref(db, `messages/${gameId}/${gameData.inviteMsgId}`), { expired: true });
+                update(ref(db, `messages/${chatId}/${gameData.inviteMsgId}`), { expired: true });
             }
         }
     }, 1000);
@@ -941,7 +1088,7 @@ function startLocalGameUI(gameData) {
     }
 
     let previousScore = undefined;
-    const gameRef = ref(db, `games/${gameId}`);
+    const gameRef = ref(db, `games/${chatId}/${gameId}`);
 
     flagsGameUnsub = onValue(gameRef, async (snap) => {
         const currentData = snap.val();
@@ -954,9 +1101,9 @@ function startLocalGameUI(gameData) {
             const flagsUi = document.getElementById('flags-game-ui');
             if (flagsUi) flagsUi.style.pointerEvents = 'none'; // Lock inputs instantly
             gameStartedLocally = false;
-            showPodium();
+            showPodium(null, gameId, chatId);
             renderFlagsEndStats(currentData);
-            schedulePodiumCleanup();
+            schedulePodiumCleanup(gameId, chatId);
             return; // Halt further game logic
         }
 
@@ -971,10 +1118,12 @@ function startLocalGameUI(gameData) {
         if (previousScore !== undefined && currentScore < previousScore) {
             const amountLost = previousScore - currentScore;
             if (typeof showNotification === 'function') {
-                showNotification(`🚨 You were robbed of $${amountLost}!`, "error");
+                showNotification(`🚨 You were robbed of $${formatMoney(amountLost)}!`, "error");
             }
         }
         previousScore = currentScore; // Update tracker
+
+        document.getElementById('flags-score-display').innerText = `$${formatMoney(currentScore)}`;
 
         // Update leaderboard
         const players = currentData.players || {};
@@ -982,13 +1131,13 @@ function startLocalGameUI(gameData) {
         if (leader) {
             leader.innerHTML = Object.values(players)
                 .sort((a, b) => (b.gold || 0) - (a.gold || 0))
-                .map(p => `<div><strong>${escapeHTML(p.name || 'Player')}</strong>: ${p.gold || 0} Gold</div>`)
+                .map(p => `<div><strong>${escapeHTML(getPlayerDisplayName(p))}</strong>: $${formatMoney(p.gold || 0)}</div>`)
                 .join('');
         }
     });
 }
 
-function schedulePodiumCleanup() {
+function schedulePodiumCleanup(gameId = activeGameId, chatId = activeGameChatId || currentChatId) {
     if (podiumCloseTimeout) clearTimeout(podiumCloseTimeout);
     podiumCloseTimeout = setTimeout(() => {
         podiumCloseTimeout = null;
@@ -996,17 +1145,17 @@ function schedulePodiumCleanup() {
         if (screen && screen.style.display !== 'none') {
             closeAnimatedModal(screen);
         }
-        if (currentChatId) {
-            get(ref(db, `games/${currentChatId}`)).then(snap => {
+        if (chatId && gameId) {
+            get(ref(db, `games/${chatId}/${gameId}`)).then(snap => {
                 if (snap.exists() && snap.val().status === 'finished') {
-                    remove(ref(db, `games/${currentChatId}`));
+                    remove(ref(db, `games/${chatId}/${gameId}`));
                 }
             });
         }
     }, 5 * 60 * 1000); // 5 minutes
 }
 
-async function showPodium(customPlayers = null) {
+async function showPodium(customPlayers = null, gameId = activeGameId, chatId = activeGameChatId || currentChatId) {
     const screen = document.getElementById('flag-game-screen');
     if (screen && (screen.style.display === 'none' || !screen.style.display)) {
         openAnimatedModal(screen);
@@ -1026,12 +1175,14 @@ async function showPodium(customPlayers = null) {
     const isWordle = Array.isArray(customPlayers);
     if (isWordle) {
         sorted = customPlayers;
-    } else {
-        const snap = await get(ref(db, `games/${currentChatId}`));
+    } else if (chatId && gameId) {
+        const snap = await get(ref(db, `games/${chatId}/${gameId}`));
         const gameData = snap.val() || {};
         const players = gameData.players || {};
         sorted = Object.values(players).sort((a, b) => (b.gold || 0) - (a.gold || 0));
         renderFlagsEndStats(gameData);
+    } else {
+        sorted = [];
     }
 
     podiumList.innerHTML = sorted.map((p, i) => {
@@ -1043,11 +1194,11 @@ async function showPodium(customPlayers = null) {
 
         const scoreLabel = isWordle
             ? (p.scoreLabel || (p.won ? `${p.attempts || 0}/6 \u{2B50}` : 'X/6'))
-            : `${p.gold || 0} Gold`;
+            : `$${formatMoney(p.gold || 0)}`;
 
         return `
             <div class="podium-card ${i < 3 ? 'top-three' : ''}">
-                <span style="font-weight: 800; font-size: 18px;">${medal} ${escapeHTML(p.name || 'Player')}</span>
+                <span style="font-weight: 800; font-size: 18px;">${medal} ${escapeHTML(getPlayerDisplayName(p))}</span>
                 <span class="podium-gold">${scoreLabel}</span>
             </div>
         `;
@@ -1071,12 +1222,6 @@ async function showPodium(customPlayers = null) {
             const flagsUi = document.getElementById('flags-game-ui');
             if (flagsUi) flagsUi.style.pointerEvents = 'auto';
             closeAnimatedModal(document.getElementById('flag-game-screen'));
-            if (currentChatId) {
-                const snap = await get(ref(db, `games/${currentChatId}`));
-                if (snap.exists() && snap.val().status === 'finished') {
-                    await remove(ref(db, `games/${currentChatId}`));
-                }
-            }
         };
     }
 
@@ -1110,10 +1255,10 @@ window.renderFlagsEndStats = function(gameData) {
         <div class="flags-end-stats" style="margin-top: 20px; padding: 15px; background: rgba(0,0,0,0.4); border-radius: 12px; border: 1px solid rgba(255,255,255,0.1);">
             <h3 style="margin: 0 0 10px 0; color: #ffeb3b; text-align: center;">📊 Match Awards</h3>
             <ul style="list-style: none; padding: 0; margin: 0; font-size: 14px; line-height: 1.8;">
-                <li>🏆 <strong>Biggest Brain:</strong> ${mostEarned.name} ($${mostEarned.val} earned)</li>
-                <li>🥷 <strong>Master Thief:</strong> ${mostStolen.name} ($${mostStolen.val} stolen)</li>
-                <li>🎯 <strong>Favorite Target:</strong> ${mostRobbed.name} (${mostRobbed.val} times robbed)</li>
-                <li>📉 <strong>Biggest Victim:</strong> ${mostLost.name} ($${mostLost.val} lost to thieves)</li>
+                <li>🏆 <strong>Biggest Brain:</strong> ${mostEarned.name} ($${formatMoney(mostEarned.val)} earned)</li>
+                <li>🥷 <strong>Master Thief:</strong> ${mostStolen.name} ($${formatMoney(mostStolen.val)} stolen)</li>
+                <li>🎯 <strong>Favorite Target:</strong> ${mostRobbed.name} (${formatMoney(mostRobbed.val)} times robbed)</li>
+                <li>📉 <strong>Biggest Victim:</strong> ${mostLost.name} ($${formatMoney(mostLost.val)} lost)</li>
             </ul>
         </div>
     `;
@@ -1125,13 +1270,93 @@ window.renderFlagsEndStats = function(gameData) {
 };
 
 // --- WORD RUSH (MULTIPLAYER WORDLE) ENGINE ---
+const WORD_RUSH_WORDS = [
+"about", "above", "actor", "acute", "admit", "adopt", "adult", "after", "again", "agent",
+"agree", "ahead", "alarm", "album", "alert", "alien", "alike", "alive", "allow", "alone",
+"along", "alter", "among", "angel", "anger", "angle", "angry", "apart", "apple", "apply",
+"arena", "argue", "arise", "array", "aside", "asset", "audio", "audit", "avoid", "award",
+"aware", "bacon", "badly", "baker", "bases", "basic", "basis", "beach", "beast", "begin",
+"begun", "being", "belly", "below", "bench", "birth", "black", "blame", "blind", "block",
+"blood", "board", "boast", "bonus", "boost", "booth", "brain", "brake", "brand", "bread",
+"break", "breed", "brick", "bride", "brief", "bring", "broad", "broke", "brown", "build",
+"built", "buyer", "cable", "carry", "catch", "cause", "chain", "chair", "chart", "chase",
+"cheap", "check", "chest", "chief", "child", "china", "chose", "civil", "claim", "class",
+"clean", "clear", "click", "clock", "close", "coach", "coast", "could", "count", "court",
+"cover", "crack", "craft", "crash", "crazy", "cream", "crime", "cross", "crowd", "crown",
+"curve", "cycle", "daily", "dance", "dated", "dealt", "death", "debut", "delay", "depth",
+"doing", "doubt", "dozen", "draft", "drama", "drawn", "dream", "dress", "drill", "drink",
+"drive", "drove", "dying", "eager", "early", "earth", "eight", "elite", "empty", "enemy",
+"enjoy", "enter", "entry", "equal", "error", "event", "every", "exact", "exist", "extra",
+"faith", "false", "fault", "fiber", "field", "fifth", "fifty", "fight", "final", "first",
+"fixed", "flash", "fleet", "floor", "fluid", "focus", "force", "forth", "forty", "forum",
+"found", "frame", "frank", "fraud", "fresh", "front", "fruit", "fully", "funny", "giant",
+"given", "glass", "globe", "going", "grace", "grade", "grand", "grant", "grass", "great",
+"green", "gross", "group", "grown", "guard", "guess", "guest", "guide", "happy", "harsh",
+"heart", "heavy", "hence", "horse", "hotel", "house", "human", "ideal", "image", "index",
+"inner", "input", "issue", "joint", "judge", "known", "label", "large", "laser", "later",
+"laugh", "layer", "learn", "lease", "least", "leave", "legal", "level", "light", "limit",
+"local", "logic", "loose", "lower", "lucky", "magic", "major", "maker", "march", "match",
+"mayor", "meant", "media", "metal", "might", "minor", "minus", "mixed", "model", "money",
+"month", "moral", "motor", "mount", "mouse", "mouth", "movie", "music", "needs", "never",
+"night", "noise", "north", "noted", "novel", "nurse", "occur", "ocean", "offer", "often",
+"order", "other", "ought", "paint", "panel", "paper", "party", "peace", "phase", "phone",
+"photo", "piece", "pilot", "pitch", "place", "plain", "plane", "plant", "plate", "point",
+"pound", "power", "press", "price", "pride", "prime", "print", "prior", "prize", "proof",
+"proud", "prove", "queen", "quick", "quiet", "quite", "radio", "raise", "range", "rapid",
+"ratio", "reach", "ready", "realm", "rebel", "refer", "right", "rigid", "river", "roast",
+"robot", "rough", "round", "route", "royal", "rural", "scale", "scene", "scope", "score",
+"scout", "scrap", "sense", "serve", "seven", "shade", "shaft", "shake", "shall", "shape",
+"share", "sharp", "sheet", "shelf", "shell", "shift", "shirt", "shock", "shoot", "short",
+"shown", "sight", "since", "sixth", "sixty", "sized", "skill", "sleep", "slide", "small",
+"smart", "smile", "smith", "smoke", "solid", "solve", "sorry", "sound", "south", "space",
+"spare", "speak", "speed", "spend", "spent", "split", "spoke", "sport", "staff", "stage",
+"stand", "start", "state", "steam", "steel", "stick", "still", "stock", "stone", "stood",
+"store", "storm", "story", "strip", "stuck", "study", "stuff", "style", "sugar", "suite",
+"super", "sweet", "table", "taken", "taste", "taxes", "teach", "teeth", "tenth", "Texas",
+"thank", "theft", "their", "theme", "there", "these", "thick", "thing", "think", "third",
+"those", "three", "threw", "throw", "tight", "times", "tired", "title", "today", "topic",
+"total", "touch", "tough", "tower", "track", "trade", "train", "treat", "trend", "trial",
+"tribe", "trick", "troop", "truck", "truly", "trust", "truth", "twice", "under", "undue",
+"union", "unity", "until", "upper", "upset", "urban", "usage", "usual", "valid", "value",
+"video", "virus", "visit", "vital", "voice", "voter", "waste", "watch", "water", "wheel",
+"where", "which", "while", "white", "whole", "whose", "woman", "women", "world", "worry",
+"worse", "worst", "worth", "would", "wound", "write", "wrong", "yield", "young", "youth",
+"blaze", "blink", "blush", "brave", "brisk", "chili", "choke", "clamp", "clasp", "climb",
+"clump", "crisp", "crush", "crust", "ditch", "dodge", "drift", "flair", "flake", "flame",
+"flare", "flask", "flock", "flute", "fudge", "glare", "gleam", "glide", "glint", "gloom",
+"glory", "glove", "grace", "grape", "grasp", "graze", "grind", "groom", "habit", "hatch",
+"hover", "hurry", "juice", "kneel", "knack", "knock", "lemon", "liver", "llama", "lunar",
+"mango", "marsh", "medal", "melon", "mercy", "miner", "mirth", "moist", "mound", "mourn",
+"ninja", "oasis", "onion", "ounce", "panic", "patch", "pause", "pearl", "pecan", "perch",
+"plank", "plump", "porch", "pouch", "prawn", "probe", "quack", "quail", "quake", "quilt",
+"quirk", "radar", "rally", "razor", "relic", "rhino", "ridge", "rider", "rival", "rodeo",
+"rouge", "rugby", "salsa", "satin", "sauce", "scoop", "scowl", "seize", "shark", "shave",
+"shear", "shine", "shove", "shred", "shrub", "skate", "skirt", "skull", "slang", "slash",
+"slice", "slick", "slime", "slump", "smack", "smash", "smear", "smell", "smirk", "snack",
+"snail", "snake", "sneak", "sniff", "snoop", "snore", "snort", "snout", "spade", "spank",
+"spark", "spasm", "spawn", "spear", "speck", "spell", "spice", "spike", "spill", "spine",
+"spire", "splat", "spoil", "spool", "spoon", "spout", "spray", "spree", "squat", "squid",
+"stack", "stain", "stair", "stake", "stalk", "stamp", "stare", "stark", "steak", "steal",
+"steep", "steer", "stern", "sting", "stink", "stomp", "stool", "stoop", "stork", "strap",
+"straw", "stray", "strut", "stump", "stung", "stunt", "suede", "swoop", "sword", "syrup",
+"taffy", "tango", "tempo", "tiger", "toast", "towel", "toxic", "trace", "tramp", "tread",
+"trout", "tulip", "tumor", "tunic", "twine", "twirl", "twist", "ulcer", "ultra", "uncle",
+"unzip", "usher", "vapor", "vegan", "venom", "verge", "vicar", "vigil", "viola", "vivid",
+"vocal", "vodka", "vogue", "vomit", "vowel", "wacky", "wafer", "wager", "wagon", "waltz",
+"weave", "wedge", "weigh", "whale", "wheat", "whiff", "whisk", "whine", "widen", "widow",
+"width", "witch", "woven", "wreck", "yacht", "zebra"
+];
+const wordleWordList = WORD_RUSH_WORDS;
+const WORDLE_WORDS = WORD_RUSH_WORDS;
 let currentGuess = '';
 let guessHistory = [];
 let wordleTarget = '';
 let wordleFinished = false;
 let isSubmittingWordle = false;
 
-function startWordleGame(gameData) {
+function startWordleGame(gameData, gameId = activeGameId, chatId = activeGameChatId || currentChatId) {
+    activeGameId = gameId;
+    activeGameChatId = chatId;
     wordleTarget = String(gameData.targetWord || '').toUpperCase();
     currentGuess = '';
     guessHistory = [];
@@ -1199,12 +1424,14 @@ function startWordleGame(gameData) {
             gameStartedLocally = false;
             wordleFinished = true;
             closeAnimatedModal(document.getElementById('wordle-game-screen'));
-            if (currentChatId && auth.currentUser) {
+            if (chatId && gameId && auth.currentUser) {
                 const myUid = auth.currentUser.uid;
-                await remove(ref(db, `games/${currentChatId}/players/${myUid}`));
-                const pSnap = await get(ref(db, `games/${currentChatId}/players`));
+                const pRef = ref(db, `games/${chatId}/${gameId}/players/${myUid}`);
+                try { await onDisconnect(pRef).cancel(); } catch (_) {}
+                await remove(pRef);
+                const pSnap = await get(ref(db, `games/${chatId}/${gameId}/players`));
                 if (!pSnap.exists() || Object.keys(pSnap.val()).length === 0) {
-                    await update(ref(db, `games/${currentChatId}`), { emptySince: serverTimestamp() });
+                    await update(ref(db, `games/${chatId}/${gameId}`), { emptySince: serverTimestamp() });
                 }
             }
         };
@@ -1213,7 +1440,7 @@ function startWordleGame(gameData) {
     const screen = document.getElementById('wordle-game-screen');
     openAnimatedModal(screen);
     if (window.twemoji) twemoji.parse(screen);
-    listenToWordleProgress();
+    listenToWordleProgress(gameId, chatId);
 }
 
 function handleWordleInput(key) {
@@ -1294,8 +1521,9 @@ async function submitWordleGuess() {
         }
 
         // Sync progress
-        if (currentChatId && auth.currentUser) {
-            const myRef = ref(db, `games/${currentChatId}/players/${auth.currentUser.uid}`);
+        const targetChatId = activeGameChatId || currentChatId;
+        if (targetChatId && activeGameId && auth.currentUser) {
+            const myRef = ref(db, `games/${targetChatId}/${activeGameId}/players/${auth.currentUser.uid}`);
             await update(myRef, {
                 attempts: guessHistory.length,
                 won: won,
@@ -1320,13 +1548,13 @@ function updateWordleBoard() {
     }
 }
 
-function listenToWordleProgress() {
-    if (!currentChatId) return;
+function listenToWordleProgress(gameId = activeGameId, chatId = activeGameChatId || currentChatId) {
+    if (!chatId || !gameId) return;
     if (wordleGameUnsub) {
         wordleGameUnsub();
         wordleGameUnsub = null;
     }
-    const gameRef = ref(db, `games/${currentChatId}`);
+    const gameRef = ref(db, `games/${chatId}/${gameId}`);
     wordleGameUnsub = onValue(gameRef, (snap) => {
         const data = snap.val();
         if (!data || data.status === 'finished') return;
@@ -1336,7 +1564,7 @@ function listenToWordleProgress() {
         if (statusDiv) {
             statusDiv.innerHTML = players.map(p =>
                 `<div style="font-size:12px; padding:4px 8px; border-radius:12px; background:${p.finishedAt ? (p.won ? '#4caf50' : '#f44336') : 'rgba(255,255,255,0.1)'}">
-                    ${escapeHTML((p.name || 'Player').split(' ')[0])}: ${p.attempts || 0}/6
+                    ${escapeHTML(getPlayerDisplayName(p).split(' ')[0])}: ${p.attempts || 0}/6
                 </div>`
             ).join('');
         }
@@ -1358,11 +1586,11 @@ function listenToWordleProgress() {
 
             update(gameRef, { status: 'finished' });
             if (data.inviteMsgId) {
-                update(ref(db, `messages/${currentChatId}/${data.inviteMsgId}`), { expired: true });
+                update(ref(db, `messages/${chatId}/${data.inviteMsgId}`), { expired: true });
             }
             closeAnimatedModal(document.getElementById('wordle-game-screen'));
-            showPodium(players); // Hook into existing podium UI
-            schedulePodiumCleanup();
+            showPodium(players, gameId, chatId); // Hook into existing podium UI
+            schedulePodiumCleanup(gameId, chatId);
         }
     });
 }
@@ -1414,7 +1642,9 @@ document.addEventListener('input', (e) => {
 });
 
 // --- DOODLE DASH (MULTIPLAYER PICTIONARY) ENGINE ---
-const DOODLE_WORDS = ["apple", "banana", "helicopter", "elephant", "guitar", "mountain", "ocean", "pizza", "robot", "spider", "telescope", "umbrella", "volcano", "window", "zebra", "astronaut", "butterfly", "castle", "dragon", "engine", "firefighter", "ghost", "hospital", "island", "jungle", "kangaroo", "lighthouse", "mermaid", "ninja", "octopus", "penguin", "queen", "rocket", "submarine", "tornado", "unicorn", "vampire", "wizard", "xylophone", "yacht", "zombie", "airplane", "bridge", "camera", "diamond", "eagle", "forest", "galaxy", "hammer", "igloo", "jacket", "kettle", "ladder", "magnet", "needle", "ostrich", "parachute", "quilt", "radar", "scissors", "tractor", "ukulele", "vacuum", "windmill", "yoyo", "zeppelin", "anchor", "balloon", "cactus", "dolphin", "escalator", "fountain", "giraffe", "helmet", "iceberg", "jigsaw", "kayak", "lantern", "microscope", "notebook", "origami", "padlock", "compass", "rainbow", "satellite", "thermometer", "unicycle", "violin", "waterfall", "alligator", "avalanche", "backpack", "barbecue", "basketball", "binoculars", "blizzard", "boomerang", "bulldozer", "campfire", "caterpillar", "chandelier", "cheeseburger", "chocolate", "coconut", "crocodile", "dinosaur", "electricity", "flamingo", "glacier", "hamburger", "hedgehog", "hippopotamus", "hurricane", "jellyfish", "keyboard", "leopard", "limousine", "macaroni", "microphone", "motorcycle", "mushroom", "orchestra", "pancake", "pineapple", "platypus", "porcupine", "rhinoceros", "saxophone", "skeleton", "snowflake", "sombrero", "spaghetti", "squirrel", "strawberry", "sunflower", "symphony", "tarantula", "thunderstorm", "toothbrush", "trampoline", "typewriter", "vegetable", "volleyball", "watermelon", "wheelchair", "woodpecker", "zucchini", "acorn", "alarm", "alien", "ambulance", "ant", "apron", "arch", "arm", "armor", "arrow", "axe", "baby", "bacon", "badge", "bag", "bait", "baker", "ball", "bamboo", "band", "bank", "bar", "barn", "bat", "bath", "bear", "beard", "bed", "bee", "beef", "bell", "belt", "bench", "bike", "bird", "boat", "bone", "book", "boot", "bow", "bowl", "box", "boy", "brain", "branch", "bread", "brick", "broom", "brush", "bug", "bulb", "bull", "bus", "bush", "butter", "button", "cabin", "cable", "cake", "camel", "camp", "can", "candle", "candy", "cane", "cap", "car", "card", "cart", "cat", "cave", "chain", "chair", "chalk", "chef", "cherry", "chess", "chest", "chin", "chip", "church", "circle", "clam", "clock", "cloud", "clown", "club", "coal", "coat", "coin", "comb", "cone", "cook", "cord", "cork", "corn", "cow", "crab", "crane", "crow", "crown", "cube", "cup", "dart", "dash", "date", "deer", "desk", "dial", "dice", "dirt", "dish", "dog", "doll", "door", "dot", "dove", "drop", "drum", "duck", "dust", "ear", "earth", "egg", "elf", "eye", "face", "fan", "farm", "feather", "fence"];
+const DOODLE_WORDS = [
+"apple", "banana", "helicopter", "elephant", "guitar", "mountain", "ocean", "pizza", "robot", "spider", "telescope", "umbrella", "volcano", "window", "zebra", "astronaut", "butterfly", "castle", "dragon", "engine", "firefighter", "ghost", "hospital", "island", "jungle", "kangaroo", "lighthouse", "mermaid", "ninja", "octopus", "penguin", "queen", "rocket", "submarine", "tornado", "unicorn", "vampire", "wizard", "xylophone", "yacht", "zombie", "airplane", "bridge", "camera", "diamond", "eagle", "forest", "galaxy", "hammer", "igloo", "jacket", "kettle", "ladder", "magnet", "needle", "ostrich", "parachute", "quilt", "radar", "scissors", "tractor", "ukulele", "vacuum", "windmill", "yoyo", "zeppelin", "anchor", "balloon", "cactus", "dolphin", "escalator", "fountain", "giraffe", "helmet", "iceberg", "jigsaw", "kayak", "lantern", "microscope", "notebook", "origami", "padlock", "compass", "rainbow", "satellite", "thermometer", "unicycle", "violin", "waterfall", "alligator", "avalanche", "backpack", "barbecue", "basketball", "binoculars", "blizzard", "boomerang", "bulldozer", "campfire", "caterpillar", "chandelier", "cheeseburger", "chocolate", "coconut", "crocodile", "dinosaur", "electricity", "flamingo", "glacier", "hamburger", "hedgehog", "hippopotamus", "hurricane", "jellyfish", "keyboard", "leopard", "limousine", "macaroni", "microphone", "motorcycle", "mushroom", "orchestra", "pancake", "pineapple", "platypus", "porcupine", "rhinoceros", "saxophone", "skeleton", "snowflake", "sombrero", "spaghetti", "squirrel", "strawberry", "sunflower", "symphony", "tarantula", "thunderstorm", "toothbrush", "trampoline", "typewriter", "vegetable", "volleyball", "watermelon", "wheelchair", "woodpecker", "zucchini", "acorn", "alarm", "alien", "ambulance", "ant", "apron", "arch", "arm", "armor", "arrow", "axe", "baby", "bacon", "badge", "bag", "bait", "baker", "ball", "bamboo", "band", "bank", "bar", "barn", "bat", "bath", "bear", "beard", "bed", "bee", "beef", "bell", "belt", "bench", "bike", "bird", "boat", "bone", "book", "boot", "bow", "bowl", "box", "boy", "brain", "branch", "bread", "brick", "broom", "brush", "bug", "bulb", "bull", "bus", "bush", "butter", "button", "cabin", "cable", "cake", "camel", "camp", "can", "candle", "candy", "cane", "cap", "car", "card", "cart", "cat", "cave", "chain", "chair", "chalk", "chef", "cherry", "chess", "chest", "chin", "chip", "church", "circle", "clam", "clock", "cloud", "clown", "club", "coal", "coat", "coin", "comb", "cone", "cook", "cord", "cork", "corn", "cow", "crab", "crane", "crow", "crown", "cube", "cup", "dart", "dash", "date", "deer", "desk", "dial", "dice", "dirt", "dish", "dog", "doll", "door", "dot", "dove", "drop", "drum", "duck", "dust", "ear", "earth", "egg", "elf", "eye", "face", "fan", "farm", "feather", "fence", "fern", "film", "fire", "fish", "flag", "flame", "fly", "fog", "foot", "fork", "frog", "fuel", "game", "gap", "gas", "gate", "gear", "gem", "girl", "glass", "globe", "glove", "goat", "gold", "golf", "goose", "grape", "grass", "grid", "grill", "gum", "hair", "hall", "hand", "harp", "hat", "hawk", "head", "heart", "heel", "hill", "hole", "home", "hook", "horn", "horse", "hose", "house", "hut", "ice", "ink", "iron", "jam", "jar", "jaw", "jeep", "jelly", "jet", "jewel", "juice", "jump", "key", "kid", "king", "kite", "knee", "knife", "knot", "lace", "lake", "lamp", "land", "lane", "leaf", "leg", "lemon", "lens", "lion", "lip", "lock", "log", "loop", "lung", "mail", "map", "mask", "mat", "match", "math", "meal", "meat", "melon", "milk", "mint", "mirror", "moon", "moth", "mouse", "mouth", "mud", "mug", "nail", "name", "neck", "nest", "net", "news", "night", "noise", "nose", "note", "nut", "oar", "oil", "onion", "oven", "owl", "page", "pail", "pain", "paint", "pan", "pants", "paper", "park", "part", "party", "path", "paw", "pea", "peach", "pear", "pen", "pencil", "pet", "pie", "pig", "pill", "pin", "pipe", "plant", "plate", "plug", "plum", "pocket", "poem", "pole", "pond", "pool", "pork", "port", "post", "pot", "potato", "prop", "pump", "pup", "raft", "rag", "rail", "rain", "rake", "ram", "rat", "ray", "rib", "rice", "ring", "river", "road", "rock", "roll", "roof", "room", "root", "rope", "rose", "rub", "rug", "rule", "sack", "sail", "salt", "sand", "saw", "scale", "scarf", "school", "scoop", "seat", "seed", "shark", "sheep", "sheet", "shell", "ship", "shirt", "shoe", "shop", "sign", "silk", "sink", "skate", "skin", "skirt", "sky", "sled", "sleep", "slide", "slug", "snail", "snake", "snow", "soap", "sock", "soil", "song", "soup", "space", "spade", "spark", "spear", "sponge", "spoon", "spot", "spring", "square", "star", "steam", "stem", "step", "stew", "stick", "stone", "stool", "stop", "store", "storm", "story", "stove", "straw", "street", "string", "suit", "sun", "swan", "swing", "sword", "table", "tail", "tank", "tape", "tax", "tea", "tear", "teeth", "tent", "test", "text", "thread", "throat", "thumb", "tick", "tie", "tiger", "time", "tin", "tire", "toad", "toe", "tomato", "tongue", "tool", "tooth", "top", "town", "toy", "track", "trail", "train", "trap", "tree", "trip", "truck", "tube", "tub", "twig", "twin", "vase", "veil", "vein", "vest", "vine", "voice", "wagon", "wall", "walnut", "wasp", "watch", "wave", "wax", "web", "weed", "well", "whale", "wheat", "wheel", "whip", "wind", "wing", "wire", "wolf", "wood", "wool", "worm", "yard", "yarn", "year", "yolk", "zero", "zinc", "zip", "zone"
+];
 
 let currentDoodleRound = -1;
 let currentDoodleStatus = null;
@@ -1433,12 +1663,13 @@ function hexToRgba(hex) {
 }
 
 window.emitCanvasUpdate = function() {
-    if (!currentChatId || !auth.currentUser) return;
+    const chatId = activeGameChatId || currentChatId;
+    if (!chatId || !activeGameId || !auth.currentUser) return;
     const canvas = document.getElementById('doodle-canvas');
     if (!canvas) return;
     try {
         const dataUrl = canvas.toDataURL('image/png');
-        update(ref(db, `games/${currentChatId}/doodle`), {
+        update(ref(db, `games/${chatId}/${activeGameId}/doodle`), {
             snapshot: dataUrl,
             snapshotAt: Date.now()
         }).catch(err => console.error("Error emitting canvas update:", err));
@@ -1494,8 +1725,9 @@ window.fillCanvas = function(startX, startY, fillColorHex) {
 };
 
 window.selectDoodleWord = async (chosenWord) => {
-    if (!currentChatId) return;
-    const gameRef = ref(db, `games/${currentChatId}`);
+    const chatId = activeGameChatId || currentChatId;
+    if (!chatId || !activeGameId) return;
+    const gameRef = ref(db, `games/${chatId}/${activeGameId}`);
     const snap = await get(gameRef);
     const g = snap.val();
     if (!g || g.status !== 'choosing') return;
@@ -1520,13 +1752,15 @@ window.selectDoodleWord = async (chosenWord) => {
     });
 };
 
-function startDoodleGame(gameData) {
-    if (!currentChatId || !auth.currentUser) return;
+function startDoodleGame(gameData, gameId = activeGameId, chatId = activeGameChatId || currentChatId) {
+    if (!chatId || !gameId || !auth.currentUser) return;
     if (gameData.status === 'finished') return;
     if (gameData.currentTurnIndex === currentDoodleTurn && 
         gameData.currentRound === currentDoodleRound && 
         gameData.status === currentDoodleStatus) return;
 
+    activeGameId = gameId;
+    activeGameChatId = chatId;
     currentDoodleTurn = gameData.currentTurnIndex;
     currentDoodleRound = gameData.currentRound;
     currentDoodleStatus = gameData.status;
@@ -1605,7 +1839,7 @@ function startDoodleGame(gameData) {
                 });
             }
         } else {
-            const drawerName = gameData.players?.[drawerUid]?.name?.split(' ')[0] || 'Drawer';
+            const drawerName = getPlayerDisplayName(gameData.players?.[drawerUid]).split(' ')[0] || 'Drawer';
             if (choiceTitle) choiceTitle.innerText = `${drawerName} is choosing a word...`;
             if (choiceButtons) choiceButtons.innerHTML = '<div style="opacity: 0.6; font-size: 14px; margin-top: 8px;">Get ready to guess!</div>';
         }
@@ -1617,7 +1851,7 @@ function startDoodleGame(gameData) {
             if (leftSec <= 0 && !choiceExpiredTriggered) {
                 choiceExpiredTriggered = true;
                 clearInterval(choiceTimerInterval);
-                if (isDrawer || auth.currentUser.uid === gameData.hostId) {
+                if (isDrawer || auth.currentUser.uid === (gameData.hostId || gameData.host)) {
                     window.selectDoodleWord(options[0] || DOODLE_WORDS[0]);
                 }
             }
@@ -1691,7 +1925,7 @@ function startDoodleGame(gameData) {
                 revealTriggered = true;
                 currentRoundStatus = 'reveal';
                 clearInterval(timerInt);
-                update(ref(db, `games/${currentChatId}`), { status: 'reveal' });
+                update(ref(db, `games/${chatId}/${gameId}`), { status: 'reveal' });
             }
         };
 
@@ -1749,7 +1983,7 @@ function startDoodleGame(gameData) {
                 ctx.lineWidth = size;
                 ctx.stroke();
 
-                push(ref(db, `games/${currentChatId}/doodle/strokes`), {
+                push(ref(db, `games/${chatId}/${gameId}/doodle/strokes`), {
                     x0: lx / cvs.width,
                     y0: ly / cvs.height,
                     x1: p.x / cvs.width,
@@ -1774,17 +2008,19 @@ function startDoodleGame(gameData) {
             currentDoodleStatus = null;
             gameStartedLocally = false;
             closeAnimatedModal(screen);
-            if (currentChatId && auth.currentUser) {
-                await remove(ref(db, `games/${currentChatId}/players/${myUid}`));
-                const pSnap = await get(ref(db, `games/${currentChatId}/players`));
+            if (chatId && gameId && auth.currentUser) {
+                const pRef = ref(db, `games/${chatId}/${gameId}/players/${myUid}`);
+                try { await onDisconnect(pRef).cancel(); } catch (_) {}
+                await remove(pRef);
+                const pSnap = await get(ref(db, `games/${chatId}/${gameId}/players`));
                 if (!pSnap.exists() || Object.keys(pSnap.val()).length === 0) {
-                    await update(ref(db, `games/${currentChatId}`), { emptySince: serverTimestamp() });
+                    await update(ref(db, `games/${chatId}/${gameId}`), { emptySince: serverTimestamp() });
                 }
             }
         };
     }
 
-    const unSubStrokes = onChildAdded(ref(db, `games/${currentChatId}/doodle/strokes`), snap => {
+    const unSubStrokes = onChildAdded(ref(db, `games/${chatId}/${gameId}/doodle/strokes`), snap => {
         if (isDrawer) return;
         const val = snap.val();
         if (!val) return;
@@ -1796,14 +2032,14 @@ function startDoodleGame(gameData) {
         ctx.stroke();
     });
 
-    const unSubClear = onValue(ref(db, `games/${currentChatId}/doodle/clearAt`), snap => {
+    const unSubClear = onValue(ref(db, `games/${chatId}/${gameId}/doodle/clearAt`), snap => {
         if (snap.exists()) {
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, cvs.width, cvs.height);
         }
     });
 
-    const unSubSnapshot = onValue(ref(db, `games/${currentChatId}/doodle/snapshot`), snap => {
+    const unSubSnapshot = onValue(ref(db, `games/${chatId}/${gameId}/doodle/snapshot`), snap => {
         if (isDrawer) return;
         const dataUrl = snap.val();
         if (dataUrl) {
@@ -1815,7 +2051,7 @@ function startDoodleGame(gameData) {
         }
     });
 
-    const unSubChat = onChildAdded(ref(db, `games/${currentChatId}/doodle/chat`), snap => {
+    const unSubChat = onChildAdded(ref(db, `games/${chatId}/${gameId}/doodle/chat`), snap => {
         const msg = snap.val();
         if (!msg) return;
         const amDrawer = ((gameData.drawer || gameData.drawerUid) === myUid);
@@ -1842,7 +2078,7 @@ function startDoodleGame(gameData) {
         chatBox.scrollTop = chatBox.scrollHeight;
     });
 
-    const unSubGame = onValue(ref(db, `games/${currentChatId}`), async (snap) => {
+    const unSubGame = onValue(ref(db, `games/${chatId}/${gameId}`), async (snap) => {
         const freshData = snap.val();
         if (!freshData) return;
 
@@ -1865,20 +2101,20 @@ function startDoodleGame(gameData) {
             closeAnimatedModal(screen);
 
             if (freshData.inviteMsgId) {
-                await update(ref(db, `messages/${currentChatId}/${freshData.inviteMsgId}`), { expired: true });
+                await update(ref(db, `messages/${chatId}/${freshData.inviteMsgId}`), { expired: true });
             }
 
-            const players = Object.values(freshData.players || {});
+            const players = Object.values(freshData.players || {}).map(p => (typeof p === 'object' ? { ...p } : { name: String(p), score: 0 }));
             players.sort((a, b) => (b.score || 0) - (a.score || 0));
             players.forEach((p, i) => {
                 p.won = (i === 0 && (p.score || 0) > 0);
                 p.attempts = `${p.score || 0} Pts`;
                 p.scoreLabel = `${p.score || 0} Pts${p.won ? ' \u{1F3C6}' : ''}`;
             });
-            showPodium(players);
-            schedulePodiumCleanup();
+            showPodium(players, gameId, chatId);
+            schedulePodiumCleanup(gameId, chatId);
         } else if (freshData.status !== currentDoodleStatus || freshData.currentTurnIndex !== currentDoodleTurn) {
-            startDoodleGame(freshData);
+            startDoodleGame(freshData, gameId, chatId);
         }
     });
 
@@ -1886,23 +2122,25 @@ function startDoodleGame(gameData) {
 }
 
 window.clearDoodle = async () => {
-    if (!currentChatId) return;
+    const chatId = activeGameChatId || currentChatId;
+    if (!chatId || !activeGameId) return;
     const cvs = document.getElementById('doodle-canvas');
     if (cvs) {
         const ctx = cvs.getContext('2d');
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, cvs.width, cvs.height);
     }
-    await remove(ref(db, `games/${currentChatId}/doodle/strokes`));
-    await remove(ref(db, `games/${currentChatId}/doodle/snapshot`));
-    await update(ref(db, `games/${currentChatId}/doodle`), { clearAt: Date.now() });
+    await remove(ref(db, `games/${chatId}/${activeGameId}/doodle/strokes`));
+    await remove(ref(db, `games/${chatId}/${activeGameId}/doodle/snapshot`));
+    await update(ref(db, `games/${chatId}/${activeGameId}/doodle`), { clearAt: Date.now() });
 };
 
 window.advanceDoodleTurn = async (expectedTurnIndex = null) => {
-    if (!currentChatId || isAdvancingDoodleTurn) return;
+    const chatId = activeGameChatId || currentChatId;
+    if (!chatId || !activeGameId || isAdvancingDoodleTurn) return;
     isAdvancingDoodleTurn = true;
     try {
-        const gameRef = ref(db, `games/${currentChatId}`);
+        const gameRef = ref(db, `games/${chatId}/${activeGameId}`);
         const snap = await get(gameRef);
         const g = snap.val();
         if (!g || (g.status !== 'playing' && g.status !== 'reveal' && g.status !== 'choosing')) return;
@@ -1933,10 +2171,10 @@ window.advanceDoodleTurn = async (expectedTurnIndex = null) => {
             if (!options.includes(word)) options.push(word);
         }
 
-        await remove(ref(db, `games/${currentChatId}/doodle/strokes`));
-        await remove(ref(db, `games/${currentChatId}/doodle/chat`));
-        await remove(ref(db, `games/${currentChatId}/doodle/snapshot`));
-        await update(ref(db, `games/${currentChatId}/doodle`), { clearAt: Date.now() });
+        await remove(ref(db, `games/${chatId}/${activeGameId}/doodle/strokes`));
+        await remove(ref(db, `games/${chatId}/${activeGameId}/doodle/chat`));
+        await remove(ref(db, `games/${chatId}/${activeGameId}/doodle/snapshot`));
+        await update(ref(db, `games/${chatId}/${activeGameId}/doodle`), { clearAt: Date.now() });
 
         const updates = {
             status: 'choosing',
@@ -1958,7 +2196,8 @@ window.advanceDoodleTurn = async (expectedTurnIndex = null) => {
 };
 
 window.submitDoodleGuess = async () => {
-    if (!currentChatId || !auth.currentUser || isSubmittingDoodleGuess) return;
+    const chatId = activeGameChatId || currentChatId;
+    if (!chatId || !activeGameId || !auth.currentUser || isSubmittingDoodleGuess) return;
     const input = document.getElementById('doodle-guess-input');
     const guess = input ? input.value.trim() : '';
     if (!guess) return;
@@ -1966,7 +2205,7 @@ window.submitDoodleGuess = async () => {
 
     isSubmittingDoodleGuess = true;
     try {
-        const gameRef = ref(db, `games/${currentChatId}`);
+        const gameRef = ref(db, `games/${chatId}/${activeGameId}`);
         const snap = await get(gameRef);
         const gData = snap.val();
         if (!gData || gData.status !== 'playing') return;
@@ -1974,12 +2213,12 @@ window.submitDoodleGuess = async () => {
         if (!currentWord) return;
 
         const myUid = auth.currentUser.uid;
-        const myName = gData.players?.[myUid]?.name?.split(' ')[0] || 'Player';
+        const myName = getPlayerDisplayName(gData.players?.[myUid]).split(' ')[0] || 'Player';
         const drawerId = gData.drawer || gData.drawerUid;
 
         // If already guessed correct (or drawing), send as hidden chat message
         if (window.localGuessedCorrect || myUid === drawerId) {
-            push(ref(db, `games/${currentChatId}/doodle/chat`), {
+            push(ref(db, `games/${chatId}/${activeGameId}/doodle/chat`), {
                 uid: myUid,
                 name: myName,
                 text: guess,
@@ -1995,15 +2234,15 @@ window.submitDoodleGuess = async () => {
             const timeLeft = Math.max(1, Math.floor((roundExpiresAt - Date.now()) / 1000));
             const points = timeLeft * 10;
 
-            await update(ref(db, `games/${currentChatId}/players/${myUid}`), {
+            await update(ref(db, `games/${chatId}/${activeGameId}/players/${myUid}`), {
                 score: (gData.players?.[myUid]?.score || 0) + points,
                 guessedCorrect: true
             });
-            await update(ref(db, `games/${currentChatId}/players/${drawerId}`), {
+            await update(ref(db, `games/${chatId}/${activeGameId}/players/${drawerId}`), {
                 score: (gData.players?.[drawerId]?.score || 0) + Math.floor(points / 2)
             });
 
-            push(ref(db, `games/${currentChatId}/doodle/chat`), {
+            push(ref(db, `games/${chatId}/${activeGameId}/doodle/chat`), {
                 uid: 'system',
                 text: `${myName} guessed the word!`,
                 isSystem: true
@@ -2018,7 +2257,7 @@ window.submitDoodleGuess = async () => {
                 await update(gameRef, { status: 'reveal' });
             }
         } else {
-            push(ref(db, `games/${currentChatId}/doodle/chat`), {
+            push(ref(db, `games/${chatId}/${activeGameId}/doodle/chat`), {
                 uid: myUid,
                 name: myName,
                 text: guess
@@ -2093,8 +2332,11 @@ window.pickChest = async (idx, event) => {
     const chestsContainer = document.getElementById('chests-container');
     const myUid = auth.currentUser.uid;
     const myName = document.getElementById('current-user-name').innerText;
+    const chatId = activeGameChatId || currentChatId;
+    const gameId = activeGameId;
+    if (!chatId || !gameId) return;
 
-    const playerSnap = await get(ref(db, `games/${currentChatId}/players/${myUid}`));
+    const playerSnap = await get(ref(db, `games/${chatId}/${gameId}/players/${myUid}`));
     const currentGold = playerSnap.val()?.gold || 0;
     
     let goldChange = 0;
@@ -2102,12 +2344,12 @@ window.pickChest = async (idx, event) => {
 
     if (typeof rawResult === 'number') {
         goldChange = rawResult;
-        displayLabel = (goldChange > 0 ? "+" : "") + goldChange + " Gold!";
+        displayLabel = (goldChange > 0 ? "+" : "") + formatMoney(goldChange) + " Gold!";
     } else if (typeof rawResult === 'string' && rawResult.toLowerCase().includes("steal")) {
         const stealPercent = rawResult.includes("10") ? 0.10 : 0.25;
         const stealPercentStr = rawResult.includes("10") ? "10%" : "25%";
         
-        const playersSnap = await get(ref(db, `games/${currentChatId}/players`));
+        const playersSnap = await get(ref(db, `games/${chatId}/${gameId}/players`));
         const allPlayers = playersSnap.val() || {};
         const opponents = Object.keys(allPlayers).filter(uid => String(uid) !== String(myUid));
         
@@ -2124,7 +2366,8 @@ window.pickChest = async (idx, event) => {
             for (const uid of opponents) {
                 const btn = document.createElement('button');
                 btn.className = 'game-option-btn';
-                btn.innerText = `\u{1F464} ${allPlayers[uid].name || "Player"}`;
+                const victimName = getPlayerDisplayName(allPlayers[uid]);
+                btn.innerText = `\u{1F464} ${victimName}`;
                 btn.onclick = async (e) => {
                     e.stopPropagation();
                     const victimGold = allPlayers[uid].gold || 0;
@@ -2133,21 +2376,21 @@ window.pickChest = async (idx, event) => {
                     const stealAmount = amountToSteal;
                     
                     const updates = {};
-                    updates[`games/${currentChatId}/players/${victimUid}/gold`] = increment(-stealAmount);
-                    updates[`games/${currentChatId}/players/${victimUid}/lastStolenBy`] = myName;
-                    updates[`games/${currentChatId}/players/${myUid}/gold`] = increment(stealAmount);
-                    updates[`games/${currentChatId}/scores/${victimUid}`] = increment(-stealAmount);
-                    updates[`games/${currentChatId}/scores/${myUid}`] = increment(stealAmount);
+                    updates[`games/${chatId}/${gameId}/players/${victimUid}/gold`] = increment(-stealAmount);
+                    updates[`games/${chatId}/${gameId}/players/${victimUid}/lastStolenBy`] = myName;
+                    updates[`games/${chatId}/${gameId}/players/${myUid}/gold`] = increment(stealAmount);
+                    updates[`games/${chatId}/${gameId}/scores/${victimUid}`] = increment(-stealAmount);
+                    updates[`games/${chatId}/${gameId}/scores/${myUid}`] = increment(stealAmount);
 
                     // Track extensive stats during gameplay
-                    updates[`games/${currentChatId}/stats/stolenAmount/${auth.currentUser.uid}`] = increment(stealAmount);
-                    updates[`games/${currentChatId}/stats/timesRobbed/${victimUid}`] = increment(1);
-                    updates[`games/${currentChatId}/stats/lostToRobbers/${victimUid}`] = increment(stealAmount);
+                    updates[`games/${chatId}/${gameId}/stats/stolenAmount/${auth.currentUser.uid}`] = increment(stealAmount);
+                    updates[`games/${chatId}/${gameId}/stats/timesRobbed/${victimUid}`] = increment(1);
+                    updates[`games/${chatId}/${gameId}/stats/lostToRobbers/${victimUid}`] = increment(stealAmount);
 
                     await update(ref(db), updates);
                     
                     chestsContainer.style.display = 'none';
-                    prizeDisplay.innerText = `Stole ${stealPercentStr} from ${allPlayers[uid].name}!`;
+                    prizeDisplay.innerText = `Stole ${stealPercentStr} from ${victimName}!`;
                     prizeDisplay.className = 'prize-display win';
                     
                     // Resume timing now that victim is selected
@@ -2174,7 +2417,7 @@ window.pickChest = async (idx, event) => {
             case "-10%": goldChange = -Math.floor(currentGold * 0.10); break;
             case "-25%": goldChange = -Math.floor(currentGold * 0.25); break;
         }
-        displayLabel = (rawResult.includes("%") || rawResult.includes("x")) ? rawResult.toUpperCase() : (goldChange > 0 ? "+" : "") + goldChange + " Gold!";
+        displayLabel = (rawResult.includes("%") || rawResult.includes("x")) ? rawResult.toUpperCase() : (goldChange > 0 ? "+" : "") + formatMoney(goldChange) + " Gold!";
     }
 
     chestsContainer.style.display = 'none';
@@ -2184,11 +2427,11 @@ window.pickChest = async (idx, event) => {
     
     if (goldChange !== 0) {
         const updates = {};
-        updates[`games/${currentChatId}/players/${myUid}/gold`] = increment(goldChange);
-        updates[`games/${currentChatId}/scores/${myUid}`] = increment(goldChange);
+        updates[`games/${chatId}/${gameId}/players/${myUid}/gold`] = increment(goldChange);
+        updates[`games/${chatId}/${gameId}/scores/${myUid}`] = increment(goldChange);
         if (goldChange > 0) {
             const rewardAmount = goldChange;
-            updates[`games/${currentChatId}/stats/earned/${auth.currentUser.uid}`] = increment(rewardAmount);
+            updates[`games/${chatId}/${gameId}/stats/earned/${auth.currentUser.uid}`] = increment(rewardAmount);
         }
         await update(ref(db), updates);
     }
@@ -2224,7 +2467,6 @@ document.getElementById('flag-game-screen').onclick = () => {
 };
 
 // Game State
-let activeGameId = null;
 let gameTimerInterval = null;
 let currentFlagTarget = null;
 const COUNTRIES_LIST = [
@@ -2370,6 +2612,11 @@ async function compressImageAsync(file, maxWidth = 1280, quality = 0.8) {
     });
 }
 
+// Global currency formatter
+window.formatMoney = function(amount) {
+    return Number(amount || 0).toLocaleString('en-US');
+};
+
 // Helper to prevent XSS by escaping HTML special characters
 function escapeHTML(str) {
     if (!str) return "";
@@ -2385,7 +2632,8 @@ function escapeHTML(str) {
 // Helper to consolidate name resolution and handle fallbacks consistently
 function getDisplayName(userData) {
     if (!userData) return "User";
-    return userData.displayName || (userData.email ? userData.email.split('@')[0] : "User");
+    const raw = userData.displayName || (userData.username || (userData.name || (userData.email ? userData.email.split('@')[0] : "User")));
+    return String(raw).substring(0, 15);
 }
 
 // Helper to safely get a display name for a sticker
@@ -2927,8 +3175,8 @@ function positionActionMenu(actionMenu, bubble, wrap, e) {
     actionMenu.style.transform = '';
     actionMenu.style.right = 'auto';
     actionMenu.style.left = '0px';
-    actionMenu.style.top = '100%';
     actionMenu.style.bottom = 'auto';
+    actionMenu.style.top = `${bubble.offsetTop || 0}px`;
     actionMenu.style.display = 'flex';
 
     wrap.style.zIndex = '100';
@@ -2941,13 +3189,8 @@ function positionActionMenu(actionMenu, bubble, wrap, e) {
     const parentRect = (actionMenu.offsetParent || bubble).getBoundingClientRect();
     const padding = 10;
 
-    if (bubbleRect.bottom + menuRect.height + padding > window.innerHeight) {
-        actionMenu.style.top = 'auto';
-        actionMenu.style.bottom = '100%';
-    } else {
-        actionMenu.style.bottom = 'auto';
-        actionMenu.style.top = '100%';
-    }
+    actionMenu.style.bottom = 'auto';
+    actionMenu.style.top = `${bubble.offsetTop || 0}px`;
 
     const rawX = (e && typeof e.clientX === 'number' && e.clientX > 0) ? e.clientX : bubbleRect.left;
     let leftPos = rawX;
@@ -3333,6 +3576,14 @@ window.addEventListener('click', (e) => {
 
 // Reusable function to apply mute
 async function applyMute(chatId, targetUid, durationMinutes, reason, currentMemberData) {
+    // Check if target user is a global admin
+    const userSnap = await get(ref(db, `users/${targetUid}`));
+    const userData = userSnap.val() || {};
+    if (userData.role === 'admin' || userData.isAdmin === true || String(userData.isAdmin).toLowerCase() === "true") {
+        console.log(`[applyMute] User ${targetUid} is a global admin and immune to muting.`);
+        return;
+    }
+
     const mutedUntil = Date.now() + (durationMinutes * 60 * 1000);
     
     const updates = {};
@@ -3342,9 +3593,6 @@ async function applyMute(chatId, targetUid, durationMinutes, reason, currentMemb
         muteReason: reason
     };
 
-    // Fetch user's display name for the system message
-    const userSnap = await get(ref(db, `users/${targetUid}`));
-    const userData = userSnap.val();
     const userName = getDisplayName(userData);
 
     // Post System Message
@@ -3858,12 +4106,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.21';
+const CURRENT_APP_VERSION = '1.2.32';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.21';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.32';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4025,7 +4273,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.21';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.32';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4864,27 +5112,32 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
     viewTypeElem.innerText = viewedDisplayType;
 
     const nameElem = document.getElementById('view-user-name');
-    nameElem.className = 'uv-name' + (isTargetPremium && userData.nameplate ? ` nameplate-applied ${userData.nameplate}` : '');
-    nameElem.innerText = getDisplayName(userData);
-    
+    const username = getDisplayName(userData);
     const chatInfo = chatId ? (allChatsStore.get(chatId) || (chatId === currentChatId ? currentChatData : null)) : null;
     const isGroupChat = !!(chatInfo ? (chatInfo.isGroup || chatInfo.isChannel) : (currentChatData?.isGroup || currentChatData?.isChannel));
 
-    // Group-exclusive role badge: strictly only shown in groups
+    let role = '';
     if (chatId && isGroupChat) {
-        const targetMemberRole = currentChatMemberData?.[targetUid]?.role || 'member';
-        const groupRole = getGroupRoleInfo(targetMemberRole);
-        if (groupRole && groupRole.badge) {
-            const roleBadgeSpan = document.createElement('span');
-            roleBadgeSpan.className = 'custom-user-badge uv-group-role';
-            roleBadgeSpan.innerText = groupRole.badge;
-            if (groupRole.color) {
-                roleBadgeSpan.style.borderColor = groupRole.color + '55';
-                roleBadgeSpan.style.color = groupRole.color;
+        if (targetUid === groupCreatorId) {
+            role = 'Creator';
+        } else {
+            const targetMemberRole = currentChatMemberData?.[targetUid]?.role || 'member';
+            const groupRole = getGroupRoleInfo(targetMemberRole);
+            if (groupRole && groupRole.label && groupRole.label !== 'Member') {
+                role = groupRole.label;
+            } else if (targetMemberRole && targetMemberRole !== 'member') {
+                role = targetMemberRole;
             }
-            nameElem.appendChild(roleBadgeSpan);
         }
     }
+
+    nameElem.className = 'uv-name';
+    nameElem.innerHTML = `
+        <div style="display:flex; flex-direction:column; align-items:center; gap:6px; margin-bottom:15px;">
+            <h2 style="margin:0; font-size:20px;" class="${isTargetPremium && userData.nameplate ? `nameplate-applied ${userData.nameplate}` : ''}">${escapeHTML(username)}</h2>
+            ${role ? `<span style="background:rgba(255,215,0,0.15); color:#ffd700; padding:4px 10px; border-radius:12px; font-size:12px; font-weight:600; letter-spacing:0.5px;">${role.toUpperCase()}</span>` : ''}
+        </div>
+    `;
     twemoji.parse(nameElem);
 
     const actions = document.getElementById('user-view-actions');
@@ -4960,23 +5213,34 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
                 ));
             }
 
-            // Group Mute / Unmute
-            const groupId = currentChatData?.groupId || chatId;
-            let isMutedInGroup = false;
-            try {
-                const gSnap = await get(ref(db, `groups/${groupId}/mutedUsers/${targetUid}`));
-                isMutedInGroup = gSnap.exists() && gSnap.val() === true;
-            } catch (e) {}
+            // Group Mute / Unmute (Global admins immune)
+            const isTargetGlobalAdmin = userData.role === 'admin' || viewedIsAdmin;
+            if (!isTargetGlobalAdmin) {
+                const groupId = currentChatData?.groupId || chatId;
+                let isMutedInGroup = false;
+                try {
+                    const gSnap = await get(ref(db, `groups/${groupId}/mutedUsers/${targetUid}`));
+                    if (gSnap.exists()) {
+                        const mVal = gSnap.val();
+                        isMutedInGroup = mVal === true || (mVal && typeof mVal === 'object' && mVal.mutedUntil > Date.now());
+                    }
+                } catch (e) {}
 
-            modSection.appendChild(makeActionRow(
-                isMutedInGroup ? 'Unmute User (Group)' : 'Mute User (Group)',
-                isMutedInGroup ? '\u{1F50A}' : '\u{1F507}',
-                false,
-                async () => {
-                    closeAnimatedModal(document.getElementById('user-view-modal'));
-                    await window.toggleUserMute(groupId, targetUid, !isMutedInGroup);
-                }
-            ));
+                const targetUsername = getDisplayName(userData);
+                modSection.appendChild(makeActionRow(
+                    isMutedInGroup ? 'Unmute' : 'Mute User',
+                    isMutedInGroup ? '\u{1F50A}' : '\u{1F507}',
+                    false,
+                    async () => {
+                        closeAnimatedModal(document.getElementById('user-view-modal'));
+                        if (isMutedInGroup) {
+                            await window.unmuteUser(groupId, targetUid);
+                        } else {
+                            window.openMuteModal(groupId, targetUid, targetUsername);
+                        }
+                    }
+                ));
+            }
         }
 
         // ── 4. DANGER ZONE ──
@@ -5731,6 +5995,12 @@ async function openChat(chatId, title) {
     if (initialPinsContainer) {
         initialPinsContainer.innerHTML = '';
     }
+    const initialLobbyBanner = document.getElementById('active-lobby-banner');
+    if (initialLobbyBanner) {
+        initialLobbyBanner.style.display = 'none';
+    }
+    const initialLobbyJoinBtn = document.getElementById('active-lobby-join-btn');
+    if (initialLobbyJoinBtn) initialLobbyJoinBtn.onclick = null;
 
     document.body.classList.add('chat-open');
     // Close members panel if open when switching chats
@@ -5771,9 +6041,15 @@ async function openChat(chatId, title) {
     if (activeTypingOff) activeTypingOff();
     if (activeChatPartnerOff) activeChatPartnerOff();
     if (activeGroupMuteOff) { activeGroupMuteOff(); activeGroupMuteOff = null; }
+    if (activeGamesListOff) { activeGamesListOff(); activeGamesListOff = null; }
+    cleanupLobbyCardListeners();
 
     const initialMuteBanner = document.getElementById('group-muted-banner');
     if (initialMuteBanner) initialMuteBanner.style.display = 'none';
+    const initMuteBanner = document.getElementById('mute-banner');
+    if (initMuteBanner) initMuteBanner.remove();
+    const initMsgWrapper = document.getElementById('message-input-wrapper') || document.querySelector('.input-wrapper');
+    if (initMsgWrapper) initMsgWrapper.style.display = 'flex';
     const initMsgInput = document.getElementById('message-input');
     if (initMsgInput) {
         initMsgInput.style.display = '';
@@ -5970,6 +6246,55 @@ async function openChat(chatId, title) {
                 });
             }
         });
+
+        activeGamesListOff = onValue(ref(db, `games/${chatId}`), (snap) => {
+            if (currentChatId !== chatId) return;
+            const banner = document.getElementById('active-lobby-banner');
+            const textEl = document.getElementById('active-lobby-text');
+            const joinBtn = document.getElementById('active-lobby-join-btn');
+            if (!banner || !textEl || !joinBtn) return;
+
+            const allGames = snap.val();
+            if (!allGames || typeof allGames !== 'object') {
+                banner.style.display = 'none';
+                joinBtn.onclick = null;
+                return;
+            }
+
+            const now = Date.now();
+            const openLobbies = [];
+            Object.entries(allGames).forEach(([gId, gData]) => {
+                if (!gData || typeof gData !== 'object') return;
+                if (gData.status !== 'lobby') return;
+                if (gData.emptySince && (now - gData.emptySince > 5 * 60 * 1000)) return;
+                openLobbies.push({ gameId: gId, ...gData });
+            });
+
+            if (openLobbies.length === 0) {
+                banner.style.display = 'none';
+                joinBtn.onclick = null;
+                return;
+            }
+
+            openLobbies.sort((a, b) => {
+                const timeDiff = (b.createdAt || 0) - (a.createdAt || 0);
+                if (timeDiff !== 0) return timeDiff;
+                return String(b.gameId).localeCompare(String(a.gameId));
+            });
+
+            const latestLobby = openLobbies[0];
+            const lobbyName = latestLobby.gameType || getGameDisplayTitle(latestLobby.type);
+            const playerCount = Object.keys(latestLobby.players || {}).length;
+
+            textEl.innerText = `ACTIVE LOBBY: ${lobbyName} (${playerCount} in lobby)`;
+            if (window.twemoji) twemoji.parse(textEl);
+            banner.style.display = 'flex';
+            joinBtn.onclick = () => {
+                setupGameLobby(normalizeGameTypeKey(latestLobby.type || lobbyName), latestLobby.gameId);
+            };
+        }, (err) => {
+            console.warn('[Game] Active lobby listener error:', err);
+        });
     }
 
     const cont = document.getElementById('messages-container');
@@ -6062,6 +6387,7 @@ async function openChat(chatId, title) {
 
     // Stale-While-Revalidate Local Storage Cache Pattern
     const clearChatContainer = () => {
+        cleanupLobbyCardListeners();
         const children = Array.from(cont.children);
         for (const child of children) {
             if (child !== topSentinel) {
@@ -6194,6 +6520,11 @@ async function openChat(chatId, title) {
     });
 
     const removedOff = onChildRemoved(ref(db, `messages/${chatId}`), (data) => {
+        const unsub = activeLobbyCardUnsubs.get(data.key);
+        if (typeof unsub === 'function') {
+            unsub();
+            activeLobbyCardUnsubs.delete(data.key);
+        }
         const wrap = document.getElementById(`msg-${data.key}`);
         if (wrap) wrap.remove();
     });
@@ -6305,6 +6636,72 @@ document.getElementById('chat-pic-input').onchange = async (e) => {
     reader.readAsDataURL(file);
 };
 
+function attachLobbyCardListener(chatId, messageId, gameId, countBadge, joinBtn, inviteText, lobbyHeaderText) {
+    if (!chatId || !gameId || !countBadge) return;
+    const prevUnsub = activeLobbyCardUnsubs.get(messageId);
+    if (typeof prevUnsub === 'function') prevUnsub();
+
+    const unsub = onValue(ref(db, `games/${chatId}/${gameId}`), (snap) => {
+        if (!countBadge.isConnected || currentChatId !== chatId) return;
+        const gameData = snap.val();
+
+        if (!gameData) {
+            countBadge.innerText = '\u{1F3C1} Finished';
+            countBadge.dataset.status = 'finished';
+            if (inviteText) inviteText.innerText = '\u{1F6A9} GAME CLOSED';
+            if (joinBtn) {
+                joinBtn.disabled = true;
+                joinBtn.innerText = 'Closed';
+                joinBtn.className = 'glass-btn-secondary';
+            }
+            if (window.twemoji) {
+                twemoji.parse(countBadge);
+                if (inviteText) twemoji.parse(inviteText);
+            }
+            return;
+        }
+
+        const status = gameData.status || 'lobby';
+        if (status === 'finished') {
+            countBadge.innerText = '\u{1F3C1} Finished';
+            countBadge.dataset.status = 'finished';
+            if (inviteText) inviteText.innerText = lobbyHeaderText;
+            if (joinBtn) {
+                joinBtn.disabled = true;
+                joinBtn.innerText = 'Finished';
+                joinBtn.className = 'glass-btn-secondary';
+            }
+        } else if (status === 'playing' || status === 'choosing' || status === 'active' || status === 'reveal') {
+            countBadge.innerText = '\u{1F3AE} In Progress';
+            countBadge.dataset.status = 'playing';
+            if (inviteText) inviteText.innerText = lobbyHeaderText;
+            if (joinBtn) {
+                joinBtn.disabled = true;
+                joinBtn.innerText = 'In Progress';
+                joinBtn.className = 'glass-btn-secondary';
+            }
+        } else {
+            const playerCount = Object.keys(gameData.players || {}).length;
+            countBadge.innerText = `\u{1F465} ${playerCount} in lobby`;
+            countBadge.dataset.status = 'lobby';
+            if (inviteText) inviteText.innerText = lobbyHeaderText;
+            if (joinBtn) {
+                joinBtn.disabled = false;
+                joinBtn.innerText = 'Join Game';
+                joinBtn.className = 'glass-btn-primary';
+            }
+        }
+        if (window.twemoji) {
+            twemoji.parse(countBadge);
+            if (inviteText) twemoji.parse(inviteText);
+        }
+    }, (err) => {
+        console.warn('[Game] Lobby card listener error:', err);
+    });
+
+    activeLobbyCardUnsubs.set(messageId, unsub);
+}
+
 function renderMessage(msg, isConsecutive = false, messageId) {
     const cont = document.getElementById('messages-container');
     let wrap = document.getElementById(`msg-${messageId}`);
@@ -6361,23 +6758,45 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     // Handle Game Invite Link
     if (msg.gameInvite || msg.isGameInvite) {
         bubble.classList.add('game-invite-bubble');
-        const inviteType = msg.gameType || 'flags';
+        const inviteType = normalizeGameTypeKey(msg.gameType || msg.type);
+        const msgGameId = msg.gameId || null;
+        const lobbyHeaderText = inviteType === 'wordle'
+            ? "\u{1F4DD} WORD RUSH LOBBY"
+            : (inviteType === 'doodle' ? "\u{1F3A8} DOODLE DASH LOBBY" : "\u{1F6A9} WORLD FLAGS LOBBY");
+
         const inviteText = document.createElement('div');
         inviteText.style.fontWeight = '700';
-        inviteText.innerText = msg.expired ? "\u{1F6A9} GAME CLOSED" : (inviteType === 'wordle' ? "\u{1F4DD} WORD RUSH LOBBY" : (inviteType === 'doodle' ? "\u{1F3A8} DOODLE DASH LOBBY" : "\u{1F6A9} WORLD FLAGS LOBBY"));
+        inviteText.innerText = msg.expired ? "\u{1F6A9} GAME CLOSED" : lobbyHeaderText;
         bubble.appendChild(inviteText);
+
+        let countBadge = null;
+        if (msgGameId) {
+            countBadge = document.createElement('span');
+            countBadge.className = 'lobby-player-count';
+            countBadge.dataset.gameId = msgGameId;
+            countBadge.innerText = msg.expired ? '\u{1F3C1} Finished' : '\u{1F465} 1 in lobby';
+            bubble.appendChild(countBadge);
+        }
 
         const joinBtn = document.createElement('button');
         joinBtn.className = msg.expired ? 'glass-btn-secondary' : 'glass-btn-primary';
         joinBtn.style.marginTop = '10px';
+        joinBtn.style.display = 'block';
         joinBtn.innerText = msg.expired ? 'Closed' : 'Join Game';
         joinBtn.disabled = !!msg.expired;
         joinBtn.onclick = () => {
-            if (msg.expired) return;
-            document.getElementById('flag-game-lobby-modal').style.display = 'flex';
-            setupGameLobby(inviteType);
+            if (joinBtn.disabled) return;
+            if (!msgGameId) {
+                showNotification('This game lobby has expired.', 'info');
+                return;
+            }
+            setupGameLobby(inviteType, msgGameId);
         };
         bubble.appendChild(joinBtn);
+
+        if (msgGameId && currentChatId && currentChatId !== 'channel_orion_updates' && countBadge) {
+            attachLobbyCardListener(currentChatId, messageId, msgGameId, countBadge, joinBtn, inviteText, lobbyHeaderText);
+        }
     }
 
     // Reactions Bar
@@ -6654,6 +7073,8 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     const closeActionMenu = () => {
         actionMenu.style.display = 'none';
         actionMenu.style.transform = '';
+        actionMenu.style.top = '';
+        actionMenu.style.bottom = '';
         wrap.style.zIndex = '';
         wrap.style.position = '';
         bubble.style.zIndex = '';
@@ -7055,6 +7476,8 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
     const closeStickerActionMenu = () => {
         actionMenu.style.display = 'none';
         actionMenu.style.transform = '';
+        actionMenu.style.top = '';
+        actionMenu.style.bottom = '';
         wrap.style.zIndex = '';
         wrap.style.position = '';
         bubble.style.zIndex = '';
@@ -7161,61 +7584,43 @@ function createTypingIndicator() {
 }
 
 function updateGroupMuteUI(groupData, chatData = currentChatData) {
-    const myUid = auth.currentUser?.uid;
+    if (!auth.currentUser) return;
     const isGroup = chatData?.isGroup === true || chatData?.type === 'group' || !!chatData?.groupId;
-    const isMutedByMod = isGroup && myUid && !!(groupData?.mutedUsers && groupData.mutedUsers[myUid]);
 
-    const input = document.getElementById('message-input');
-    const sendBtn = document.getElementById('send-btn');
-    const plusBtn = document.getElementById('plus-btn');
-    const cameraBtn = document.getElementById('camera-btn');
-    const emojiBtn = document.getElementById('emoji-btn');
-    const banner = document.getElementById('group-muted-banner');
-    const typingInd = document.getElementById('typing-indicator');
+    const inputWrapper = document.getElementById('message-input-wrapper') || document.querySelector('.input-wrapper');
+    const legacyBanner = document.getElementById('group-muted-banner');
+    if (legacyBanner) legacyBanner.style.display = 'none';
 
-    if (isMutedByMod) {
-        if (input) {
-            input.disabled = true;
-            input.placeholder = "You have been muted by a moderator.";
-            input.style.display = 'none';
+    let muteData = isGroup && groupData && groupData.mutedUsers && groupData.mutedUsers[auth.currentUser.uid];
+    if (muteData === true) {
+        muteData = { mutedUntil: 4102444800000, reason: "Muted by a moderator" };
+    }
+
+    if (muteData && typeof muteData === 'object' && muteData.mutedUntil > Date.now()) {
+        // User is currently muted
+        const dateStr = new Date(muteData.mutedUntil).toLocaleString();
+        const timeStr = muteData.mutedUntil > 4000000000000 ? "Permanently" : `until ${dateStr}`;
+
+        // Hide chat input and show banner
+        if (inputWrapper) inputWrapper.style.display = 'none';
+        
+        let banner = document.getElementById('mute-banner');
+        if (!banner) {
+            banner = document.createElement('div');
+            banner.id = 'mute-banner';
+            banner.style.cssText = 'padding:12px;background:rgba(255,71,87,0.15);color:#ff4757;text-align:center;border-top:1px solid rgba(255,71,87,0.3);font-size:13px;line-height:1.5;';
+            const chatContainer = document.getElementById('chat-container') || document.querySelector('.chat-container') || document.querySelector('.glass-main');
+            if (chatContainer) chatContainer.appendChild(banner);
         }
-        if (sendBtn) sendBtn.style.display = 'none';
-        if (plusBtn) {
-            plusBtn.disabled = true;
-            plusBtn.style.display = 'none';
-        }
-        if (cameraBtn) {
-            cameraBtn.disabled = true;
-            cameraBtn.style.display = 'none';
-        }
-        if (emojiBtn) {
-            emojiBtn.disabled = true;
-            emojiBtn.style.display = 'none';
-        }
+        banner.innerHTML = `🚫 You are muted <strong>${timeStr}</strong><br><span style="opacity:0.8">Reason: ${muteData.reason || "No reason provided"}</span>`;
+
+        const typingInd = document.getElementById('typing-indicator');
         if (typingInd) typingInd.style.display = 'none';
-
-        if (banner) {
-            banner.innerText = "You have been muted by a moderator.";
-            banner.style.display = 'block';
-        }
     } else {
-        if (banner) {
-            banner.style.display = 'none';
-        }
-        if (input) {
-            input.style.display = '';
-        }
-        if (plusBtn) {
-            plusBtn.disabled = false;
-            plusBtn.style.display = '';
-        }
-        if (cameraBtn) {
-            cameraBtn.disabled = false;
-        }
-        if (emojiBtn) {
-            emojiBtn.disabled = false;
-            emojiBtn.style.display = '';
-        }
+        // User is not muted (or mute expired)
+        if (inputWrapper) inputWrapper.style.display = 'flex';
+        const banner = document.getElementById('mute-banner');
+        if (banner) banner.remove();
         checkMuteStatus();
     }
 }
@@ -7228,8 +7633,9 @@ function checkMuteStatus() {
     const sendBtn = document.getElementById('send-btn');
     const typingInd = document.getElementById('typing-indicator');
     const banner = document.getElementById('group-muted-banner');
+    const muteBanner = document.getElementById('mute-banner');
 
-    if (banner && banner.style.display === 'block') {
+    if ((banner && banner.style.display === 'block') || muteBanner) {
         if (input) {
             input.disabled = true;
             input.style.display = 'none';
@@ -7540,9 +7946,14 @@ async function sendImageMessage(imageData, targetChatId = null) {
     if (isGroupChat && currentGroupId) {
         try {
             const gSnap = await get(ref(db, `groups/${currentGroupId}/mutedUsers/${auth.currentUser?.uid}`));
-            if (gSnap.exists() && gSnap.val() === true) {
-                showNotification("You have been muted by a moderator.", "error");
-                return;
+            if (gSnap.exists()) {
+                const mVal = gSnap.val();
+                const isCurrentlyMuted = mVal === true || (mVal && typeof mVal === 'object' && mVal.mutedUntil > Date.now());
+                if (isCurrentlyMuted) {
+                    const reasonStr = (mVal && mVal.reason) ? ` Reason: ${mVal.reason}` : '';
+                    showNotification(`You are muted.${reasonStr}`, "error");
+                    return;
+                }
             }
         } catch (e) {}
     }
@@ -7694,13 +8105,17 @@ async function renderMembersList(msnap, groupCreatorId) {
     // Fetch all member details first
     const memberDetailsPromises = memberUids.map(async (mUid) => {
         const uSnap = await get(ref(db, `users/${mUid}`));
-        const uData = uSnap.val();
+        const uData = uSnap.val() || {};
+        const displayName = getDisplayName(uData);
         return { 
             uid: mUid,
-            displayName: getDisplayName(uData),
+            displayName: displayName,
+            username: displayName || uData.username || '',
             profilePic: uData?.profilePic,
             isCreator: mUid === groupCreatorId,
-            role: membersMap[mUid]?.role || 'member'
+            role: membersMap[mUid]?.role || 'member',
+            status: uData?.status,
+            isOnline: uData?.status === 'online'
         };
     });
     const memberDetails = await Promise.all(memberDetailsPromises);
@@ -7711,11 +8126,21 @@ async function renderMembersList(msnap, groupCreatorId) {
         currentChatMemberPics.set(m.uid, m.profilePic);
     });
 
-    // Sort members: creator first, then others alphabetically by display name
+    // Prioritize users currently marked as online, then group creator, then alphabetically
     memberDetails.sort((a, b) => {
-        if (a.isCreator && !b.isCreator) return -1;
-        if (!a.isCreator && b.isCreator) return 1;
-        return a.displayName.localeCompare(b.displayName);
+        const aOnline = (a.status === 'online' || a.isOnline) ? 1 : 0;
+        const bOnline = (b.status === 'online' || b.isOnline) ? 1 : 0;
+
+        // If one is online and the other isn't, online goes first
+        if (bOnline !== aOnline) {
+            return bOnline - aOnline;
+        }
+        // If both have the same status, group creator goes first
+        if (a.isCreator !== b.isCreator) {
+            return a.isCreator ? -1 : 1;
+        }
+        // If both have the same status, sort alphabetically by username
+        return (a.username || a.displayName || '').localeCompare(b.username || b.displayName || '');
     });
 
     for (const member of memberDetails) {
@@ -7730,11 +8155,17 @@ async function renderMembersList(msnap, groupCreatorId) {
             const isPremium = isAdmin || uData.type === "Premium";
             const nameplateClass = (isPremium && uData.nameplate) ? `nameplate-applied ${uData.nameplate}` : '';
             const memberRole = membersMap[member.uid]?.role || member.role || 'member';
-            const roleInfo = getGroupRoleInfo(memberRole);
-            const badgeHtml = (roleInfo && roleInfo.badge) ? `<span class="custom-user-badge" style="border-color: ${roleInfo.color}55; color: ${roleInfo.color};">${roleInfo.badge}</span>` : '';
-            const displayName = getDisplayName(uData);
+            const isCreator = member.uid === groupCreatorId;
+            const displayUsername = (getDisplayName(uData) || "Unknown").substring(0, 15);
             const status = uData.status;
             const pfp = uData.profilePic;
+
+            let roleIcon = "";
+            if (isCreator || memberRole === 'admin') {
+                roleIcon = `<span style="font-size:12px; margin-left:4px;" title="${isCreator ? 'Creator / Admin' : 'Admin'}">👑</span>`;
+            } else if (memberRole === 'mod') {
+                roleIcon = `<span style="font-size:12px; margin-left:4px;" title="Moderator">🛡️</span>`;
+            }
 
             div.innerHTML = `
                 <div class="member-item-content">
@@ -7742,39 +8173,15 @@ async function renderMembersList(msnap, groupCreatorId) {
                         ${pfp ? `<img src="${pfp}" class="member-avatar-img">` : `<div class="avatar-sm">\u{1F464}</div>`}
                         <span class="status-dot ${status === 'online' ? 'online' : ''}"></span>
                     </div>
-                    <div style="flex: 1; min-width: 0;">
-                        ${member.isCreator ? '<span class="group-creator-label">Group creator</span>' : ''}
-                        ${memberRole === 'admin' ? '<span class="admin-label">Admin</span>' : ''}
-                        <div style="display: flex; align-items: center; flex-wrap: wrap; gap: 4px;">
-                            <span class="${nameplateClass}">${escapeHTML(displayName)}</span>
-                            ${badgeHtml}
-                        </div>
+                    <div style="flex: 1; min-width: 0; display: flex; align-items: center; overflow: hidden;">
+                        <span class="${nameplateClass}" style="overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(displayUsername)}</span>${roleIcon}
                     </div>
                 </div>
             `;
-            if (canModerate && member.uid !== myUid && !member.isCreator) {
-                const isMuted = !!mutedUsers[member.uid];
-                const muteBtn = document.createElement('button');
-                muteBtn.className = 'glass-btn-secondary mute-toggle-btn';
-                muteBtn.style.cssText = `padding: 3px 8px; font-size: 11px; border-radius: 6px; margin-left: 8px; cursor: pointer; flex-shrink: 0; background: ${isMuted ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.08)'}; color: ${isMuted ? '#f87171' : '#fff'}; border: 1px solid ${isMuted ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.15)'}; font-weight: 600;`;
-                muteBtn.innerText = isMuted ? 'Unmute' : 'Mute';
-                muteBtn.onclick = async (e) => {
-                    e.stopPropagation();
-                    const willMute = muteBtn.innerText === 'Mute';
-                    await window.toggleUserMute(groupId, member.uid, willMute);
-                    mutedUsers[member.uid] = willMute ? true : null;
-                    muteBtn.innerText = willMute ? 'Unmute' : 'Mute';
-                    muteBtn.style.background = willMute ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.08)';
-                    muteBtn.style.color = willMute ? '#f87171' : '#fff';
-                    muteBtn.style.borderColor = willMute ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.15)';
-                };
-                const contentDiv = div.querySelector('.member-item-content') || div;
-                contentDiv.appendChild(muteBtn);
-            }
             twemoji.parse(div);
             
             // Update cache for tooltips
-            currentChatMemberNames.set(member.uid, displayName);
+            currentChatMemberNames.set(member.uid, displayUsername);
             currentChatMemberPics.set(member.uid, pfp);
             currentChatMemberBadges.set(member.uid, memberRole);
             updateMessageAvatarsForUser(member.uid, pfp); // Update avatars in existing messages
@@ -7851,9 +8258,14 @@ async function sendMessage() {
     if (isGroup && groupId) {
         try {
             const gSnap = await get(ref(db, `groups/${groupId}/mutedUsers/${myUid}`));
-            if (gSnap.exists() && gSnap.val() === true) {
-                showNotification("You have been muted by a moderator.", "error");
-                return;
+            if (gSnap.exists()) {
+                const mVal = gSnap.val();
+                const isCurrentlyMuted = mVal === true || (mVal && typeof mVal === 'object' && mVal.mutedUntil > Date.now());
+                if (isCurrentlyMuted) {
+                    const reasonStr = (mVal && mVal.reason) ? ` Reason: ${mVal.reason}` : '';
+                    showNotification(`You are muted.${reasonStr}`, "error");
+                    return;
+                }
             }
         } catch (e) {
             console.warn("Mute check error in sendMessage:", e);
@@ -8042,8 +8454,6 @@ function setupInputAreaListeners() {
     if (selectFlagGame) {
         selectFlagGame.onclick = () => {
             closeAnimatedModal(document.getElementById('games-library-modal'));
-            const fgm = document.getElementById('flag-game-lobby-modal');
-            if (fgm) fgm.style.display = 'flex';
             setupGameLobby('flags');
         };
     }
@@ -8052,8 +8462,6 @@ function setupInputAreaListeners() {
     if (selectWordleGame) {
         selectWordleGame.onclick = () => {
             closeAnimatedModal(document.getElementById('games-library-modal'));
-            const fgm = document.getElementById('flag-game-lobby-modal');
-            if (fgm) fgm.style.display = 'flex';
             setupGameLobby('wordle');
         };
     }
@@ -8062,8 +8470,6 @@ function setupInputAreaListeners() {
     if (selectDoodleGame) {
         selectDoodleGame.onclick = () => {
             closeAnimatedModal(document.getElementById('games-library-modal'));
-            const fgm = document.getElementById('flag-game-lobby-modal');
-            if (fgm) fgm.style.display = 'flex';
             setupGameLobby('doodle');
         };
     }
@@ -8077,14 +8483,25 @@ function setupInputAreaListeners() {
             }
             gameStartedLocally = false;
             closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
-            if (currentChatId && auth.currentUser) {
+            const targetChatId = activeGameChatId || currentChatId;
+            const targetGameId = activeGameId;
+            activeGameId = null;
+            activeGameChatId = null;
+            if (targetChatId && targetGameId && auth.currentUser) {
                 const myUid = auth.currentUser.uid;
-                await remove(ref(db, `games/${currentChatId}/players/${myUid}`));
+                const pRef = ref(db, `games/${targetChatId}/${targetGameId}/players/${myUid}`);
+                if (activeLobbyPlayerRef) {
+                    try { await onDisconnect(activeLobbyPlayerRef).cancel(); } catch (_) {}
+                    activeLobbyPlayerRef = null;
+                } else {
+                    try { await onDisconnect(pRef).cancel(); } catch (_) {}
+                }
+                await remove(pRef);
 
                 // Track empty lobbies for 5-min closure
-                const pSnap = await get(ref(db, `games/${currentChatId}/players`));
+                const pSnap = await get(ref(db, `games/${targetChatId}/${targetGameId}/players`));
                 if (!pSnap.exists() || Object.keys(pSnap.val()).length === 0) {
-                    await update(ref(db, `games/${currentChatId}`), { emptySince: serverTimestamp() });
+                    await update(ref(db, `games/${targetChatId}/${targetGameId}`), { emptySince: serverTimestamp() });
                 }
             }
         };
@@ -8661,7 +9078,8 @@ if (cameraInput) {
 
 function updateInputButtons() {
     const banner = document.getElementById('group-muted-banner');
-    if (banner && banner.style.display === 'block') {
+    const muteBanner = document.getElementById('mute-banner');
+    if ((banner && banner.style.display === 'block') || muteBanner) {
         const input = document.getElementById('message-input');
         const sendBtn = document.getElementById('send-btn');
         const plusBtn = document.getElementById('plus-btn');
@@ -8931,37 +9349,29 @@ if (closeViewerBtn) {
 
 const downloadViewerBtn = document.getElementById('download-viewer-btn');
 if (downloadViewerBtn) {
-    downloadViewerBtn.onclick = async () => {
-        if (!window.currentViewingImage) return;
-        try {
-            console.log('[VIEWER] Fetching image for download...');
-            const response = await fetch(window.currentViewingImage);
-            const blob = await response.blob();
+    downloadViewerBtn.onclick = function() {
+        console.log("[VIEWER] Triggering native download...");
 
-            const base64Data = await new Promise((resolve) => {
-                const reader = new FileReader();
-                reader.onloadend = () => resolve(reader.result.split(',')[1]);
-                reader.readAsDataURL(blob);
-            });
+        const currentImageUrl = window.currentViewingImage || document.getElementById('viewer-main-img')?.src;
+        if (!currentImageUrl) return;
+
+        const idMatch = currentImageUrl.match(/id=([^&]+)/) || currentImageUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
+        
+        if (idMatch && idMatch[1]) {
+            const driveId = idMatch[1];
+            const downloadUrl = `https://drive.google.com/uc?export=download&id=${driveId}`;
+
+            const a = document.createElement('a');
+            a.href = downloadUrl;
+            a.target = '_blank'; // Opens in a new tab/handler to prevent navigating away from the chat
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
             
-            const fileName = `Orion_${Date.now()}.jpg`;
-            
-            console.log('[VIEWER] Loading native JS proxies via CDN...');
-            // Dynamically fetch the translation layer for vanilla JS
-            const { Filesystem, Directory } = await import('https://cdn.jsdelivr.net/npm/@capacitor/filesystem/+esm');
-            
-            await Filesystem.writeFile({
-                path: fileName,
-                data: base64Data,
-                directory: Directory.Documents,
-                recursive: true
-            });
-            
-            console.log(`[VIEWER] Successfully saved to Documents: ${fileName}`);
-            alert('Image saved to Documents');
-        } catch (e) {
-            console.error('[VIEWER] Native download failed:', e);
-            alert('Download error: ' + e.message);
+            if (typeof showNotification === 'function') showNotification("Download started", "success");
+        } else {
+            console.error("[VIEWER] Could not extract Drive ID for download.");
+            if (typeof showNotification === 'function') showNotification("Failed to process image link", "error");
         }
     };
 }
@@ -9276,18 +9686,14 @@ document.addEventListener('click', (e) => {
     const settingsNameInput = document.getElementById('settings-display-name');
     if (settingsNameInput) {
         const handleNameAutoSave = async () => {
-            const name = settingsNameInput.value.trim();
+            const name = settingsNameInput.value.trim().substring(0, 15);
             const nameMsg = document.getElementById('settings-name-msg');
             if (!name) {
                 if (nameMsg) { nameMsg.innerText = "Name can't be empty."; nameMsg.style.color = '#ff6b6b'; }
                 return;
             }
-            if (name.length > 80) {
-                if (nameMsg) { nameMsg.innerText = "Name is too long (max 80 chars)."; nameMsg.style.color = '#ff6b6b'; }
-                return;
-            }
             try {
-                await update(ref(db, `users/${auth.currentUser.uid}`), { displayName: name });
+                await update(ref(db, `users/${auth.currentUser.uid}`), { displayName: name, username: name });
                 const pf = document.getElementById('profile-display-name');
                 if (pf) pf.value = name;
                 const pfText = document.getElementById('profile-display-name-text');
@@ -9307,6 +9713,19 @@ document.addEventListener('click', (e) => {
         settingsNameInput.onchange = handleNameAutoSave;
         settingsNameInput.onblur = handleNameAutoSave;
     }
+
+    window.saveProfile = async function() {
+        const input = document.getElementById('settings-display-name') || document.getElementById('profile-username-input') || document.getElementById('profile-display-name');
+        if (!input) return;
+        const newUsername = input.value.trim().substring(0, 15);
+        if (!newUsername) return;
+        try {
+            await update(ref(db, `users/${auth.currentUser.uid}`), { displayName: newUsername, username: newUsername });
+            showNotification("Profile saved", "success");
+        } catch (e) {
+            showNotification("Failed to save profile", "error");
+        }
+    };
 
     // Auto-save About Me / Bio on change/blur
     const settingsBioInput = document.getElementById('settings-profile-description');
@@ -10029,20 +10448,29 @@ async function openGroupInfoModal(chatId, chatData) {
         const detailsPromises = memberUids.map(async (uid) => {
             const uSnap = await get(ref(db, `users/${uid}`));
             const uData = uSnap.val() || {};
+            const displayName = getDisplayName(uData);
+            const isGlobalAdmin = uData.role === 'admin' || uData.isAdmin === true || String(uData.isAdmin).toLowerCase() === "true";
             return {
                 uid,
-                displayName: getDisplayName(uData),
+                displayName: displayName,
+                username: displayName || uData.username || '',
                 profilePic: uData.profilePic,
                 role: membersMap[uid]?.role || 'member',
                 isCreator: uid === chatData.creatorId,
-                status: uData.status
+                isGlobalAdmin,
+                status: uData.status,
+                isOnline: uData.status === 'online'
             };
         });
         const details = await Promise.all(detailsPromises);
         details.sort((a, b) => {
-            if (a.isCreator && !b.isCreator) return -1;
-            if (!a.isCreator && b.isCreator) return 1;
-            return a.displayName.localeCompare(b.displayName);
+            const aOnline = (a.status === 'online' || a.isOnline) ? 1 : 0;
+            const bOnline = (b.status === 'online' || b.isOnline) ? 1 : 0;
+            if (bOnline !== aOnline) {
+                return bOnline - aOnline;
+            }
+            if (a.isCreator !== b.isCreator) return a.isCreator ? -1 : 1;
+            return (a.username || a.displayName || '').localeCompare(b.username || b.displayName || '');
         });
 
         listEl.innerHTML = '';
@@ -10065,21 +10493,25 @@ async function openGroupInfoModal(chatId, chatData) {
                     ${m.isCreator ? '<span style="font-size: 11px; color: #ffd700; font-weight: 600;">Group Creator</span>' : (m.role === 'admin' ? '<span style="font-size: 11px; color: #ff4d6d; font-weight: 600;">Admin</span>' : '')}
                 </div>
             `;
-            if (canModerate && m.uid !== myUid && !m.isCreator) {
-                const isMuted = !!mutedUsers[m.uid];
+            if (canModerate && m.uid !== myUid && !m.isCreator && !m.isGlobalAdmin) {
+                const muteEntry = mutedUsers[m.uid];
+                const isMuted = muteEntry === true || (muteEntry && typeof muteEntry === 'object' && muteEntry.mutedUntil > Date.now());
                 const muteBtn = document.createElement('button');
                 muteBtn.className = 'glass-btn-secondary mute-toggle-btn';
                 muteBtn.style.cssText = `padding: 4px 10px; font-size: 12px; border-radius: 8px; margin-left: auto; cursor: pointer; flex-shrink: 0; background: ${isMuted ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.08)'}; color: ${isMuted ? '#f87171' : '#fff'}; border: 1px solid ${isMuted ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.15)'}; font-weight: 600;`;
                 muteBtn.innerText = isMuted ? 'Unmute' : 'Mute';
                 muteBtn.onclick = async (e) => {
                     e.stopPropagation();
-                    const willMute = muteBtn.innerText === 'Mute';
-                    await window.toggleUserMute(groupId, m.uid, willMute);
-                    mutedUsers[m.uid] = willMute ? true : null;
-                    muteBtn.innerText = willMute ? 'Unmute' : 'Mute';
-                    muteBtn.style.background = willMute ? 'rgba(239, 68, 68, 0.2)' : 'rgba(255, 255, 255, 0.08)';
-                    muteBtn.style.color = willMute ? '#f87171' : '#fff';
-                    muteBtn.style.borderColor = willMute ? 'rgba(239, 68, 68, 0.4)' : 'rgba(255, 255, 255, 0.15)';
+                    if (isMuted) {
+                        await window.unmuteUser(groupId, m.uid);
+                        mutedUsers[m.uid] = null;
+                        muteBtn.innerText = 'Mute';
+                        muteBtn.style.background = 'rgba(255, 255, 255, 0.08)';
+                        muteBtn.style.color = '#fff';
+                        muteBtn.style.borderColor = 'rgba(255, 255, 255, 0.15)';
+                    } else {
+                        window.openMuteModal(groupId, m.uid, m.displayName);
+                    }
                 };
                 row.appendChild(muteBtn);
             }
@@ -10364,15 +10796,106 @@ document.getElementById('confirm-add-members-btn').onclick = async () => {
 
 /* ---------------- GROUP MODERATOR ACTIONS (MUTE & INVITE) ---------------- */
 
-window.toggleUserMute = async function(groupId, targetUserId, muteStatus) {
+window.openMuteModal = function(groupId, targetUserId, targetUsername) {
+    let modal = document.getElementById('mute-modal');
+    if (modal) modal.remove();
+
+    modal = document.createElement('div');
+    modal.id = 'mute-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.7);display:flex;align-items:center;justify-content:center;z-index:9999;padding:20px;backdrop-filter:blur(4px);';
+    modal.innerHTML = `
+        <div style="background:#1e1e2a;border:1px solid rgba(255,255,255,0.1);border-radius:14px;padding:20px;max-width:340px;width:100%;color:#fff;box-shadow:0 10px 30px rgba(0,0,0,0.5);">
+            <h3 style="margin:0 0 16px 0;font-size:18px;text-align:center;color:#ff4757;">Mute ${targetUsername}</h3>
+            
+            <label style="display:block;margin-bottom:6px;font-size:13px;opacity:0.8;">Duration</label>
+            <div id="mute-duration-container" style="display:flex;flex-wrap:wrap;gap:8px;margin-bottom:16px;">
+                <button type="button" class="mute-pill active" data-val="900000" style="flex:1;min-width:70px;padding:8px;background:#ff4757;color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;">15m</button>
+                <button type="button" class="mute-pill" data-val="3600000" style="flex:1;min-width:70px;padding:8px;background:rgba(255,255,255,0.1);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;">1h</button>
+                <button type="button" class="mute-pill" data-val="86400000" style="flex:1;min-width:70px;padding:8px;background:rgba(255,255,255,0.1);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;">24h</button>
+                <button type="button" class="mute-pill" data-val="604800000" style="flex:1;min-width:70px;padding:8px;background:rgba(255,255,255,0.1);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;">1w</button>
+                <button type="button" class="mute-pill" data-val="4102444800000" style="flex:1;min-width:70px;padding:8px;background:rgba(255,255,255,0.1);color:#fff;border:none;border-radius:8px;cursor:pointer;font-size:13px;">Perm</button>
+            </div>
+            <input type="hidden" id="mute-duration-val" value="900000">
+
+            <label style="display:block;margin-bottom:6px;font-size:13px;opacity:0.8;">Reason</label>
+            <input type="text" id="mute-reason" placeholder="e.g., Spamming, Toxic behavior..." autocomplete="off" style="width:100%;padding:10px;margin-bottom:20px;background:rgba(0,0,0,0.3);border:1px solid rgba(255,255,255,0.2);border-radius:8px;color:#fff;outline:none;font-size:14px;box-sizing:border-box;">
+
+            <div style="display:flex;gap:10px;">
+                <button type="button" onclick="document.getElementById('mute-modal').remove()" style="flex:1;padding:10px;border-radius:8px;border:none;background:rgba(255,255,255,0.1);color:#fff;cursor:pointer;font-weight:600;">Cancel</button>
+                <button type="button" onclick="confirmMute('${groupId}', '${targetUserId}')" style="flex:1;padding:10px;border-radius:8px;border:none;background:#ff4757;color:#fff;cursor:pointer;font-weight:600;">Mute User</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+
+    const pills = document.querySelectorAll('.mute-pill');
+    pills.forEach(pill => {
+        pill.onclick = function() {
+            pills.forEach(p => { p.style.background = 'rgba(255,255,255,0.1)'; p.style.fontWeight = 'normal'; p.classList.remove('active'); });
+            this.style.background = '#ff4757';
+            this.style.fontWeight = '600';
+            this.classList.add('active');
+            document.getElementById('mute-duration-val').value = this.getAttribute('data-val');
+        };
+    });
+
+    const reasonInput = document.getElementById('mute-reason');
+    if (reasonInput) {
+        reasonInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                window.confirmMute(groupId, targetUserId);
+            }
+        });
+        reasonInput.focus();
+    }
+};
+
+window.confirmMute = async function(groupId, targetUserId) {
+    const durationMs = parseInt(document.getElementById('mute-duration-val').value);
+    const reason = document.getElementById('mute-reason').value.trim() || "No reason provided";
+    const mutedUntil = Date.now() + durationMs;
+
+    try {
+        const uSnap = await get(ref(db, `users/${targetUserId}`));
+        const uVal = uSnap.val() || {};
+        if (uVal.role === 'admin' || uVal.isAdmin === true || String(uVal.isAdmin).toLowerCase() === "true") {
+            showNotification("Global admins cannot be muted.", "error");
+            const modal = document.getElementById('mute-modal');
+            if (modal) modal.remove();
+            return;
+        }
+
+        await update(ref(db, `groups/${groupId}/mutedUsers/${targetUserId}`), {
+            mutedUntil: mutedUntil,
+            reason: reason,
+            mutedBy: auth.currentUser.uid,
+            timestamp: Date.now()
+        });
+        const modal = document.getElementById('mute-modal');
+        if (modal) modal.remove();
+        showNotification("User muted successfully", "success");
+    } catch (err) {
+        showNotification("Failed to mute user. Are you a mod?", "error");
+    }
+};
+
+window.unmuteUser = async function(groupId, targetUserId) {
     try {
         await update(ref(db, `groups/${groupId}/mutedUsers`), {
-            [targetUserId]: muteStatus ? true : null
+            [targetUserId]: null
         });
-        showNotification(muteStatus ? "User muted" : "User unmuted", "success");
+        showNotification("User unmuted", "success");
     } catch (err) {
-        console.error("toggleUserMute error:", err);
-        showNotification("Failed to update mute status. Are you a mod?", "error");
+        showNotification("Failed to unmute user", "error");
+    }
+};
+
+window.toggleUserMute = async function(groupId, targetUserId, muteStatus) {
+    if (muteStatus) {
+        window.openMuteModal(groupId, targetUserId, "User");
+    } else {
+        await window.unmuteUser(groupId, targetUserId);
     }
 };
 
@@ -10675,6 +11198,9 @@ function exitChat() {
     if (activeMessagesOff) activeMessagesOff();
     if (activeTypingOff) activeTypingOff();
     if (activeChatPartnerOff) activeChatPartnerOff();
+    if (activeGroupMuteOff) { activeGroupMuteOff(); activeGroupMuteOff = null; }
+    if (activeGamesListOff) { activeGamesListOff(); activeGamesListOff = null; }
+    cleanupLobbyCardListeners();
     
     activeMemberStatusOffs.forEach(offFunc => offFunc());
     activeMemberStatusOffs.clear();
@@ -10696,6 +11222,12 @@ function exitChat() {
     if (pinsContainer) {
         pinsContainer.innerHTML = '';
     }
+    const lobbyBanner = document.getElementById('active-lobby-banner');
+    if (lobbyBanner) {
+        lobbyBanner.style.display = 'none';
+    }
+    const lobbyJoinBtn = document.getElementById('active-lobby-join-btn');
+    if (lobbyJoinBtn) lobbyJoinBtn.onclick = null;
 }
 
 const backBtnEl = document.getElementById('back-to-list');

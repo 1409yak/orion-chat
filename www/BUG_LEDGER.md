@@ -19,6 +19,28 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Multi-Lobby & Game Start Fix:* Migrated game lobbies from a single `games/${chatId}` slot to unique `games/${chatId}/${gameId}` keys so multiple users can host lobbies without overwriting or blocking each other. Fixed `startGame` state transitions and listener binding, added live player counters to lobby chat cards, and added an `ACTIVE LOBBY: {Game Name}` banner near the pinned messages bar.
+
+- *Game UI Fixes:* Wired up `closeFlagsGame()` to properly hide the World Flags UI and clear the `flagsGameInterval` to prevent background memory leaks. Introduced a global `formatMoney` helper using `toLocaleString('en-US')` to render large currency values with commas across the game UI and stats panel.
+
+- *Moderation Logic:* Prevented global Admins from being muted. Applied a server-side Firebase rule block checking `root.child('users')` for the admin role, and removed the Mute UI button on client-side profiles for admin accounts.
+
+- *Game Expansion:* Massively expanded the Word Rush 5-letter dictionary array with over 400 new valid 5-letter words to prevent replay repetition, leaving the Doodle Dash array completely intact.
+
+- *UI & Game Expansion:* Applied a `.substring(0, 15)` limit to all username rendering and profile saves to prevent UI breaking from long names. Injected minimal `👑` and `🛡️` emojis to the side panel to indicate roles without wasting space. Massively expanded the `DOODLE_WORDS` array with hundreds of new entries to drastically reduce game repetition.
+
+- UI Polish: Replaced the ugly native <select> dropdown in the mute modal with a premium CSS pill-selector grid. Removed group role badges from the side panel to reduce clutter, and fixed the profile modal layout by placing the role badge in a flex-column directly beneath the username to prevent overlap.
+
+- *Moderation Upgrade:* Replaced binary mute toggle with an advanced timed mute modal (15m, 1h, 24h, 1w, Perm) requiring a reason. Updated `database.rules.json` to validate `mutedUntil < now`. Updated the muted user UI to display an informative read-only banner showing the expiration date and reason.
+
+- *UI Refinement:* Removed the default teal focus outline and box-shadow from the chat text input to maintain a flat, clean design when typing.
+
+- *UI Refinement:* The message action menu (Reply/Pin) floated too high above the message box; adjusted CSS positioning to align `top: 0` with the message wrapper. Removed mod Mute buttons from the group members side panel to declutter the UI, restricting mute actions to the user profile screen.
+
+- *Media Download Fix:* Attempting to download images via JS `fetch()` triggered strict CORS policy blocks from Google Drive's thumbnail endpoint. Solution: Ripped out the `fetch` logic and implemented a regex ID extractor that constructs a `uc?export=download` URL, utilizing a temporary anchor tag to force a native browser download and bypass cross-origin restrictions.
+
+- *UI & UX Fix:* The group members side panel was clipping long lists without allowing scrolling. Solution: Applied `overflow-y: auto` and a flexible height constraint to the CSS wrapper. Upgraded the member rendering routine in `app.js` to sort the array before DOM injection, prioritizing online users at the top followed by alphabetical sorting.
+
 - *World Flags Optimization:* Replaced intrusive full-screen red victim flash with a top-right notification toast. Fixed game timer desync by moving finish enforcement to a Firebase `status === 'finished'` state that strictly halts local inputs. Added an endgame stats engine tracking `earned`, `stolenAmount`, `timesRobbed`, and `lostToRobbers`.
 
 - *Doodle Dash Upgrade:* Enforced a 30s minimum timer, injected a 10s progressive hint system with a <Word> (<Length>) <Time> UI layout, massively expanded the dictionary to over 300 words, added a 10s drawer selection phase, and implemented a BFS flood-fill algorithm for a new canvas bucket tool.

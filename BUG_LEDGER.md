@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Multi-Lobby & Game Start Fix:* Migrated game lobbies from a single `games/${chatId}` slot to unique `games/${chatId}/${gameId}` keys so multiple users can host lobbies without overwriting or blocking each other. Fixed `startGame` state transitions and listener binding, added live player counters to lobby chat cards, and added an `ACTIVE LOBBY: {Game Name}` banner near the pinned messages bar.
+
 - *Game UI Fixes:* Wired up `closeFlagsGame()` to properly hide the World Flags UI and clear the `flagsGameInterval` to prevent background memory leaks. Introduced a global `formatMoney` helper using `toLocaleString('en-US')` to render large currency values with commas across the game UI and stats panel.
 
 - *Moderation Logic:* Prevented global Admins from being muted. Applied a server-side Firebase rule block checking `root.child('users')` for the admin role, and removed the Mute UI button on client-side profiles for admin accounts.

@@ -77,6 +77,8 @@ let activeMembersOff = null;   // Listener for current chat members
 let activeMessagesOff = null;  // Listener for current chat messages
 let activeChatPartnerOff = null; // Listener for DM partner status
 let activeGroupMuteOff = null; // Listener for group metadata and mute status
+let activeGamesListOff = null; // Listener for active game lobbies in current chat
+const activeLobbyCardUnsubs = new Map(); // Stores { messageId: offFunction } for live lobby card counters
 let currentEditingMessage = null; // To keep track of the message being edited
 let viewedMessagesInSession = new Set(); // To prevent multiple increments in one view
 let currentReplyMessage = null; // To keep track of the message being replied to
@@ -577,6 +579,9 @@ applyUiPrefs();
 
 
 // Internal Game Tracking
+let activeGameId = null;
+let activeGameChatId = null;
+let activeLobbyPlayerRef = null;
 let gameStartedLocally = false;
 let canSkipPrize = false;
 let prizeTimeout = null;
@@ -589,6 +594,33 @@ let currentDoodleTurn = -1;
 let isSubmittingDoodleGuess = false;
 let isAdvancingDoodleTurn = false;
 let podiumCloseTimeout = null;
+
+function cleanupLobbyCardListeners() {
+    activeLobbyCardUnsubs.forEach(unsub => {
+        if (typeof unsub === 'function') unsub();
+    });
+    activeLobbyCardUnsubs.clear();
+}
+
+function normalizeGameTypeKey(rawType) {
+    const t = String(rawType || '').toLowerCase().trim();
+    if (t === 'wordle' || t === 'word rush') return 'wordle';
+    if (t === 'doodle' || t === 'doodle dash') return 'doodle';
+    return 'flags';
+}
+
+function getGameDisplayTitle(rawType) {
+    const key = normalizeGameTypeKey(rawType);
+    if (key === 'wordle') return 'Word Rush';
+    if (key === 'doodle') return 'Doodle Dash';
+    return 'World Flags';
+}
+
+function getPlayerDisplayName(playerEntry) {
+    if (!playerEntry) return 'Player';
+    if (typeof playerEntry === 'string') return playerEntry;
+    return playerEntry.name || 'Player';
+}
 
 function cleanupDoodleListeners() {
     doodleUnsubs.forEach(u => {
@@ -605,9 +637,99 @@ function cleanupDoodleListeners() {
 }
 
 // --- GAME LOGIC ---
-async function setupGameLobby(gameType = 'flags') {
+async function startGame(gameId, chatId = activeGameChatId || currentChatId) {
+    if (!chatId || !gameId) {
+        console.error('[Game] startGame called without chatId or gameId:', { chatId, gameId });
+        return;
+    }
+
+    try {
+        const targetGameRef = ref(db, `games/${chatId}/${gameId}`);
+        const freshGameSnap = await get(targetGameRef);
+        const gData = freshGameSnap.val();
+        if (!gData) {
+            console.error('[Game] startGame failed: game node not found at', `games/${chatId}/${gameId}`);
+            showNotification("Game lobby no longer exists.", "error");
+            return;
+        }
+
+        const freshPlayersList = Object.keys(gData.players || {});
+        if (freshPlayersList.length < 2) {
+            return showNotification("Waiting for at least one more player to join!", "error");
+        }
+
+        const lobbyType = normalizeGameTypeKey(gData.type || gData.gameType);
+        const now = Date.now();
+
+        if (lobbyType === 'doodle') {
+            let rounds = 3;
+            const activeRoundBtn = document.querySelector('.round-btn.active');
+            if (activeRoundBtn) rounds = parseInt(activeRoundBtn.getAttribute('data-val'), 10) || 3;
+
+            const firstDrawerUid = freshPlayersList[0];
+            const options = [];
+            while (options.length < 3) {
+                const word = DOODLE_WORDS[Math.floor(Math.random() * DOODLE_WORDS.length)];
+                if (!options.includes(word)) options.push(word);
+            }
+
+            const durationMs = 60000;
+            await update(targetGameRef, {
+                status: 'choosing',
+                type: 'doodle',
+                gameType: 'Doodle Dash',
+                startTime: now,
+                startedAt: now,
+                endTime: now + durationMs,
+                turnOrder: freshPlayersList,
+                currentTurnIndex: 0,
+                currentRound: 1,
+                maxRounds: rounds,
+                drawer: firstDrawerUid,
+                drawerUid: firstDrawerUid,
+                wordOptions: options,
+                turnExpiresAt: now + 10000 // 10 seconds to choose
+            });
+        } else if (lobbyType === 'wordle') {
+            const targetWord = WORD_RUSH_WORDS[Math.floor(Math.random() * WORD_RUSH_WORDS.length)];
+            const durationMs = 5 * 60000;
+            await update(targetGameRef, {
+                status: 'playing',
+                type: 'wordle',
+                gameType: 'Word Rush',
+                targetWord: targetWord,
+                startTime: now,
+                startedAt: now,
+                endTime: now + durationMs
+            });
+        } else {
+            const slider = document.getElementById('game-duration-slider');
+            const duration = (slider ? parseInt(slider.value, 10) : 5) || 5;
+            const durationMs = duration * 60000;
+            await update(targetGameRef, {
+                status: 'playing',
+                type: 'flags',
+                gameType: 'World Flags',
+                duration: duration,
+                startTime: now,
+                startedAt: now,
+                endTime: now + durationMs
+            });
+        }
+    } catch (err) {
+        console.error('[Game] startGame error:', err);
+        showNotification('Could not start game: ' + (err.code || err.message || 'Unknown error'), 'error');
+    }
+}
+window.startGame = startGame;
+
+async function setupGameLobby(gameType = 'flags', existingGameId = null) {
     if (!currentChatId) {
         showNotification("Please select a chat to play games.", "info");
+        return;
+    }
+    if (!auth.currentUser) {
+        showNotification("Please sign in to play games.", "error");
         return;
     }
 
@@ -623,262 +745,239 @@ async function setupGameLobby(gameType = 'flags') {
         wordleGameUnsub();
         wordleGameUnsub = null;
     }
+    if (flagsGameUnsub) {
+        flagsGameUnsub();
+        flagsGameUnsub = null;
+    }
+    if (activeLobbyPlayerRef) {
+        try { await onDisconnect(activeLobbyPlayerRef).cancel(); } catch (_) {}
+        activeLobbyPlayerRef = null;
+    }
     cleanupDoodleListeners();
     currentDoodleTurn = -1;
+    currentDoodleRound = -1;
+    currentDoodleStatus = null;
     isSubmittingDoodleGuess = false;
     isAdvancingDoodleTurn = false;
     gameStartedLocally = false;
 
     try {
-        const gameRef = ref(db, `games/${currentChatId}`);
+        const chatId = currentChatId;
         const myUid = auth.currentUser.uid;
-        
-        const gameSnap = await get(gameRef);
-        let gameData = gameSnap.val();
-        let isCreator = !gameSnap.exists();
-
-        const thirtyMins = 30 * 60 * 1000;
-        if (gameData && gameData.status !== 'finished') {
-            if (Date.now() - (gameData.createdAt || gameData.startedAt || 0) < thirtyMins) {
-                if (gameData.status !== 'lobby') {
-                    return showNotification("A game is already active in this chat!", "error");
-                }
-            } else {
-                console.warn("[Game] Overwriting stale game lobby.");
-                await remove(gameRef);
-                gameData = null;
-                isCreator = true;
-            }
-        }
-
-    // Handle 5-minute empty lobby closure
-    if (gameData && gameData.emptySince && (Date.now() - gameData.emptySince > 5 * 60 * 1000)) {
-        if (gameData.inviteMsgId) {
-            await update(ref(db, `messages/${currentChatId}/${gameData.inviteMsgId}`), { expired: true });
-        }
-        await remove(gameRef);
-        gameData = null;
-        isCreator = true;
-    }
-
-    // Check for previously finished games and purge them
-    if (gameData && gameData.status === 'finished') {
-        await remove(gameRef);
-        gameData = null;
-        isCreator = true;
-    }
-
-    const effectiveType = (!isCreator && gameData && gameData.type) ? gameData.type : gameType;
-    const getGameDisplayTitle = (type) => {
-        if (type === 'wordle') return 'Word Rush';
-        if (type === 'doodle') return 'Doodle Dash';
-        return 'World Flags';
-    };
-    const lobbyTitle = document.getElementById('game-lobby-title');
-    if (lobbyTitle) {
-        lobbyTitle.innerText = `Game Settings: ${getGameDisplayTitle(effectiveType)}`;
-    }
-    const initialDoodleSettings = document.getElementById('doodle-settings');
-    if (initialDoodleSettings) {
-        initialDoodleSettings.style.display = effectiveType === 'doodle' ? 'flex' : 'none';
-    }
-
-    const fgm = document.getElementById('flag-game-lobby-modal');
-    if (fgm) openAnimatedModal(fgm);
-
-    // If creator, setup initial game state and send invite message
-    if (isCreator) {
         const myName = document.getElementById('current-user-name')?.innerText || auth.currentUser.displayName || 'Player';
-        // Initialize generic lobby state safely for both Groups and DMs
-        await update(gameRef, {
-            status: 'lobby',
-            type: effectiveType,
-            creator: myUid,
-            hostId: myUid,
-            players: {
-                [myUid]: {
-                    name: myName,
-                    gold: 0,
-                    score: 0,
-                    joinedAt: serverTimestamp()
+        const isCreator = !existingGameId;
+
+        let gameId = existingGameId;
+        let gameRef;
+        let gameData = null;
+
+        if (isCreator) {
+            gameRef = push(ref(db, `games/${chatId}`));
+            gameId = gameRef.key;
+        } else {
+            gameRef = ref(db, `games/${chatId}/${gameId}`);
+            const gameSnap = await get(gameRef);
+            if (!gameSnap.exists()) {
+                showNotification("This game lobby has closed or expired.", "info");
+                return;
+            }
+            gameData = gameSnap.val();
+
+            // Handle 5-minute empty lobby closure
+            if (gameData && gameData.emptySince && (Date.now() - gameData.emptySince > 5 * 60 * 1000)) {
+                if (gameData.inviteMsgId) {
+                    await update(ref(db, `messages/${chatId}/${gameData.inviteMsgId}`), { expired: true });
                 }
-            },
-            createdAt: Date.now()
-        });
-
-        // Send generic invite message without relying on opponentId
-        const msgRef = push(ref(db, `messages/${currentChatId}`));
-        await update(msgRef, {
-            sender: myUid,
-            sender_id: myUid,
-            sender_name: myName,
-            text: `\u{1F3AE} Created a ${effectiveType} lobby!`,
-            isGameInvite: true,
-            gameInvite: true,
-            gameType: effectiveType,
-            timestamp: Date.now(),
-            createdAt: serverTimestamp(),
-            sender_badge: (isCurrentUserPremium && currentMyBadge) ? currentMyBadge : null
-        });
-
-        await update(gameRef, { inviteMsgId: msgRef.key });
-
-        await update(ref(db, `chats/${currentChatId}`), {
-            last_message: `\u{1F3AE} ${myName} started a game!`,
-            timestamp: serverTimestamp()
-        });
-    }
-
-    // Join the lobby
-    const playerRef = ref(db, `games/${currentChatId}/players/${myUid}`);
-    await update(playerRef, {
-        name: document.getElementById('current-user-name')?.innerText || auth.currentUser.displayName || 'Player',
-        gold: 0,
-        score: 0,
-        joinedAt: serverTimestamp()
-    });
-    await update(gameRef, { emptySince: null });
-    onDisconnect(playerRef).remove();
-    
-    lobbyGameUnsub = onValue(gameRef, async (snap) => {
-        const data = snap.val();
-        if (!data) {
-            closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
-            if (lobbyGameUnsub) {
-                lobbyGameUnsub();
-                lobbyGameUnsub = null;
+                await remove(gameRef);
+                showNotification("This game lobby expired due to inactivity.", "info");
+                return;
             }
-            return;
-        }
-        
-        if ((data.status === 'active' || data.status === 'playing') && !gameStartedLocally) {
-            gameStartedLocally = true;
-            if (lobbyGameUnsub) {
-                lobbyGameUnsub();
-                lobbyGameUnsub = null;
+
+            if (gameData && gameData.status === 'finished') {
+                showNotification("This game has already finished!", "info");
+                return;
             }
-            if (data.type === 'wordle') {
-                closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
-                startWordleGame(data);
-            } else if (data.type === 'doodle' && data.status !== 'finished') {
-                closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
-                startDoodleGame(data);
-            } else {
-                startLocalGameUI(data);
+
+            if (gameData && gameData.status !== 'lobby') {
+                showNotification("This game is already in progress!", "error");
+                return;
             }
-            return;
         }
 
-        const lobbyType = data.type || effectiveType;
+        activeGameId = gameId;
+        activeGameChatId = chatId;
+
+        const effectiveType = normalizeGameTypeKey((!isCreator && gameData) ? (gameData.type || gameData.gameType) : gameType);
+        const displayGameType = getGameDisplayTitle(effectiveType);
+
+        const lobbyTitle = document.getElementById('game-lobby-title');
         if (lobbyTitle) {
-            lobbyTitle.innerText = `Game Settings: ${getGameDisplayTitle(lobbyType)}`;
+            lobbyTitle.innerText = `Game Settings: ${displayGameType}`;
+        }
+        const initialDoodleSettings = document.getElementById('doodle-settings');
+        if (initialDoodleSettings) {
+            initialDoodleSettings.style.display = effectiveType === 'doodle' ? 'flex' : 'none';
+        }
+        const initialDurationGroup = document.getElementById('game-duration-slider')?.closest('.field-group');
+        if (initialDurationGroup) {
+            initialDurationGroup.style.display = (isCreator && effectiveType === 'flags') ? 'block' : 'none';
         }
 
-        const players = data.players || {};
-        const playerUids = Object.keys(players);
-        
-        // Host Transfer Logic: If host is missing, oldest player claims host
-        if (playerUids.length > 0 && (!data.hostId || !players[data.hostId])) {
-            let oldestUid = playerUids[0];
-            let oldestTime = players[oldestUid].joinedAt || Date.now();
-            for (const uid of playerUids) {
-                const pTime = players[uid].joinedAt || Date.now();
-                if (pTime < oldestTime) {
-                    oldestUid = uid;
-                    oldestTime = pTime;
-                }
-            }
-            if (oldestUid === myUid) {
-                update(gameRef, { hostId: myUid });
-            }
-        }
+        const fgm = document.getElementById('flag-game-lobby-modal');
+        if (fgm) openAnimatedModal(fgm);
 
-        const list = document.getElementById('lobby-players-list');
-        if (list) {
-            list.innerHTML = '';
-            playerUids.forEach(uid => {
-                const div = document.createElement('div');
-                div.className = 'selection-item';
-                const isHost = uid === data.hostId;
-                div.innerText = `\u{1F3AE} ${players[uid].name} ${isHost ? '\u{1F451}' : ''}`;
-                list.appendChild(div);
+        // If creator, setup initial game state under games/${chatId}/${gameId} and send invite message
+        if (isCreator) {
+            await set(gameRef, {
+                gameId: gameId,
+                gameType: displayGameType,
+                type: effectiveType,
+                host: myUid,
+                hostId: myUid,
+                creator: myUid,
+                status: 'lobby',
+                players: {
+                    [myUid]: {
+                        name: myName,
+                        gold: 0,
+                        score: 0,
+                        joinedAt: serverTimestamp()
+                    }
+                },
+                createdAt: Date.now()
+            });
+
+            // Send invite message containing gameId and gameType
+            const msgRef = push(ref(db, `messages/${chatId}`));
+            await update(msgRef, {
+                sender: myUid,
+                sender_id: myUid,
+                sender_name: myName,
+                text: `\u{1F3AE} Created a ${displayGameType} lobby!`,
+                isGameInvite: true,
+                gameInvite: true,
+                gameId: gameId,
+                gameType: displayGameType,
+                type: effectiveType,
+                timestamp: Date.now(),
+                createdAt: serverTimestamp(),
+                sender_badge: (isCurrentUserPremium && currentMyBadge) ? currentMyBadge : null
+            });
+
+            await update(gameRef, { inviteMsgId: msgRef.key });
+
+            await update(ref(db, `chats/${chatId}`), {
+                last_message: `\u{1F3AE} ${myName} started a game!`,
+                timestamp: serverTimestamp()
             });
         }
 
-        const startBtn = document.getElementById('start-game-btn');
-        if (startBtn) {
-            const isHost = myUid === data.hostId;
-            const durationGroup = document.getElementById('game-duration-slider').closest('.field-group');
-            if (durationGroup) durationGroup.style.display = (isHost && lobbyType === 'flags') ? 'block' : 'none';
-            const doodleSettings = document.getElementById('doodle-settings');
-            if (doodleSettings) doodleSettings.style.display = (isHost && lobbyType === 'doodle') ? 'flex' : 'none';
-            
-            startBtn.style.display = isHost ? 'block' : 'none';
-            startBtn.disabled = !currentChatData?.isGroup && playerUids.length < 2; // Minimum 2 players
-            startBtn.onclick = async () => {
-                const freshGameSnap = await get(ref(db, `games/${currentChatId}`));
-                const gData = freshGameSnap.val();
-                const freshPlayersList = Object.keys(gData?.players || {});
+        // Join the lobby
+        const playerRef = ref(db, `games/${chatId}/${gameId}/players/${myUid}`);
+        activeLobbyPlayerRef = playerRef;
+        await update(playerRef, {
+            name: myName,
+            gold: 0,
+            score: 0,
+            joinedAt: serverTimestamp()
+        });
+        await update(gameRef, { emptySince: null });
+        onDisconnect(playerRef).remove();
 
-                if (freshPlayersList.length < 2 && currentChatData?.isGroup) {
-                    return showNotification("Waiting for at least one more player to join!", "error");
+        lobbyGameUnsub = onValue(gameRef, async (snap) => {
+            const data = snap.val();
+            if (!data) {
+                closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
+                if (lobbyGameUnsub) {
+                    lobbyGameUnsub();
+                    lobbyGameUnsub = null;
                 }
+                return;
+            }
 
-                if (lobbyType === 'wordle' || lobbyType === 'doodle') {
-                    const typeIsDoodle = lobbyType === 'doodle';
-                    let rounds = 1;
-                    if (typeIsDoodle) {
-                        const activeRoundBtn = document.querySelector('.round-btn.active');
-                        if (activeRoundBtn) rounds = parseInt(activeRoundBtn.getAttribute('data-val'), 10) || 3;
-                    }
-
-                    const playersList = playerUids.length ? playerUids : [auth.currentUser.uid];
-
-                    if (typeIsDoodle) {
-                        const firstDrawerUid = playersList[0];
-                        const options = [];
-                        while (options.length < 3) {
-                            const word = DOODLE_WORDS[Math.floor(Math.random() * DOODLE_WORDS.length)];
-                            if (!options.includes(word)) options.push(word);
-                        }
-
-                        await update(gameRef, {
-                            status: 'choosing',
-                            type: 'doodle',
-                            startedAt: Date.now(),
-                            turnOrder: playersList,
-                            currentTurnIndex: 0,
-                            currentRound: 1,
-                            maxRounds: rounds,
-                            drawer: firstDrawerUid,
-                            drawerUid: firstDrawerUid,
-                            wordOptions: options,
-                            turnExpiresAt: Date.now() + 10000 // 10 seconds to choose
-                        });
-                    } else {
-                        const targetWord = WORD_RUSH_WORDS[Math.floor(Math.random() * WORD_RUSH_WORDS.length)];
-                        await update(gameRef, {
-                            status: 'playing',
-                            type: 'wordle',
-                            targetWord: targetWord,
-                            startedAt: Date.now()
-                        });
-                    }
+            if ((data.status === 'playing' || data.status === 'active' || data.status === 'choosing') && !gameStartedLocally) {
+                gameStartedLocally = true;
+                activeGameId = gameId;
+                activeGameChatId = chatId;
+                if (lobbyGameUnsub) {
+                    lobbyGameUnsub();
+                    lobbyGameUnsub = null;
+                }
+                const resolvedType = normalizeGameTypeKey(data.type || data.gameType || effectiveType);
+                if (resolvedType === 'wordle') {
+                    closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
+                    startWordleGame(data, gameId, chatId);
+                } else if (resolvedType === 'doodle' && data.status !== 'finished') {
+                    closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
+                    startDoodleGame(data, gameId, chatId);
                 } else {
-                    const duration = parseInt(document.getElementById('game-duration-slider').value);
-                    await update(gameRef, {
-                        status: 'active',
-                        type: 'flags',
-                        duration: duration,
-                        endTime: Date.now() + (duration * 60000)
-                    });
+                    startLocalGameUI(data, gameId, chatId);
                 }
-            };
-        }
-    });
+                return;
+            }
+
+            if (data.status === 'finished') {
+                closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
+                if (lobbyGameUnsub) {
+                    lobbyGameUnsub();
+                    lobbyGameUnsub = null;
+                }
+                return;
+            }
+
+            const lobbyType = normalizeGameTypeKey(data.type || data.gameType || effectiveType);
+            if (lobbyTitle) {
+                lobbyTitle.innerText = `Game Settings: ${getGameDisplayTitle(lobbyType)}`;
+            }
+
+            const players = data.players || {};
+            const playerUids = Object.keys(players);
+            const currentHostUid = data.hostId || data.host;
+
+            // Host Transfer Logic: If host is missing, oldest player claims host
+            if (playerUids.length > 0 && (!currentHostUid || !players[currentHostUid])) {
+                let oldestUid = playerUids[0];
+                let oldestTime = players[oldestUid]?.joinedAt || Date.now();
+                for (const uid of playerUids) {
+                    const pTime = players[uid]?.joinedAt || Date.now();
+                    if (pTime < oldestTime) {
+                        oldestUid = uid;
+                        oldestTime = pTime;
+                    }
+                }
+                if (oldestUid === myUid) {
+                    update(gameRef, { host: myUid, hostId: myUid });
+                }
+            }
+
+            const list = document.getElementById('lobby-players-list');
+            if (list) {
+                list.innerHTML = '';
+                playerUids.forEach(uid => {
+                    const div = document.createElement('div');
+                    div.className = 'selection-item';
+                    const isHost = uid === currentHostUid;
+                    div.innerText = `\u{1F3AE} ${getPlayerDisplayName(players[uid])} ${isHost ? '\u{1F451}' : ''}`;
+                    list.appendChild(div);
+                });
+            }
+
+            const startBtn = document.getElementById('start-game-btn');
+            if (startBtn) {
+                const isHost = myUid === currentHostUid;
+                const durationGroup = document.getElementById('game-duration-slider')?.closest('.field-group');
+                if (durationGroup) durationGroup.style.display = (isHost && lobbyType === 'flags') ? 'block' : 'none';
+                const doodleSettings = document.getElementById('doodle-settings');
+                if (doodleSettings) doodleSettings.style.display = (isHost && lobbyType === 'doodle') ? 'flex' : 'none';
+
+                startBtn.style.display = isHost ? 'block' : 'none';
+                startBtn.disabled = !currentChatData?.isGroup && playerUids.length < 2; // Minimum 2 players
+                startBtn.onclick = () => startGame(gameId, chatId);
+            }
+        });
     } catch (err) {
         console.error('[Game] Lobby initialization failed:', err);
-        showNotification('Could not start game: ' + (err.code || err.message), 'error');
+        showNotification('Could not open game lobby: ' + (err.code || err.message), 'error');
         const modal = document.getElementById('flag-game-lobby-modal');
         if (modal) closeAnimatedModal(modal);
     }
@@ -909,6 +1008,7 @@ window.closeFlagsGame = function() {
         flagsGameUnsub();
         flagsGameUnsub = null;
     }
+    gameStartedLocally = false;
     const screen = document.getElementById('flag-game-screen');
     if (screen) {
         closeAnimatedModal(screen);
@@ -922,8 +1022,13 @@ window.closeFlagsGame = function() {
     }
 };
 
-function startLocalGameUI(gameData) {
-    const gameId = currentChatId;
+function startLocalGameUI(gameData, gameId = activeGameId, chatId = activeGameChatId || currentChatId) {
+    if (!chatId || !gameId) {
+        console.error('[Game] startLocalGameUI missing chatId or gameId:', { chatId, gameId });
+        return;
+    }
+    activeGameId = gameId;
+    activeGameChatId = chatId;
     closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
     const flagScreen = document.getElementById('flag-game-screen');
     if (flagScreen) flagScreen.style.display = 'flex';
@@ -969,9 +1074,9 @@ function startLocalGameUI(gameData) {
         if (timeLeft <= 0 && gameData.status !== 'finished') {
             // First client to hit 0 tells Firebase the game is strictly over
             clearInterval(window.flagsGameInterval);
-            await update(ref(db, `games/${gameId}`), { status: 'finished' });
+            await update(ref(db, `games/${chatId}/${gameId}`), { status: 'finished' });
             if (gameData && gameData.inviteMsgId) {
-                update(ref(db, `messages/${gameId}/${gameData.inviteMsgId}`), { expired: true });
+                update(ref(db, `messages/${chatId}/${gameData.inviteMsgId}`), { expired: true });
             }
         }
     }, 1000);
@@ -983,7 +1088,7 @@ function startLocalGameUI(gameData) {
     }
 
     let previousScore = undefined;
-    const gameRef = ref(db, `games/${gameId}`);
+    const gameRef = ref(db, `games/${chatId}/${gameId}`);
 
     flagsGameUnsub = onValue(gameRef, async (snap) => {
         const currentData = snap.val();
@@ -996,9 +1101,9 @@ function startLocalGameUI(gameData) {
             const flagsUi = document.getElementById('flags-game-ui');
             if (flagsUi) flagsUi.style.pointerEvents = 'none'; // Lock inputs instantly
             gameStartedLocally = false;
-            showPodium();
+            showPodium(null, gameId, chatId);
             renderFlagsEndStats(currentData);
-            schedulePodiumCleanup();
+            schedulePodiumCleanup(gameId, chatId);
             return; // Halt further game logic
         }
 
@@ -1026,13 +1131,13 @@ function startLocalGameUI(gameData) {
         if (leader) {
             leader.innerHTML = Object.values(players)
                 .sort((a, b) => (b.gold || 0) - (a.gold || 0))
-                .map(p => `<div><strong>${escapeHTML(p.name || 'Player')}</strong>: $${formatMoney(p.gold || 0)}</div>`)
+                .map(p => `<div><strong>${escapeHTML(getPlayerDisplayName(p))}</strong>: $${formatMoney(p.gold || 0)}</div>`)
                 .join('');
         }
     });
 }
 
-function schedulePodiumCleanup() {
+function schedulePodiumCleanup(gameId = activeGameId, chatId = activeGameChatId || currentChatId) {
     if (podiumCloseTimeout) clearTimeout(podiumCloseTimeout);
     podiumCloseTimeout = setTimeout(() => {
         podiumCloseTimeout = null;
@@ -1040,17 +1145,17 @@ function schedulePodiumCleanup() {
         if (screen && screen.style.display !== 'none') {
             closeAnimatedModal(screen);
         }
-        if (currentChatId) {
-            get(ref(db, `games/${currentChatId}`)).then(snap => {
+        if (chatId && gameId) {
+            get(ref(db, `games/${chatId}/${gameId}`)).then(snap => {
                 if (snap.exists() && snap.val().status === 'finished') {
-                    remove(ref(db, `games/${currentChatId}`));
+                    remove(ref(db, `games/${chatId}/${gameId}`));
                 }
             });
         }
     }, 5 * 60 * 1000); // 5 minutes
 }
 
-async function showPodium(customPlayers = null) {
+async function showPodium(customPlayers = null, gameId = activeGameId, chatId = activeGameChatId || currentChatId) {
     const screen = document.getElementById('flag-game-screen');
     if (screen && (screen.style.display === 'none' || !screen.style.display)) {
         openAnimatedModal(screen);
@@ -1070,12 +1175,14 @@ async function showPodium(customPlayers = null) {
     const isWordle = Array.isArray(customPlayers);
     if (isWordle) {
         sorted = customPlayers;
-    } else {
-        const snap = await get(ref(db, `games/${currentChatId}`));
+    } else if (chatId && gameId) {
+        const snap = await get(ref(db, `games/${chatId}/${gameId}`));
         const gameData = snap.val() || {};
         const players = gameData.players || {};
         sorted = Object.values(players).sort((a, b) => (b.gold || 0) - (a.gold || 0));
         renderFlagsEndStats(gameData);
+    } else {
+        sorted = [];
     }
 
     podiumList.innerHTML = sorted.map((p, i) => {
@@ -1091,7 +1198,7 @@ async function showPodium(customPlayers = null) {
 
         return `
             <div class="podium-card ${i < 3 ? 'top-three' : ''}">
-                <span style="font-weight: 800; font-size: 18px;">${medal} ${escapeHTML(p.name || 'Player')}</span>
+                <span style="font-weight: 800; font-size: 18px;">${medal} ${escapeHTML(getPlayerDisplayName(p))}</span>
                 <span class="podium-gold">${scoreLabel}</span>
             </div>
         `;
@@ -1115,12 +1222,6 @@ async function showPodium(customPlayers = null) {
             const flagsUi = document.getElementById('flags-game-ui');
             if (flagsUi) flagsUi.style.pointerEvents = 'auto';
             closeAnimatedModal(document.getElementById('flag-game-screen'));
-            if (currentChatId) {
-                const snap = await get(ref(db, `games/${currentChatId}`));
-                if (snap.exists() && snap.val().status === 'finished') {
-                    await remove(ref(db, `games/${currentChatId}`));
-                }
-            }
         };
     }
 
@@ -1253,7 +1354,9 @@ let wordleTarget = '';
 let wordleFinished = false;
 let isSubmittingWordle = false;
 
-function startWordleGame(gameData) {
+function startWordleGame(gameData, gameId = activeGameId, chatId = activeGameChatId || currentChatId) {
+    activeGameId = gameId;
+    activeGameChatId = chatId;
     wordleTarget = String(gameData.targetWord || '').toUpperCase();
     currentGuess = '';
     guessHistory = [];
@@ -1321,12 +1424,14 @@ function startWordleGame(gameData) {
             gameStartedLocally = false;
             wordleFinished = true;
             closeAnimatedModal(document.getElementById('wordle-game-screen'));
-            if (currentChatId && auth.currentUser) {
+            if (chatId && gameId && auth.currentUser) {
                 const myUid = auth.currentUser.uid;
-                await remove(ref(db, `games/${currentChatId}/players/${myUid}`));
-                const pSnap = await get(ref(db, `games/${currentChatId}/players`));
+                const pRef = ref(db, `games/${chatId}/${gameId}/players/${myUid}`);
+                try { await onDisconnect(pRef).cancel(); } catch (_) {}
+                await remove(pRef);
+                const pSnap = await get(ref(db, `games/${chatId}/${gameId}/players`));
                 if (!pSnap.exists() || Object.keys(pSnap.val()).length === 0) {
-                    await update(ref(db, `games/${currentChatId}`), { emptySince: serverTimestamp() });
+                    await update(ref(db, `games/${chatId}/${gameId}`), { emptySince: serverTimestamp() });
                 }
             }
         };
@@ -1335,7 +1440,7 @@ function startWordleGame(gameData) {
     const screen = document.getElementById('wordle-game-screen');
     openAnimatedModal(screen);
     if (window.twemoji) twemoji.parse(screen);
-    listenToWordleProgress();
+    listenToWordleProgress(gameId, chatId);
 }
 
 function handleWordleInput(key) {
@@ -1416,8 +1521,9 @@ async function submitWordleGuess() {
         }
 
         // Sync progress
-        if (currentChatId && auth.currentUser) {
-            const myRef = ref(db, `games/${currentChatId}/players/${auth.currentUser.uid}`);
+        const targetChatId = activeGameChatId || currentChatId;
+        if (targetChatId && activeGameId && auth.currentUser) {
+            const myRef = ref(db, `games/${targetChatId}/${activeGameId}/players/${auth.currentUser.uid}`);
             await update(myRef, {
                 attempts: guessHistory.length,
                 won: won,
@@ -1442,13 +1548,13 @@ function updateWordleBoard() {
     }
 }
 
-function listenToWordleProgress() {
-    if (!currentChatId) return;
+function listenToWordleProgress(gameId = activeGameId, chatId = activeGameChatId || currentChatId) {
+    if (!chatId || !gameId) return;
     if (wordleGameUnsub) {
         wordleGameUnsub();
         wordleGameUnsub = null;
     }
-    const gameRef = ref(db, `games/${currentChatId}`);
+    const gameRef = ref(db, `games/${chatId}/${gameId}`);
     wordleGameUnsub = onValue(gameRef, (snap) => {
         const data = snap.val();
         if (!data || data.status === 'finished') return;
@@ -1458,7 +1564,7 @@ function listenToWordleProgress() {
         if (statusDiv) {
             statusDiv.innerHTML = players.map(p =>
                 `<div style="font-size:12px; padding:4px 8px; border-radius:12px; background:${p.finishedAt ? (p.won ? '#4caf50' : '#f44336') : 'rgba(255,255,255,0.1)'}">
-                    ${escapeHTML((p.name || 'Player').split(' ')[0])}: ${p.attempts || 0}/6
+                    ${escapeHTML(getPlayerDisplayName(p).split(' ')[0])}: ${p.attempts || 0}/6
                 </div>`
             ).join('');
         }
@@ -1480,11 +1586,11 @@ function listenToWordleProgress() {
 
             update(gameRef, { status: 'finished' });
             if (data.inviteMsgId) {
-                update(ref(db, `messages/${currentChatId}/${data.inviteMsgId}`), { expired: true });
+                update(ref(db, `messages/${chatId}/${data.inviteMsgId}`), { expired: true });
             }
             closeAnimatedModal(document.getElementById('wordle-game-screen'));
-            showPodium(players); // Hook into existing podium UI
-            schedulePodiumCleanup();
+            showPodium(players, gameId, chatId); // Hook into existing podium UI
+            schedulePodiumCleanup(gameId, chatId);
         }
     });
 }
@@ -1557,12 +1663,13 @@ function hexToRgba(hex) {
 }
 
 window.emitCanvasUpdate = function() {
-    if (!currentChatId || !auth.currentUser) return;
+    const chatId = activeGameChatId || currentChatId;
+    if (!chatId || !activeGameId || !auth.currentUser) return;
     const canvas = document.getElementById('doodle-canvas');
     if (!canvas) return;
     try {
         const dataUrl = canvas.toDataURL('image/png');
-        update(ref(db, `games/${currentChatId}/doodle`), {
+        update(ref(db, `games/${chatId}/${activeGameId}/doodle`), {
             snapshot: dataUrl,
             snapshotAt: Date.now()
         }).catch(err => console.error("Error emitting canvas update:", err));
@@ -1618,8 +1725,9 @@ window.fillCanvas = function(startX, startY, fillColorHex) {
 };
 
 window.selectDoodleWord = async (chosenWord) => {
-    if (!currentChatId) return;
-    const gameRef = ref(db, `games/${currentChatId}`);
+    const chatId = activeGameChatId || currentChatId;
+    if (!chatId || !activeGameId) return;
+    const gameRef = ref(db, `games/${chatId}/${activeGameId}`);
     const snap = await get(gameRef);
     const g = snap.val();
     if (!g || g.status !== 'choosing') return;
@@ -1644,13 +1752,15 @@ window.selectDoodleWord = async (chosenWord) => {
     });
 };
 
-function startDoodleGame(gameData) {
-    if (!currentChatId || !auth.currentUser) return;
+function startDoodleGame(gameData, gameId = activeGameId, chatId = activeGameChatId || currentChatId) {
+    if (!chatId || !gameId || !auth.currentUser) return;
     if (gameData.status === 'finished') return;
     if (gameData.currentTurnIndex === currentDoodleTurn && 
         gameData.currentRound === currentDoodleRound && 
         gameData.status === currentDoodleStatus) return;
 
+    activeGameId = gameId;
+    activeGameChatId = chatId;
     currentDoodleTurn = gameData.currentTurnIndex;
     currentDoodleRound = gameData.currentRound;
     currentDoodleStatus = gameData.status;
@@ -1729,7 +1839,7 @@ function startDoodleGame(gameData) {
                 });
             }
         } else {
-            const drawerName = gameData.players?.[drawerUid]?.name?.split(' ')[0] || 'Drawer';
+            const drawerName = getPlayerDisplayName(gameData.players?.[drawerUid]).split(' ')[0] || 'Drawer';
             if (choiceTitle) choiceTitle.innerText = `${drawerName} is choosing a word...`;
             if (choiceButtons) choiceButtons.innerHTML = '<div style="opacity: 0.6; font-size: 14px; margin-top: 8px;">Get ready to guess!</div>';
         }
@@ -1741,7 +1851,7 @@ function startDoodleGame(gameData) {
             if (leftSec <= 0 && !choiceExpiredTriggered) {
                 choiceExpiredTriggered = true;
                 clearInterval(choiceTimerInterval);
-                if (isDrawer || auth.currentUser.uid === gameData.hostId) {
+                if (isDrawer || auth.currentUser.uid === (gameData.hostId || gameData.host)) {
                     window.selectDoodleWord(options[0] || DOODLE_WORDS[0]);
                 }
             }
@@ -1815,7 +1925,7 @@ function startDoodleGame(gameData) {
                 revealTriggered = true;
                 currentRoundStatus = 'reveal';
                 clearInterval(timerInt);
-                update(ref(db, `games/${currentChatId}`), { status: 'reveal' });
+                update(ref(db, `games/${chatId}/${gameId}`), { status: 'reveal' });
             }
         };
 
@@ -1873,7 +1983,7 @@ function startDoodleGame(gameData) {
                 ctx.lineWidth = size;
                 ctx.stroke();
 
-                push(ref(db, `games/${currentChatId}/doodle/strokes`), {
+                push(ref(db, `games/${chatId}/${gameId}/doodle/strokes`), {
                     x0: lx / cvs.width,
                     y0: ly / cvs.height,
                     x1: p.x / cvs.width,
@@ -1898,17 +2008,19 @@ function startDoodleGame(gameData) {
             currentDoodleStatus = null;
             gameStartedLocally = false;
             closeAnimatedModal(screen);
-            if (currentChatId && auth.currentUser) {
-                await remove(ref(db, `games/${currentChatId}/players/${myUid}`));
-                const pSnap = await get(ref(db, `games/${currentChatId}/players`));
+            if (chatId && gameId && auth.currentUser) {
+                const pRef = ref(db, `games/${chatId}/${gameId}/players/${myUid}`);
+                try { await onDisconnect(pRef).cancel(); } catch (_) {}
+                await remove(pRef);
+                const pSnap = await get(ref(db, `games/${chatId}/${gameId}/players`));
                 if (!pSnap.exists() || Object.keys(pSnap.val()).length === 0) {
-                    await update(ref(db, `games/${currentChatId}`), { emptySince: serverTimestamp() });
+                    await update(ref(db, `games/${chatId}/${gameId}`), { emptySince: serverTimestamp() });
                 }
             }
         };
     }
 
-    const unSubStrokes = onChildAdded(ref(db, `games/${currentChatId}/doodle/strokes`), snap => {
+    const unSubStrokes = onChildAdded(ref(db, `games/${chatId}/${gameId}/doodle/strokes`), snap => {
         if (isDrawer) return;
         const val = snap.val();
         if (!val) return;
@@ -1920,14 +2032,14 @@ function startDoodleGame(gameData) {
         ctx.stroke();
     });
 
-    const unSubClear = onValue(ref(db, `games/${currentChatId}/doodle/clearAt`), snap => {
+    const unSubClear = onValue(ref(db, `games/${chatId}/${gameId}/doodle/clearAt`), snap => {
         if (snap.exists()) {
             ctx.fillStyle = '#ffffff';
             ctx.fillRect(0, 0, cvs.width, cvs.height);
         }
     });
 
-    const unSubSnapshot = onValue(ref(db, `games/${currentChatId}/doodle/snapshot`), snap => {
+    const unSubSnapshot = onValue(ref(db, `games/${chatId}/${gameId}/doodle/snapshot`), snap => {
         if (isDrawer) return;
         const dataUrl = snap.val();
         if (dataUrl) {
@@ -1939,7 +2051,7 @@ function startDoodleGame(gameData) {
         }
     });
 
-    const unSubChat = onChildAdded(ref(db, `games/${currentChatId}/doodle/chat`), snap => {
+    const unSubChat = onChildAdded(ref(db, `games/${chatId}/${gameId}/doodle/chat`), snap => {
         const msg = snap.val();
         if (!msg) return;
         const amDrawer = ((gameData.drawer || gameData.drawerUid) === myUid);
@@ -1966,7 +2078,7 @@ function startDoodleGame(gameData) {
         chatBox.scrollTop = chatBox.scrollHeight;
     });
 
-    const unSubGame = onValue(ref(db, `games/${currentChatId}`), async (snap) => {
+    const unSubGame = onValue(ref(db, `games/${chatId}/${gameId}`), async (snap) => {
         const freshData = snap.val();
         if (!freshData) return;
 
@@ -1989,20 +2101,20 @@ function startDoodleGame(gameData) {
             closeAnimatedModal(screen);
 
             if (freshData.inviteMsgId) {
-                await update(ref(db, `messages/${currentChatId}/${freshData.inviteMsgId}`), { expired: true });
+                await update(ref(db, `messages/${chatId}/${freshData.inviteMsgId}`), { expired: true });
             }
 
-            const players = Object.values(freshData.players || {});
+            const players = Object.values(freshData.players || {}).map(p => (typeof p === 'object' ? { ...p } : { name: String(p), score: 0 }));
             players.sort((a, b) => (b.score || 0) - (a.score || 0));
             players.forEach((p, i) => {
                 p.won = (i === 0 && (p.score || 0) > 0);
                 p.attempts = `${p.score || 0} Pts`;
                 p.scoreLabel = `${p.score || 0} Pts${p.won ? ' \u{1F3C6}' : ''}`;
             });
-            showPodium(players);
-            schedulePodiumCleanup();
+            showPodium(players, gameId, chatId);
+            schedulePodiumCleanup(gameId, chatId);
         } else if (freshData.status !== currentDoodleStatus || freshData.currentTurnIndex !== currentDoodleTurn) {
-            startDoodleGame(freshData);
+            startDoodleGame(freshData, gameId, chatId);
         }
     });
 
@@ -2010,23 +2122,25 @@ function startDoodleGame(gameData) {
 }
 
 window.clearDoodle = async () => {
-    if (!currentChatId) return;
+    const chatId = activeGameChatId || currentChatId;
+    if (!chatId || !activeGameId) return;
     const cvs = document.getElementById('doodle-canvas');
     if (cvs) {
         const ctx = cvs.getContext('2d');
         ctx.fillStyle = '#ffffff';
         ctx.fillRect(0, 0, cvs.width, cvs.height);
     }
-    await remove(ref(db, `games/${currentChatId}/doodle/strokes`));
-    await remove(ref(db, `games/${currentChatId}/doodle/snapshot`));
-    await update(ref(db, `games/${currentChatId}/doodle`), { clearAt: Date.now() });
+    await remove(ref(db, `games/${chatId}/${activeGameId}/doodle/strokes`));
+    await remove(ref(db, `games/${chatId}/${activeGameId}/doodle/snapshot`));
+    await update(ref(db, `games/${chatId}/${activeGameId}/doodle`), { clearAt: Date.now() });
 };
 
 window.advanceDoodleTurn = async (expectedTurnIndex = null) => {
-    if (!currentChatId || isAdvancingDoodleTurn) return;
+    const chatId = activeGameChatId || currentChatId;
+    if (!chatId || !activeGameId || isAdvancingDoodleTurn) return;
     isAdvancingDoodleTurn = true;
     try {
-        const gameRef = ref(db, `games/${currentChatId}`);
+        const gameRef = ref(db, `games/${chatId}/${activeGameId}`);
         const snap = await get(gameRef);
         const g = snap.val();
         if (!g || (g.status !== 'playing' && g.status !== 'reveal' && g.status !== 'choosing')) return;
@@ -2057,10 +2171,10 @@ window.advanceDoodleTurn = async (expectedTurnIndex = null) => {
             if (!options.includes(word)) options.push(word);
         }
 
-        await remove(ref(db, `games/${currentChatId}/doodle/strokes`));
-        await remove(ref(db, `games/${currentChatId}/doodle/chat`));
-        await remove(ref(db, `games/${currentChatId}/doodle/snapshot`));
-        await update(ref(db, `games/${currentChatId}/doodle`), { clearAt: Date.now() });
+        await remove(ref(db, `games/${chatId}/${activeGameId}/doodle/strokes`));
+        await remove(ref(db, `games/${chatId}/${activeGameId}/doodle/chat`));
+        await remove(ref(db, `games/${chatId}/${activeGameId}/doodle/snapshot`));
+        await update(ref(db, `games/${chatId}/${activeGameId}/doodle`), { clearAt: Date.now() });
 
         const updates = {
             status: 'choosing',
@@ -2082,7 +2196,8 @@ window.advanceDoodleTurn = async (expectedTurnIndex = null) => {
 };
 
 window.submitDoodleGuess = async () => {
-    if (!currentChatId || !auth.currentUser || isSubmittingDoodleGuess) return;
+    const chatId = activeGameChatId || currentChatId;
+    if (!chatId || !activeGameId || !auth.currentUser || isSubmittingDoodleGuess) return;
     const input = document.getElementById('doodle-guess-input');
     const guess = input ? input.value.trim() : '';
     if (!guess) return;
@@ -2090,7 +2205,7 @@ window.submitDoodleGuess = async () => {
 
     isSubmittingDoodleGuess = true;
     try {
-        const gameRef = ref(db, `games/${currentChatId}`);
+        const gameRef = ref(db, `games/${chatId}/${activeGameId}`);
         const snap = await get(gameRef);
         const gData = snap.val();
         if (!gData || gData.status !== 'playing') return;
@@ -2098,12 +2213,12 @@ window.submitDoodleGuess = async () => {
         if (!currentWord) return;
 
         const myUid = auth.currentUser.uid;
-        const myName = gData.players?.[myUid]?.name?.split(' ')[0] || 'Player';
+        const myName = getPlayerDisplayName(gData.players?.[myUid]).split(' ')[0] || 'Player';
         const drawerId = gData.drawer || gData.drawerUid;
 
         // If already guessed correct (or drawing), send as hidden chat message
         if (window.localGuessedCorrect || myUid === drawerId) {
-            push(ref(db, `games/${currentChatId}/doodle/chat`), {
+            push(ref(db, `games/${chatId}/${activeGameId}/doodle/chat`), {
                 uid: myUid,
                 name: myName,
                 text: guess,
@@ -2119,15 +2234,15 @@ window.submitDoodleGuess = async () => {
             const timeLeft = Math.max(1, Math.floor((roundExpiresAt - Date.now()) / 1000));
             const points = timeLeft * 10;
 
-            await update(ref(db, `games/${currentChatId}/players/${myUid}`), {
+            await update(ref(db, `games/${chatId}/${activeGameId}/players/${myUid}`), {
                 score: (gData.players?.[myUid]?.score || 0) + points,
                 guessedCorrect: true
             });
-            await update(ref(db, `games/${currentChatId}/players/${drawerId}`), {
+            await update(ref(db, `games/${chatId}/${activeGameId}/players/${drawerId}`), {
                 score: (gData.players?.[drawerId]?.score || 0) + Math.floor(points / 2)
             });
 
-            push(ref(db, `games/${currentChatId}/doodle/chat`), {
+            push(ref(db, `games/${chatId}/${activeGameId}/doodle/chat`), {
                 uid: 'system',
                 text: `${myName} guessed the word!`,
                 isSystem: true
@@ -2142,7 +2257,7 @@ window.submitDoodleGuess = async () => {
                 await update(gameRef, { status: 'reveal' });
             }
         } else {
-            push(ref(db, `games/${currentChatId}/doodle/chat`), {
+            push(ref(db, `games/${chatId}/${activeGameId}/doodle/chat`), {
                 uid: myUid,
                 name: myName,
                 text: guess
@@ -2217,8 +2332,11 @@ window.pickChest = async (idx, event) => {
     const chestsContainer = document.getElementById('chests-container');
     const myUid = auth.currentUser.uid;
     const myName = document.getElementById('current-user-name').innerText;
+    const chatId = activeGameChatId || currentChatId;
+    const gameId = activeGameId;
+    if (!chatId || !gameId) return;
 
-    const playerSnap = await get(ref(db, `games/${currentChatId}/players/${myUid}`));
+    const playerSnap = await get(ref(db, `games/${chatId}/${gameId}/players/${myUid}`));
     const currentGold = playerSnap.val()?.gold || 0;
     
     let goldChange = 0;
@@ -2231,7 +2349,7 @@ window.pickChest = async (idx, event) => {
         const stealPercent = rawResult.includes("10") ? 0.10 : 0.25;
         const stealPercentStr = rawResult.includes("10") ? "10%" : "25%";
         
-        const playersSnap = await get(ref(db, `games/${currentChatId}/players`));
+        const playersSnap = await get(ref(db, `games/${chatId}/${gameId}/players`));
         const allPlayers = playersSnap.val() || {};
         const opponents = Object.keys(allPlayers).filter(uid => String(uid) !== String(myUid));
         
@@ -2248,7 +2366,8 @@ window.pickChest = async (idx, event) => {
             for (const uid of opponents) {
                 const btn = document.createElement('button');
                 btn.className = 'game-option-btn';
-                btn.innerText = `\u{1F464} ${allPlayers[uid].name || "Player"}`;
+                const victimName = getPlayerDisplayName(allPlayers[uid]);
+                btn.innerText = `\u{1F464} ${victimName}`;
                 btn.onclick = async (e) => {
                     e.stopPropagation();
                     const victimGold = allPlayers[uid].gold || 0;
@@ -2257,21 +2376,21 @@ window.pickChest = async (idx, event) => {
                     const stealAmount = amountToSteal;
                     
                     const updates = {};
-                    updates[`games/${currentChatId}/players/${victimUid}/gold`] = increment(-stealAmount);
-                    updates[`games/${currentChatId}/players/${victimUid}/lastStolenBy`] = myName;
-                    updates[`games/${currentChatId}/players/${myUid}/gold`] = increment(stealAmount);
-                    updates[`games/${currentChatId}/scores/${victimUid}`] = increment(-stealAmount);
-                    updates[`games/${currentChatId}/scores/${myUid}`] = increment(stealAmount);
+                    updates[`games/${chatId}/${gameId}/players/${victimUid}/gold`] = increment(-stealAmount);
+                    updates[`games/${chatId}/${gameId}/players/${victimUid}/lastStolenBy`] = myName;
+                    updates[`games/${chatId}/${gameId}/players/${myUid}/gold`] = increment(stealAmount);
+                    updates[`games/${chatId}/${gameId}/scores/${victimUid}`] = increment(-stealAmount);
+                    updates[`games/${chatId}/${gameId}/scores/${myUid}`] = increment(stealAmount);
 
                     // Track extensive stats during gameplay
-                    updates[`games/${currentChatId}/stats/stolenAmount/${auth.currentUser.uid}`] = increment(stealAmount);
-                    updates[`games/${currentChatId}/stats/timesRobbed/${victimUid}`] = increment(1);
-                    updates[`games/${currentChatId}/stats/lostToRobbers/${victimUid}`] = increment(stealAmount);
+                    updates[`games/${chatId}/${gameId}/stats/stolenAmount/${auth.currentUser.uid}`] = increment(stealAmount);
+                    updates[`games/${chatId}/${gameId}/stats/timesRobbed/${victimUid}`] = increment(1);
+                    updates[`games/${chatId}/${gameId}/stats/lostToRobbers/${victimUid}`] = increment(stealAmount);
 
                     await update(ref(db), updates);
                     
                     chestsContainer.style.display = 'none';
-                    prizeDisplay.innerText = `Stole ${stealPercentStr} from ${allPlayers[uid].name}!`;
+                    prizeDisplay.innerText = `Stole ${stealPercentStr} from ${victimName}!`;
                     prizeDisplay.className = 'prize-display win';
                     
                     // Resume timing now that victim is selected
@@ -2308,11 +2427,11 @@ window.pickChest = async (idx, event) => {
     
     if (goldChange !== 0) {
         const updates = {};
-        updates[`games/${currentChatId}/players/${myUid}/gold`] = increment(goldChange);
-        updates[`games/${currentChatId}/scores/${myUid}`] = increment(goldChange);
+        updates[`games/${chatId}/${gameId}/players/${myUid}/gold`] = increment(goldChange);
+        updates[`games/${chatId}/${gameId}/scores/${myUid}`] = increment(goldChange);
         if (goldChange > 0) {
             const rewardAmount = goldChange;
-            updates[`games/${currentChatId}/stats/earned/${auth.currentUser.uid}`] = increment(rewardAmount);
+            updates[`games/${chatId}/${gameId}/stats/earned/${auth.currentUser.uid}`] = increment(rewardAmount);
         }
         await update(ref(db), updates);
     }
@@ -2348,7 +2467,6 @@ document.getElementById('flag-game-screen').onclick = () => {
 };
 
 // Game State
-let activeGameId = null;
 let gameTimerInterval = null;
 let currentFlagTarget = null;
 const COUNTRIES_LIST = [
@@ -3988,12 +4106,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.31';
+const CURRENT_APP_VERSION = '1.2.32';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.31';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.32';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4155,7 +4273,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.31';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.32';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -5877,6 +5995,12 @@ async function openChat(chatId, title) {
     if (initialPinsContainer) {
         initialPinsContainer.innerHTML = '';
     }
+    const initialLobbyBanner = document.getElementById('active-lobby-banner');
+    if (initialLobbyBanner) {
+        initialLobbyBanner.style.display = 'none';
+    }
+    const initialLobbyJoinBtn = document.getElementById('active-lobby-join-btn');
+    if (initialLobbyJoinBtn) initialLobbyJoinBtn.onclick = null;
 
     document.body.classList.add('chat-open');
     // Close members panel if open when switching chats
@@ -5917,6 +6041,8 @@ async function openChat(chatId, title) {
     if (activeTypingOff) activeTypingOff();
     if (activeChatPartnerOff) activeChatPartnerOff();
     if (activeGroupMuteOff) { activeGroupMuteOff(); activeGroupMuteOff = null; }
+    if (activeGamesListOff) { activeGamesListOff(); activeGamesListOff = null; }
+    cleanupLobbyCardListeners();
 
     const initialMuteBanner = document.getElementById('group-muted-banner');
     if (initialMuteBanner) initialMuteBanner.style.display = 'none';
@@ -6120,6 +6246,55 @@ async function openChat(chatId, title) {
                 });
             }
         });
+
+        activeGamesListOff = onValue(ref(db, `games/${chatId}`), (snap) => {
+            if (currentChatId !== chatId) return;
+            const banner = document.getElementById('active-lobby-banner');
+            const textEl = document.getElementById('active-lobby-text');
+            const joinBtn = document.getElementById('active-lobby-join-btn');
+            if (!banner || !textEl || !joinBtn) return;
+
+            const allGames = snap.val();
+            if (!allGames || typeof allGames !== 'object') {
+                banner.style.display = 'none';
+                joinBtn.onclick = null;
+                return;
+            }
+
+            const now = Date.now();
+            const openLobbies = [];
+            Object.entries(allGames).forEach(([gId, gData]) => {
+                if (!gData || typeof gData !== 'object') return;
+                if (gData.status !== 'lobby') return;
+                if (gData.emptySince && (now - gData.emptySince > 5 * 60 * 1000)) return;
+                openLobbies.push({ gameId: gId, ...gData });
+            });
+
+            if (openLobbies.length === 0) {
+                banner.style.display = 'none';
+                joinBtn.onclick = null;
+                return;
+            }
+
+            openLobbies.sort((a, b) => {
+                const timeDiff = (b.createdAt || 0) - (a.createdAt || 0);
+                if (timeDiff !== 0) return timeDiff;
+                return String(b.gameId).localeCompare(String(a.gameId));
+            });
+
+            const latestLobby = openLobbies[0];
+            const lobbyName = latestLobby.gameType || getGameDisplayTitle(latestLobby.type);
+            const playerCount = Object.keys(latestLobby.players || {}).length;
+
+            textEl.innerText = `ACTIVE LOBBY: ${lobbyName} (${playerCount} in lobby)`;
+            if (window.twemoji) twemoji.parse(textEl);
+            banner.style.display = 'flex';
+            joinBtn.onclick = () => {
+                setupGameLobby(normalizeGameTypeKey(latestLobby.type || lobbyName), latestLobby.gameId);
+            };
+        }, (err) => {
+            console.warn('[Game] Active lobby listener error:', err);
+        });
     }
 
     const cont = document.getElementById('messages-container');
@@ -6212,6 +6387,7 @@ async function openChat(chatId, title) {
 
     // Stale-While-Revalidate Local Storage Cache Pattern
     const clearChatContainer = () => {
+        cleanupLobbyCardListeners();
         const children = Array.from(cont.children);
         for (const child of children) {
             if (child !== topSentinel) {
@@ -6344,6 +6520,11 @@ async function openChat(chatId, title) {
     });
 
     const removedOff = onChildRemoved(ref(db, `messages/${chatId}`), (data) => {
+        const unsub = activeLobbyCardUnsubs.get(data.key);
+        if (typeof unsub === 'function') {
+            unsub();
+            activeLobbyCardUnsubs.delete(data.key);
+        }
         const wrap = document.getElementById(`msg-${data.key}`);
         if (wrap) wrap.remove();
     });
@@ -6455,6 +6636,72 @@ document.getElementById('chat-pic-input').onchange = async (e) => {
     reader.readAsDataURL(file);
 };
 
+function attachLobbyCardListener(chatId, messageId, gameId, countBadge, joinBtn, inviteText, lobbyHeaderText) {
+    if (!chatId || !gameId || !countBadge) return;
+    const prevUnsub = activeLobbyCardUnsubs.get(messageId);
+    if (typeof prevUnsub === 'function') prevUnsub();
+
+    const unsub = onValue(ref(db, `games/${chatId}/${gameId}`), (snap) => {
+        if (!countBadge.isConnected || currentChatId !== chatId) return;
+        const gameData = snap.val();
+
+        if (!gameData) {
+            countBadge.innerText = '\u{1F3C1} Finished';
+            countBadge.dataset.status = 'finished';
+            if (inviteText) inviteText.innerText = '\u{1F6A9} GAME CLOSED';
+            if (joinBtn) {
+                joinBtn.disabled = true;
+                joinBtn.innerText = 'Closed';
+                joinBtn.className = 'glass-btn-secondary';
+            }
+            if (window.twemoji) {
+                twemoji.parse(countBadge);
+                if (inviteText) twemoji.parse(inviteText);
+            }
+            return;
+        }
+
+        const status = gameData.status || 'lobby';
+        if (status === 'finished') {
+            countBadge.innerText = '\u{1F3C1} Finished';
+            countBadge.dataset.status = 'finished';
+            if (inviteText) inviteText.innerText = lobbyHeaderText;
+            if (joinBtn) {
+                joinBtn.disabled = true;
+                joinBtn.innerText = 'Finished';
+                joinBtn.className = 'glass-btn-secondary';
+            }
+        } else if (status === 'playing' || status === 'choosing' || status === 'active' || status === 'reveal') {
+            countBadge.innerText = '\u{1F3AE} In Progress';
+            countBadge.dataset.status = 'playing';
+            if (inviteText) inviteText.innerText = lobbyHeaderText;
+            if (joinBtn) {
+                joinBtn.disabled = true;
+                joinBtn.innerText = 'In Progress';
+                joinBtn.className = 'glass-btn-secondary';
+            }
+        } else {
+            const playerCount = Object.keys(gameData.players || {}).length;
+            countBadge.innerText = `\u{1F465} ${playerCount} in lobby`;
+            countBadge.dataset.status = 'lobby';
+            if (inviteText) inviteText.innerText = lobbyHeaderText;
+            if (joinBtn) {
+                joinBtn.disabled = false;
+                joinBtn.innerText = 'Join Game';
+                joinBtn.className = 'glass-btn-primary';
+            }
+        }
+        if (window.twemoji) {
+            twemoji.parse(countBadge);
+            if (inviteText) twemoji.parse(inviteText);
+        }
+    }, (err) => {
+        console.warn('[Game] Lobby card listener error:', err);
+    });
+
+    activeLobbyCardUnsubs.set(messageId, unsub);
+}
+
 function renderMessage(msg, isConsecutive = false, messageId) {
     const cont = document.getElementById('messages-container');
     let wrap = document.getElementById(`msg-${messageId}`);
@@ -6511,23 +6758,45 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     // Handle Game Invite Link
     if (msg.gameInvite || msg.isGameInvite) {
         bubble.classList.add('game-invite-bubble');
-        const inviteType = msg.gameType || 'flags';
+        const inviteType = normalizeGameTypeKey(msg.gameType || msg.type);
+        const msgGameId = msg.gameId || null;
+        const lobbyHeaderText = inviteType === 'wordle'
+            ? "\u{1F4DD} WORD RUSH LOBBY"
+            : (inviteType === 'doodle' ? "\u{1F3A8} DOODLE DASH LOBBY" : "\u{1F6A9} WORLD FLAGS LOBBY");
+
         const inviteText = document.createElement('div');
         inviteText.style.fontWeight = '700';
-        inviteText.innerText = msg.expired ? "\u{1F6A9} GAME CLOSED" : (inviteType === 'wordle' ? "\u{1F4DD} WORD RUSH LOBBY" : (inviteType === 'doodle' ? "\u{1F3A8} DOODLE DASH LOBBY" : "\u{1F6A9} WORLD FLAGS LOBBY"));
+        inviteText.innerText = msg.expired ? "\u{1F6A9} GAME CLOSED" : lobbyHeaderText;
         bubble.appendChild(inviteText);
+
+        let countBadge = null;
+        if (msgGameId) {
+            countBadge = document.createElement('span');
+            countBadge.className = 'lobby-player-count';
+            countBadge.dataset.gameId = msgGameId;
+            countBadge.innerText = msg.expired ? '\u{1F3C1} Finished' : '\u{1F465} 1 in lobby';
+            bubble.appendChild(countBadge);
+        }
 
         const joinBtn = document.createElement('button');
         joinBtn.className = msg.expired ? 'glass-btn-secondary' : 'glass-btn-primary';
         joinBtn.style.marginTop = '10px';
+        joinBtn.style.display = 'block';
         joinBtn.innerText = msg.expired ? 'Closed' : 'Join Game';
         joinBtn.disabled = !!msg.expired;
         joinBtn.onclick = () => {
-            if (msg.expired) return;
-            document.getElementById('flag-game-lobby-modal').style.display = 'flex';
-            setupGameLobby(inviteType);
+            if (joinBtn.disabled) return;
+            if (!msgGameId) {
+                showNotification('This game lobby has expired.', 'info');
+                return;
+            }
+            setupGameLobby(inviteType, msgGameId);
         };
         bubble.appendChild(joinBtn);
+
+        if (msgGameId && currentChatId && currentChatId !== 'channel_orion_updates' && countBadge) {
+            attachLobbyCardListener(currentChatId, messageId, msgGameId, countBadge, joinBtn, inviteText, lobbyHeaderText);
+        }
     }
 
     // Reactions Bar
@@ -8185,8 +8454,6 @@ function setupInputAreaListeners() {
     if (selectFlagGame) {
         selectFlagGame.onclick = () => {
             closeAnimatedModal(document.getElementById('games-library-modal'));
-            const fgm = document.getElementById('flag-game-lobby-modal');
-            if (fgm) fgm.style.display = 'flex';
             setupGameLobby('flags');
         };
     }
@@ -8195,8 +8462,6 @@ function setupInputAreaListeners() {
     if (selectWordleGame) {
         selectWordleGame.onclick = () => {
             closeAnimatedModal(document.getElementById('games-library-modal'));
-            const fgm = document.getElementById('flag-game-lobby-modal');
-            if (fgm) fgm.style.display = 'flex';
             setupGameLobby('wordle');
         };
     }
@@ -8205,8 +8470,6 @@ function setupInputAreaListeners() {
     if (selectDoodleGame) {
         selectDoodleGame.onclick = () => {
             closeAnimatedModal(document.getElementById('games-library-modal'));
-            const fgm = document.getElementById('flag-game-lobby-modal');
-            if (fgm) fgm.style.display = 'flex';
             setupGameLobby('doodle');
         };
     }
@@ -8220,14 +8483,25 @@ function setupInputAreaListeners() {
             }
             gameStartedLocally = false;
             closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
-            if (currentChatId && auth.currentUser) {
+            const targetChatId = activeGameChatId || currentChatId;
+            const targetGameId = activeGameId;
+            activeGameId = null;
+            activeGameChatId = null;
+            if (targetChatId && targetGameId && auth.currentUser) {
                 const myUid = auth.currentUser.uid;
-                await remove(ref(db, `games/${currentChatId}/players/${myUid}`));
+                const pRef = ref(db, `games/${targetChatId}/${targetGameId}/players/${myUid}`);
+                if (activeLobbyPlayerRef) {
+                    try { await onDisconnect(activeLobbyPlayerRef).cancel(); } catch (_) {}
+                    activeLobbyPlayerRef = null;
+                } else {
+                    try { await onDisconnect(pRef).cancel(); } catch (_) {}
+                }
+                await remove(pRef);
 
                 // Track empty lobbies for 5-min closure
-                const pSnap = await get(ref(db, `games/${currentChatId}/players`));
+                const pSnap = await get(ref(db, `games/${targetChatId}/${targetGameId}/players`));
                 if (!pSnap.exists() || Object.keys(pSnap.val()).length === 0) {
-                    await update(ref(db, `games/${currentChatId}`), { emptySince: serverTimestamp() });
+                    await update(ref(db, `games/${targetChatId}/${targetGameId}`), { emptySince: serverTimestamp() });
                 }
             }
         };
@@ -10924,6 +11198,9 @@ function exitChat() {
     if (activeMessagesOff) activeMessagesOff();
     if (activeTypingOff) activeTypingOff();
     if (activeChatPartnerOff) activeChatPartnerOff();
+    if (activeGroupMuteOff) { activeGroupMuteOff(); activeGroupMuteOff = null; }
+    if (activeGamesListOff) { activeGamesListOff(); activeGamesListOff = null; }
+    cleanupLobbyCardListeners();
     
     activeMemberStatusOffs.forEach(offFunc => offFunc());
     activeMemberStatusOffs.clear();
@@ -10945,6 +11222,12 @@ function exitChat() {
     if (pinsContainer) {
         pinsContainer.innerHTML = '';
     }
+    const lobbyBanner = document.getElementById('active-lobby-banner');
+    if (lobbyBanner) {
+        lobbyBanner.style.display = 'none';
+    }
+    const lobbyJoinBtn = document.getElementById('active-lobby-join-btn');
+    if (lobbyJoinBtn) lobbyJoinBtn.onclick = null;
 }
 
 const backBtnEl = document.getElementById('back-to-list');

@@ -425,6 +425,28 @@ body {
     display: flex; 
     flex-direction: column; 
     flex-shrink: 0;
+    min-height: 0;
+    overflow: hidden;
+}
+.members-list,
+#members-list-content {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    overflow-x: hidden;
+    -webkit-overflow-scrolling: touch;
+    overscroll-behavior-y: contain;
+}
+.members-list::-webkit-scrollbar,
+#members-list-content::-webkit-scrollbar,
+.glass-members-sidebar::-webkit-scrollbar {
+    width: 4px;
+}
+.members-list::-webkit-scrollbar-thumb,
+#members-list-content::-webkit-scrollbar-thumb,
+.glass-members-sidebar::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.2);
+    border-radius: 4px;
 }
 .member-item { padding: 12px 20px; font-size: 14px; cursor: pointer; transition: 0.2s; border-bottom: 1px solid rgba(255,255,255,0.02); }
 
@@ -433,7 +455,8 @@ body {
 .tag { background: var(--accent); padding: 5px 10px; border-radius: 20px; font-size: 12px; cursor: pointer; }
 
 /* Messages */
-.msg-wrapper { 
+.msg-wrapper,
+.message-wrapper { 
     display: flex; 
     flex-direction: column; 
     max-width: 85%; 
@@ -732,10 +755,13 @@ input {
     }
 }
 
-.msg-action-menu {
+.msg-action-menu,
+.message-action-menu {
     position: absolute;
     right: 0;
-    top: 25px; /* Appear slightly below the arrow */
+    top: 0px;
+    margin-top: 0;
+    margin-bottom: 0;
     background: rgba(15, 15, 25, 0.8);
     backdrop-filter: blur(25px);
     border: 1px solid var(--glass-border);
@@ -763,9 +789,11 @@ input {
     z-index: 501;
 }
 
-.rcv .msg-action-menu {
+.rcv .msg-action-menu,
+.rcv .message-action-menu {
     right: auto;
     left: 0;
+    top: 0px;
 }
 
 .msg-action-menu button {
@@ -1517,6 +1545,12 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
     box-shadow: 0 -5px 15px rgba(0, 0, 0, 0.3); /* Adds depth to show it's on top */
 }
 #message-input { flex: 1; background: none; border: none; color: var(--text); padding: 10px; outline: none; z-index: 10; user-select: text; }
+#message-input:focus,
+#message-input:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+}
 #message-input::placeholder { color: var(--text); opacity: 0.5; }
 
 .send-icon-btn { width: 40px; height: 40px; background: var(--accent); border: none; border-radius: 50%; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; transition: 0.2s; }
@@ -1907,8 +1941,10 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
         padding-top: 10px;
     }
     /* Adjust padding of members-list-content to not overlap with close button */
-    #members-list-content {
+    #members-list-content,
+    .members-list {
         padding-top: 50px; /* Make space for the close button */
+        padding-bottom: 24px;
     }
 
     body.members-open #chat-members-sidebar.glass-members-sidebar {
@@ -2265,10 +2301,12 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
 
     /* Message Bubble & Action Menu Constraints */
     .msg-wrapper { max-width: 85% !important; min-width: 0 !important; }
-    .sent .msg-action-menu {
+    .sent .msg-action-menu,
+    .sent .message-action-menu {
         right: auto;
         left: 0;
         margin-left: 0;
+        top: 0px;
     }
     #reply-preview-bar, #edit-preview-bar {
         bottom: 85px;
@@ -2949,7 +2987,8 @@ body.theme-retro .chat-link.dm-link.active {
     background: color-mix(in srgb, var(--accent) 16%, #ffffff);
     border-left: 3px solid var(--accent);
 }
-body.theme-retro .pinned-message-banner {
+body.theme-retro .pinned-message-banner,
+body.theme-retro #active-lobby-banner {
     background: linear-gradient(180deg, #f9fbff 0%, #e4ecf7 100%);
     border-bottom: 1px solid #9cb1c6;
 }
@@ -3781,6 +3820,27 @@ body.theme-high-contrast .input-wrapper { border: 2px solid #fff; background: #0
     padding: 15px !important;
 }
 
+.lobby-player-count {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-top: 6px;
+    padding: 3px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.12);
+    border: 1px solid rgba(255, 255, 255, 0.18);
+    color: var(--text, #ffffff);
+}
+
+body.theme-light .lobby-player-count,
+body.theme-retro .lobby-player-count {
+    background: rgba(0, 0, 0, 0.06);
+    border-color: rgba(0, 0, 0, 0.14);
+    color: var(--text-main, #1e293b);
+}
+
 .steal-overlay {
     position: fixed;
     inset: 0;
@@ -4061,6 +4121,12 @@ body.theme-high-contrast .input-wrapper { border: 2px solid #fff; background: #0
 /* Visible keyboard focus everywhere */
 button:focus-visible, input:focus-visible, textarea:focus-visible, [tabindex]:focus-visible,
 .user-profile-btn:focus-visible { outline: none; box-shadow: var(--focus-ring); }
+#message-input:focus,
+#message-input:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+}
 
 /* Sidebar: profile card + clear primary / secondary actions */
 .user-profile-btn { margin: 14px 14px 10px; }
@@ -4217,7 +4283,6 @@ body.liquid-glass .setting-card input {
         0 8px 22px rgb(0 0 0 / .2);
     transition: box-shadow .35s ease, border-color .35s ease, background .35s ease;
 }
-body.liquid-glass .input-wrapper:focus-within,
 body.liquid-glass .sidebar-search input:focus,
 body.liquid-glass .setting-card input:focus {
     border-color: color-mix(in srgb, var(--accent) 55%, #fff);
@@ -4227,7 +4292,16 @@ body.liquid-glass .setting-card input:focus {
         0 0 0 3px color-mix(in srgb, var(--accent) 32%, transparent),
         0 10px 30px color-mix(in srgb, var(--accent) 38%, transparent);
 }
+body.liquid-glass .input-wrapper:focus-within {
+    outline: none !important;
+}
 body.liquid-glass .input-wrapper #message-input { background: transparent; box-shadow: none; }
+body.liquid-glass .input-wrapper #message-input:focus,
+body.liquid-glass .input-wrapper #message-input:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+}
 body.liquid-glass #message-input::placeholder { opacity: .6; }
 body.liquid-glass #message-input::selection { background: color-mix(in srgb, var(--accent) 55%, transparent); color: inherit; }
 
@@ -5454,6 +5528,66 @@ body.theme-light .pinned-item:hover {
     background: rgba(0, 0, 0, 0.04);
 }
 
+/* ---------------- ACTIVE LOBBY TOP BANNER ---------------- */
+#active-lobby-banner {
+    display: none;
+    align-items: center;
+    justify-content: space-between;
+    gap: 10px;
+    padding: 8px 14px;
+    background: color-mix(in srgb, var(--accent), rgba(18, 20, 32, 0.85) 84%);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border-bottom: 1px solid var(--glass-border);
+    flex-shrink: 0;
+    z-index: 44;
+    min-width: 0;
+    overflow: hidden;
+}
+
+#active-lobby-text {
+    font-size: 12.5px;
+    font-weight: 700;
+    letter-spacing: 0.3px;
+    color: var(--text, #ffffff);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    min-width: 0;
+    flex: 1;
+}
+
+#active-lobby-join-btn {
+    flex-shrink: 0;
+    padding: 5px 14px;
+    border-radius: 999px;
+    border: none;
+    background: var(--accent);
+    color: #ffffff;
+    font-size: 12px;
+    font-weight: 700;
+    cursor: pointer;
+    transition: transform 0.15s ease, filter 0.15s ease;
+}
+
+#active-lobby-join-btn:hover {
+    filter: brightness(1.1);
+    transform: translateY(-1px);
+}
+
+#active-lobby-join-btn:active {
+    transform: scale(0.96);
+}
+
+body.theme-light #active-lobby-banner {
+    background: color-mix(in srgb, var(--accent), #f4f6fb 88%);
+}
+
+body.theme-light #active-lobby-text,
+body.theme-retro #active-lobby-text {
+    color: var(--text-main, #1e293b);
+}
+
 /* Custom Doodle UI Controls */
 .round-btn {
     background: transparent;
@@ -5530,6 +5664,17 @@ body.theme-light .pinned-item:hover {
         transform-origin: 0 0 !important;
     }
 }
+
+/* Chat Input Focus Normalization: Clean flat styling without outline or glow */
+#message-input:focus,
+#message-input:focus-visible,
+.input-wrapper #message-input:focus,
+.input-wrapper #message-input:focus-visible {
+    outline: none !important;
+    box-shadow: none !important;
+    border-color: transparent !important;
+}
+
 
 
 

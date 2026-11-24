@@ -119,7 +119,7 @@
             </div>
         </div>
 
-        <div class="glass-main chat-container">
+        <div class="glass-main chat-container" id="chat-container">
             <div id="chat-header" class="chat-header-glass chat-header">
                 <button id="hamburger-btn" class="hamburger-btn" aria-label="Open sidebar menu" title="Open menu">
                     <span class="hamburger-bar"></span>
@@ -149,11 +149,16 @@
                 <div id="pinned-messages-container"></div>
             </div>
 
+            <div id="active-lobby-banner" style="display: none;">
+                <span id="active-lobby-text">ACTIVE LOBBY: </span>
+                <button type="button" id="active-lobby-join-btn">Join</button>
+            </div>
+
             <div class="chat-body-wrapper">
                 <div id="messages-container" class="messages-container"></div>
                 <div id="chat-members-sidebar" class="glass-members-sidebar">
                     <div class="section-header">MEMBERS</div>
-                    <div id="members-list-content"></div>
+                    <div id="members-list-content" class="members-list"></div>
                     <button id="open-subchannel-modal-btn" class="glass-btn-secondary" style="margin: 10px; display: none; font-size: 11px;">+ New Chat/Channel</button>
                 </div>
             </div>
@@ -199,7 +204,7 @@
                     You have been muted by a moderator.
                 </div>
 
-                <div class="input-wrapper">
+                <div class="input-wrapper" id="message-input-wrapper">
                     <button id="emoji-btn" class="emoji-trigger-btn" title="Add Emoji">😊</button>
                     <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
                     
@@ -533,7 +538,7 @@
                         <div class="setting-card">
                             <h5>Display Name</h5>
                             <small>Change your public display name. Updates automatically.</small>
-                            <input type="text" id="settings-display-name" maxlength="80" placeholder="Your name" autocomplete="nickname">
+                            <input type="text" id="settings-display-name" maxlength="15" placeholder="Your name (max 15 chars)" autocomplete="nickname">
                             <small id="settings-name-msg" class="settings-msg" style="display: block; margin-top: 4px;"></small>
                         </div>
                         <div class="setting-card">
@@ -553,7 +558,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.2.21</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.2.32</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>
@@ -901,6 +906,13 @@
     <!-- Active Flag Game Screen -->
     <div id="flag-game-screen" class="modal">
         <div id="flags-game-ui" class="game-ui-container" style="width: 100%; max-width: 800px; padding: 20px; text-align: center;">
+            <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 15px;">
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span style="font-size: 20px;">🚩</span>
+                    <span id="flags-score-display" style="font-size: 18px; font-weight: 700; color: #ffd700;">$0</span>
+                </div>
+                <button type="button" id="close-flags-btn" class="glass-btn-secondary" onclick="closeFlagsGame()" style="padding: 6px 12px; font-size: 14px; cursor: pointer;" aria-label="Close">✕</button>
+            </div>
             <div id="flags-timer" style="font-size: 32px; font-weight: 800; color: #ffd700; margin-bottom: 20px;">0s</div>
             <div id="game-timer" style="display: none;"></div>
             
