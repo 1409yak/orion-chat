@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Doodle Dash Timer Sync:* Replaced local `Date.now()` comparisons with Firebase `.info/serverTimeOffset` via `window.getServerTime()` so word-selection and round countdowns stay synchronized across devices with different system clocks.
+
 - *Multi-Lobby & Game Start Fix:* Migrated game lobbies from a single `games/${chatId}` slot to unique `games/${chatId}/${gameId}` keys so multiple users can host lobbies without overwriting or blocking each other. Fixed `startGame` state transitions and listener binding, added live player counters to lobby chat cards, and added an `ACTIVE LOBBY: {Game Name}` banner near the pinned messages bar.
 
 - *Game UI Fixes:* Wired up `closeFlagsGame()` to properly hide the World Flags UI and clear the `flagsGameInterval` to prevent background memory leaks. Introduced a global `formatMoney` helper using `toLocaleString('en-US')` to render large currency values with commas across the game UI and stats panel.

@@ -59,6 +59,15 @@ const auth = getAuth(app);
 const db = getDatabase(app);
 const messaging = getMessaging(app);
 
+window.serverTimeOffset = 0;
+onValue(ref(db, '.info/serverTimeOffset'), (snap) => {
+    window.serverTimeOffset = snap.val() || 0;
+});
+
+window.getServerTime = function() {
+    return Date.now() + window.serverTimeOffset;
+};
+
 // Global currency formatter
 window.formatMoney = function(amount) {
     return Number(amount || 0).toLocaleString('en-US');
@@ -659,7 +668,7 @@ async function startGame(gameId, chatId = activeGameChatId || currentChatId) {
         }
 
         const lobbyType = normalizeGameTypeKey(gData.type || gData.gameType);
-        const now = Date.now();
+        const now = window.getServerTime();
 
         if (lobbyType === 'doodle') {
             let rounds = 3;
@@ -1735,7 +1744,7 @@ window.selectDoodleWord = async (chosenWord) => {
     const word = chosenWord || (g.wordOptions && g.wordOptions[0]) || DOODLE_WORDS[0];
     const requestedRoundTime = (word.length * 5 + 30) * 1000;
     const roundDuration = Math.max(30000, requestedRoundTime);
-    const now = Date.now();
+    const now = window.getServerTime();
     const updatedUsedWords = [...(g.usedWords || []), word];
 
     await update(gameRef, {
@@ -1846,7 +1855,7 @@ function startDoodleGame(gameData, gameId = activeGameId, chatId = activeGameCha
 
         let choiceExpiredTriggered = false;
         const updateChoiceTimer = () => {
-            const leftSec = Math.max(0, Math.ceil(((gameData.turnExpiresAt || (Date.now() + 10000)) - Date.now()) / 1000));
+            const leftSec = Math.max(0, Math.ceil(((gameData.turnExpiresAt || (window.getServerTime() + 10000)) - window.getServerTime()) / 1000));
             if (choiceTimer) choiceTimer.innerText = `${leftSec}s`;
             if (leftSec <= 0 && !choiceExpiredTriggered) {
                 choiceExpiredTriggered = true;
@@ -1885,14 +1894,15 @@ function startDoodleGame(gameData, gameId = activeGameId, chatId = activeGameCha
         let revealTimeoutId = null;
         let revealTriggered = false;
 
-        const roundExpiresAt = gameData.roundExpiresAt || gameData.turnEndTime || (Date.now() + 30000);
-        const roundStartTime = gameData.roundStartTime || gameData.startedAt || (Date.now() - 1000);
+        const roundExpiresAt = gameData.roundExpiresAt || gameData.turnEndTime || (window.getServerTime() + 30000);
+        const roundStartTime = gameData.roundStartTime || gameData.startedAt || (window.getServerTime() - 1000);
         const currentWord = gameData.targetWord || gameData.word || "";
 
         const updateTimerText = () => {
             if (currentRoundStatus !== 'playing') return;
-            const timeLeft = Math.max(0, Math.floor((roundExpiresAt - Date.now()) / 1000));
-            const timeElapsed = Date.now() - roundStartTime;
+            const serverNow = window.getServerTime();
+            const timeLeft = Math.max(0, Math.floor((roundExpiresAt - serverNow) / 1000));
+            const timeElapsed = serverNow - roundStartTime;
 
             let displayWord = "";
             if (isDrawer) {
@@ -2183,7 +2193,7 @@ window.advanceDoodleTurn = async (expectedTurnIndex = null) => {
             drawer: nextDrawerUid,
             drawerUid: nextDrawerUid,
             wordOptions: options,
-            turnExpiresAt: Date.now() + 10000 // 10 seconds to choose
+            turnExpiresAt: window.getServerTime() + 10000 // 10 seconds to choose
         };
         Object.keys(g.players || {}).forEach(uid => {
             updates[`players/${uid}/guessedCorrect`] = null;
@@ -2230,8 +2240,8 @@ window.submitDoodleGuess = async () => {
         if (guess.toLowerCase() === currentWord.toLowerCase()) {
             window.localGuessedCorrect = true;
             input.placeholder = 'Guessed! Chat with winners...';
-            const roundExpiresAt = gData.roundExpiresAt || gData.turnEndTime || (Date.now() + 30000);
-            const timeLeft = Math.max(1, Math.floor((roundExpiresAt - Date.now()) / 1000));
+            const roundExpiresAt = gData.roundExpiresAt || gData.turnEndTime || (window.getServerTime() + 30000);
+            const timeLeft = Math.max(1, Math.floor((roundExpiresAt - window.getServerTime()) / 1000));
             const points = timeLeft * 10;
 
             await update(ref(db, `games/${chatId}/${activeGameId}/players/${myUid}`), {
@@ -4106,12 +4116,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.32';
+const CURRENT_APP_VERSION = '1.2.33';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.32';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.33';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4273,7 +4283,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.32';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.33';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
