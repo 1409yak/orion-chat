@@ -1,6 +1,6 @@
 {
-  "version": "1.2.32",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.32/bundle.zip",
-  "checksum": "f799d46b7eb90a028829b3b61f1ea3745d55a909629e1d89fffa0842ddcc31d7",
-  "notes": "Fixed games not starting, added multi-lobby support, live player counters, and an Active Lobby banner!"
+  "version": "1.2.33",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.33/bundle.zip",
+  "checksum": "00d1a2bf06e637db96a0ebcbb0f30122ed9e09139e9ba045e8c5c1cc7718f525",
+  "notes": "Fixed Doodle Dash timer sync across devices."
 }
