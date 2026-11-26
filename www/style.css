@@ -1015,15 +1015,20 @@ body.liquid-glass .sticker-bubble {
     display: none;
     align-items: center;
     justify-content: space-between;
+    gap: 10px;
     backdrop-filter: blur(40px);
     border: 1px solid var(--glass-border);
-    border-radius: 25px;
-    padding: 8px 16px;
+    border-radius: 14px;
+    padding: 8px 14px;
     position: absolute;
     bottom: 95px;
-    width: min(80%, 600px);
-    left: 20px;
-    transform: none;
+    width: calc(100% - 24px);
+    max-width: 680px;
+    left: 50%;
+    transform: translateX(-50%);
+    margin: 0 auto;
+    box-sizing: border-box;
+    overflow: hidden;
     z-index: 100;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
     transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
@@ -1039,24 +1044,41 @@ body.liquid-glass .sticker-bubble {
     border-color: color-mix(in srgb, var(--accent), transparent 70%);
 }
 
-#reply-preview-text, #edit-preview-text { 
-    flex: 1; 
-    font-size: 13px; 
-    opacity: 0.7; 
-    padding: 0 15px; 
-    overflow: hidden; 
-    text-overflow: ellipsis; 
-    white-space: nowrap; 
-    min-width: 0; /* Allows flex item to shrink and trigger ellipsis */
+#reply-preview-bar .edit-info,
+#edit-preview-bar .edit-info {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    overflow: hidden;
 }
 
-.edit-info small, 
-#reply-info-title { 
-    font-weight: 700; 
-    font-size: 11px; 
+#reply-preview-text, #edit-preview-text {
+    width: 100%;
+    font-size: 13px;
     opacity: 0.7;
-    text-transform: uppercase; 
+    padding: 0 4px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    min-width: 0; /* Allows flex item to shrink and trigger ellipsis */
+    text-align: center;
+    box-sizing: border-box;
+}
+
+.edit-info small,
+#reply-info-title {
+    font-weight: 700;
+    font-size: 11px;
+    opacity: 0.7;
+    text-transform: uppercase;
     letter-spacing: 0.5px;
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
 }
 
 /* Minimalist Typing Indicator */
@@ -2322,10 +2344,12 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
     }
     #reply-preview-bar, #edit-preview-bar {
         bottom: 85px;
-        width: calc(100% - 40px);
-        left: 20px;
-        margin: 0 !important;
-        padding: 8px 15px !important;
+        width: calc(100% - 24px);
+        max-width: 680px;
+        left: 50%;
+        transform: translateX(-50%);
+        margin: 0 auto !important;
+        padding: 8px 14px !important;
     }
 
     /* Mobile Bottom Sheet Modal Transitions (translate3d, cubic-bezier, no blur animation) */
@@ -2740,9 +2764,15 @@ img.emoji {
     display: flex;
     align-items: center;
     justify-content: center;
+    flex-shrink: 0;
     font-size: 10px;
     transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
     margin-left: 10px;
+}
+
+#reply-preview-bar .cancel-edit-btn,
+#edit-preview-bar .cancel-edit-btn {
+    margin-left: 0;
 }
 
 .cancel-edit-btn:hover {

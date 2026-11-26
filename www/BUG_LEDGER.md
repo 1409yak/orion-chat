@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Chat Reply UI Fixes:* Added top/bottom viewport clamping to the message Reply/Pin action menu so it never clips outside chat borders on top or bottom messages. Centered the 'Replying to' preview bar above the input with clean text ellipsis.
+
 - *Admin Panel Premium UX:* Added a unified live search bar filtering users by both username and email simultaneously, and replaced static tier controls with a color-coded sliding segmented control to visually display and toggle each user's premium tier.
 
 - *Doodle Dash Early Round Advance:* Added a check on correct guesses comparing `guessedPlayers` against all non-drawing players in `gameData.players`. When everyone has guessed, the round immediately clears `guessedPlayers` and transitions to the next drawer instead of waiting for the timer to expire.

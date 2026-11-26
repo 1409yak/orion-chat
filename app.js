@@ -3288,7 +3288,7 @@ function positionActionMenu(actionMenu, bubble, wrap, e) {
     actionMenu.style.right = 'auto';
     actionMenu.style.left = '0px';
     actionMenu.style.bottom = 'auto';
-    actionMenu.style.top = `${bubble.offsetTop || 0}px`;
+    actionMenu.style.top = '0px';
     actionMenu.style.display = 'flex';
 
     wrap.style.zIndex = '100';
@@ -3296,21 +3296,46 @@ function positionActionMenu(actionMenu, bubble, wrap, e) {
     bubble.style.zIndex = '100';
     bubble.style.position = 'relative';
 
+    const margin = 8; // Safe breathing room from top/bottom/side edges
+    const chatContainer = document.getElementById('messages-container') || document.getElementById('chat-container');
+    const rawContainerRect = chatContainer
+        ? chatContainer.getBoundingClientRect()
+        : { top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight, width: window.innerWidth, height: window.innerHeight };
+
+    const boundsTop = Math.max(rawContainerRect.top, 0);
+    const boundsBottom = Math.min(rawContainerRect.bottom, window.innerHeight);
+    const boundsLeft = Math.max(rawContainerRect.left, 0);
+    const boundsRight = Math.min(rawContainerRect.right, window.innerWidth);
+
     const bubbleRect = bubble.getBoundingClientRect();
     const menuRect = actionMenu.getBoundingClientRect();
+    const menuWidth = actionMenu.offsetWidth || menuRect.width;
+    const menuHeight = actionMenu.offsetHeight || menuRect.height;
     const parentRect = (actionMenu.offsetParent || bubble).getBoundingClientRect();
-    const padding = 10;
+
+    // Calculate desired top in viewport coordinates and clamp within chat bounds
+    let targetTop = bubbleRect.top;
+    const minTop = boundsTop + margin;
+    const maxTop = Math.max(minTop, boundsBottom - menuHeight - margin);
+    if (targetTop > maxTop) {
+        targetTop = maxTop;
+    }
+    if (targetTop < minTop) {
+        targetTop = minTop;
+    }
 
     actionMenu.style.bottom = 'auto';
-    actionMenu.style.top = `${bubble.offsetTop || 0}px`;
+    actionMenu.style.top = `${targetTop - parentRect.top}px`;
 
     const rawX = (e && typeof e.clientX === 'number' && e.clientX > 0) ? e.clientX : bubbleRect.left;
     let leftPos = rawX;
-    if (leftPos + menuRect.width > window.innerWidth - padding) {
-        leftPos = window.innerWidth - menuRect.width - padding;
+    const minLeft = boundsLeft + margin;
+    const maxLeft = Math.max(minLeft, boundsRight - menuWidth - margin);
+    if (leftPos > maxLeft) {
+        leftPos = maxLeft;
     }
-    if (leftPos < padding) {
-        leftPos = padding;
+    if (leftPos < minLeft) {
+        leftPos = minLeft;
     }
 
     actionMenu.style.left = `${leftPos - parentRect.left}px`;
@@ -3366,34 +3391,36 @@ function openMessageContextMenu(messageId, msg, isMe, posX, posY) {
     const copyBtn = document.getElementById('ctx-action-copy');
     if (copyBtn) copyBtn.style.display = canCopy ? 'flex' : 'none';
 
+    if (window.twemoji) twemoji.parse(sheet);
+
     const isMobile = window.innerWidth <= 768;
     if (isMobile) {
         sheet.classList.add('mobile-bottom-docked');
         sheet.style.left = '';
         sheet.style.top = '';
+        sheet.classList.remove('hidden');
     } else {
         sheet.classList.remove('mobile-bottom-docked');
-        const sheetWidth = 250;
-        const sheetHeight = 220;
-        let left = posX || (window.innerWidth / 2 - 125);
-        let top = posY || (window.innerHeight / 2 - 110);
+        sheet.classList.remove('hidden');
+        const margin = 8;
+        const sheetRect = sheet.getBoundingClientRect();
+        const sheetWidth = sheet.offsetWidth || sheetRect.width || 250;
+        const sheetHeight = sheet.offsetHeight || sheetRect.height || 220;
+        let left = (typeof posX === 'number' && posX > 0) ? posX : (window.innerWidth / 2 - sheetWidth / 2);
+        let top = (typeof posY === 'number' && posY > 0) ? posY : (window.innerHeight / 2 - sheetHeight / 2);
 
-        if (left + sheetWidth > window.innerWidth - 16) {
-            left = window.innerWidth - sheetWidth - 16;
-        }
-        if (left < 16) left = 16;
+        const maxLeft = Math.max(margin, window.innerWidth - sheetWidth - margin);
+        if (left > maxLeft) left = maxLeft;
+        if (left < margin) left = margin;
 
-        if (top + sheetHeight > window.innerHeight - 16) {
-            top = window.innerHeight - sheetHeight - 16;
-        }
-        if (top < 16) top = 16;
+        const maxTop = Math.max(margin, window.innerHeight - sheetHeight - margin);
+        if (top > maxTop) top = maxTop;
+        if (top < margin) top = margin;
 
         sheet.style.left = `${left}px`;
         sheet.style.top = `${top}px`;
     }
 
-    if (window.twemoji) twemoji.parse(sheet);
-    sheet.classList.remove('hidden');
     if (backdrop) backdrop.classList.remove('hidden');
 }
 
@@ -4058,19 +4085,32 @@ async function deleteSticker(stickerId) {
     }
 }
 
-// Global click listener to close message action menus
-document.addEventListener('click', (e) => {
+function resetMessageActionMenus(clickTarget = null) {
     document.querySelectorAll('.msg-action-menu').forEach(menu => {
-        if (!menu.parentElement.contains(e.target)) {
-            menu.style.display = 'none';
-            menu.style.transform = '';
-            const parentWrap = menu.closest('.msg-wrapper');
-            if (parentWrap) {
-                parentWrap.style.zIndex = '';
-                parentWrap.style.position = '';
-            }
+        if (menu.classList.contains('plus-popup')) return;
+        if (clickTarget && menu.parentElement && menu.parentElement.contains(clickTarget)) return;
+        menu.style.display = 'none';
+        menu.style.transform = '';
+        menu.style.top = '';
+        menu.style.bottom = '';
+        menu.style.left = '';
+        menu.style.right = '';
+        const parentWrap = menu.closest('.msg-wrapper');
+        if (parentWrap) {
+            parentWrap.style.zIndex = '';
+            parentWrap.style.position = '';
+        }
+        const parentBubble = menu.closest('.msg-bubble');
+        if (parentBubble) {
+            parentBubble.style.zIndex = '';
+            parentBubble.style.position = '';
         }
     });
+}
+
+// Global click listener to close message action menus
+document.addEventListener('click', (e) => {
+    resetMessageActionMenus(e.target);
 });
 
 async function toggleReaction(messageId, emoji) {
@@ -4218,12 +4258,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.37';
+const CURRENT_APP_VERSION = '1.2.38';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.37';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.38';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4385,7 +4425,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.37';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.38';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -7240,22 +7280,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     const toggleMenu = (e) => {
         if (e) e.stopPropagation();
         const isOpening = actionMenu.style.display === 'none' || !actionMenu.style.display;
-        document.querySelectorAll('.msg-action-menu').forEach(m => { 
-            m.style.display = 'none'; 
-            m.style.transform = '';
-            m.style.left = '';
-            m.style.right = '';
-            const p = m.closest('.msg-wrapper');
-            if (p) {
-                p.style.zIndex = '';
-                p.style.position = '';
-            }
-            const b = m.closest('.msg-bubble');
-            if (b) {
-                b.style.zIndex = '';
-                b.style.position = '';
-            }
-        });
+        resetMessageActionMenus();
         if (isOpening) {
             positionActionMenu(actionMenu, bubble, wrap, e);
         } else {
@@ -7633,22 +7658,7 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
     const toggleStickerMenu = (e) => {
         if (e) e.stopPropagation();
         const isOpening = actionMenu.style.display === 'none' || !actionMenu.style.display;
-        document.querySelectorAll('.msg-action-menu').forEach(m => { 
-            m.style.display = 'none'; 
-            m.style.transform = '';
-            m.style.left = '';
-            m.style.right = '';
-            const p = m.closest('.msg-wrapper');
-            if (p) {
-                p.style.zIndex = '';
-                p.style.position = '';
-            }
-            const b = m.closest('.msg-bubble');
-            if (b) {
-                b.style.zIndex = '';
-                b.style.position = '';
-            }
-        });
+        resetMessageActionMenus();
         if (isOpening) {
             positionActionMenu(actionMenu, bubble, wrap, e);
         } else {
