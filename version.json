@@ -1,6 +1,6 @@
 {
-  "version": "1.2.34",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.34/bundle.zip",
-  "checksum": "05439e11a21b6d24429a12c494540bda3402be3ca8bddab5af26d785e7832022",
-  "notes": "Updated payment options—you can now contact an admin directly from the app."
+  "version": "1.2.35",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.35/bundle.zip",
+  "checksum": "438e22174ce3f7ac6cb74051054088842e8db980757c52f62d02c3acc5eae260",
+  "notes": "Fixed PC camera capture and attachment menu hover cursor."
 }
