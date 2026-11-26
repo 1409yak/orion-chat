@@ -1,6 +1,6 @@
 {
-  "version": "1.2.33",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.33/bundle.zip",
-  "checksum": "00d1a2bf06e637db96a0ebcbb0f30122ed9e09139e9ba045e8c5c1cc7718f525",
-  "notes": "Fixed Doodle Dash timer sync across devices."
+  "version": "1.2.34",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.34/bundle.zip",
+  "checksum": "05439e11a21b6d24429a12c494540bda3402be3ca8bddab5af26d785e7832022",
+  "notes": "Updated payment options—you can now contact an admin directly from the app."
 }
