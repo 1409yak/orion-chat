@@ -7,6 +7,7 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
     <link rel="icon" type="image/png" href="orion.png">
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="beta-redesign.css">
     <script src="https://unpkg.com/html5-qrcode"></script>
     <script src="https://unpkg.com/twemoji@latest/dist/twemoji.min.js" crossorigin="anonymous"></script>
     <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
@@ -67,11 +68,21 @@
     <div id="app-container" style="display: none;">
         <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
         <div class="glass-sidebar" id="glass-sidebar">
+            <div class="o2-sidebar-brand-bar">
+                <div class="o2-brand-title">
+                    <span>Orion</span>
+                    <span class="o2-beta-tag">BETA</span>
+                </div>
+                <button type="button" id="beta-quick-search-btn" class="o2-quick-search-pill" title="Quick Switcher (Ctrl+K)">
+                    <span>🔍 Quick</span>
+                    <kbd>Ctrl+K</kbd>
+                </button>
+            </div>
             <div class="sidebar-top-bar">
                 <div class="user-profile-btn" id="open-profile-modal">
                     <div class="profile-brief">
                         <div class="avatar-sm">👤</div>
-                        <div style="display: flex; flex-direction: column;">
+                        <div style="display: flex; flex-direction: column; min-width: 0;">
                             <div style="display: flex; align-items: center; gap: 6px;">
                                 <span id="current-user-name">Loading...</span>
                                 <span id="my-profile-badge" class="custom-user-badge" style="display: none;"></span>
@@ -82,6 +93,7 @@
                             </div>
                         </div>
                     </div>
+                    <button type="button" id="beta-sidebar-settings-btn" class="o2-settings-gear-btn" title="Settings" aria-label="Open Settings">⚙️</button>
                     <div class="chevron">›</div>
                 </div>
                 <button id="close-sidebar-btn" class="close-sidebar-btn" aria-label="Close sidebar drawer">✕</button>
@@ -141,6 +153,10 @@
                         <p id="chat-description-text"></p>
                     </div>
                 </div>
+                <button type="button" id="beta-members-toggle-btn" class="o2-members-toggle-pill" aria-label="Toggle members drawer" data-eligible="0" style="display: none;">
+                    <span>👥</span>
+                    <span id="beta-members-count">0</span>
+                </button>
                 <button id="chat-header-menu-btn" class="chat-header-menu-btn" aria-label="Chat options" title="Chat details" style="display: none;">⋮</button>
                 <button id="open-members-panel" class="members-btn" aria-label="Show members" style="display: none;">Members</button>
             </div>
@@ -538,16 +554,39 @@
                     <div class="premium-nav-item active" data-tab="account">Account & Identity</div>
                     <div class="premium-nav-item" data-tab="notifications">Notifications</div>
                     <div class="premium-nav-item" data-tab="optimisation">Optimisation</div>
+                    <div class="premium-nav-item" data-tab="liquidglass">Liquid Glass</div>
                     <div class="premium-nav-item" data-tab="appinfo">App Info</div>
                     <div class="settings-nav-label">✨ Premium</div>
                     <div class="premium-nav-item" data-tab="themes">Background Themes</div>
                     <div class="premium-nav-item" data-tab="nameplates">Nameplates</div>
                     <div class="premium-nav-item" data-tab="stickers">Stickers</div>
-                    <div class="premium-nav-item" data-tab="liquidglass">Liquid Glass</div>
                 </div>
                 <div class="premium-main">
                     <button id="toggle-premium-sidebar" class="premium-sidebar-toggle">☰ Menu</button>
                     <div id="premium-tab-account" class="premium-tab-content">
+                        <div id="beta-redesign-card" class="beta-featured-card">
+                            <div class="beta-featured-header">
+                                <div style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap;">
+                                    <strong style="font-size: 15px;">Orion 2.0 Redesign</strong>
+                                    <span class="beta-pill-badge">BETA</span>
+                                    <span id="beta-lock-badge" class="beta-lock-badge" style="display: none;">✨ Premium Exclusive</span>
+                                </div>
+                                <p style="margin: 5px 0 0; font-size: 12.5px; opacity: 0.72; line-height: 1.45;">
+                                    A completely redesigned, calmer, faster Orion experience.
+                                </p>
+                            </div>
+                            <div id="beta-access-unlocked" style="display: none; align-items: center; gap: 10px;">
+                                <label class="switch">
+                                    <input type="checkbox" id="toggle-beta-redesign" aria-label="Enable Orion 2.0 Beta Redesign">
+                                    <span class="switch-slider"></span>
+                                </label>
+                            </div>
+                            <div id="beta-access-locked" style="display: none;">
+                                <button type="button" id="beta-unlock-btn" class="glass-btn-primary" style="padding: 8px 14px; font-size: 12.5px; width: auto; white-space: nowrap;">
+                                    Contact Admin to Unlock
+                                </button>
+                            </div>
+                        </div>
                         <h4 style="margin-top: 0;">Account & Identity</h4>
                         <div class="setting-card">
                             <h5>Display Name</h5>
@@ -572,7 +611,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.2.47</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.2.48</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>
@@ -1088,6 +1127,23 @@
         <button id="btn-apply-update" class="ota-btn-primary">Update & Reload</button>
         <button id="btn-dismiss-update" class="ota-btn-secondary">Later</button>
       </div>
+    </div>
+
+    <!-- Orion 2.0 Beta Quick Switcher (Ctrl+K / Cmd+K) -->
+    <div id="beta-command-palette" class="o2-command-overlay" style="display: none;" aria-hidden="true">
+        <div class="o2-command-dialog" role="dialog" aria-modal="true" aria-label="Quick Switcher">
+            <div class="o2-command-input-wrap">
+                <span class="o2-command-search-ico">🔍</span>
+                <input type="text" id="beta-cmd-input" placeholder="Jump to DM, group, channel, or action..." autocomplete="off">
+                <kbd class="o2-command-esc">ESC</kbd>
+            </div>
+            <div id="beta-cmd-results" class="o2-command-results"></div>
+            <div class="o2-command-footer">
+                <span><kbd>↑</kbd><kbd>↓</kbd> Navigate</span>
+                <span><kbd>↵</kbd> Open</span>
+                <span><kbd>Esc</kbd> Close</span>
+            </div>
+        </div>
     </div>
 
     <script type="module" src="app.js"></script>

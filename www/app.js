@@ -157,6 +157,17 @@ window.isGlobalAdmin = function(userData = window.currentUserData) {
     return userData.role === 'admin' || userData.isAdmin === true || String(userData.isAdmin).toLowerCase() === 'true';
 };
 
+window.canAccessBetaRedesign = function(userData) {
+    if (!userData) return false;
+    if (userData.role === 'admin' || userData.isAdmin === true || String(userData.isAdmin).toLowerCase() === 'true') return true;
+    // Match the exact premium tier check from the Admin Panel and user records
+    return Boolean(
+        userData.isPremium ||
+        userData.type === 'Premium' ||
+        (userData.tier && userData.tier !== 'free' && userData.tier !== 'Basic')
+    );
+};
+
 window.isGlobalModOrAdmin = function(userData = window.currentUserData) {
     if (!userData) return false;
     if (window.isGlobalAdmin(userData)) return true;
@@ -681,16 +692,35 @@ function notifyIncomingMessage({ chatId, title, body, fallbackText }) {
 
 // ---- UI preferences (stored per device) ----
 const uiPrefs = {
-    get(k) { try { return localStorage.getItem('orion_' + k) === '1'; } catch (e) { return false; } },
-    set(k, v) { try { localStorage.setItem('orion_' + k, v ? '1' : '0'); } catch (e) {} }
+    get(k) {
+        try {
+            const val = localStorage.getItem('orion_' + k);
+            if (k === 'lg') {
+                return val !== 'false' && val !== '0';
+            }
+            return val === '1' || val === 'true';
+        } catch (e) {
+            return k === 'lg';
+        }
+    },
+    set(k, v) {
+        try {
+            if (k === 'lg') {
+                localStorage.setItem('orion_' + k, v ? '1' : 'false');
+            } else {
+                localStorage.setItem('orion_' + k, v ? '1' : '0');
+            }
+        } catch (e) {}
+    }
 };
 function applyUiPrefs() {
     const perf = uiPrefs.get('perf');
+    const isBeta = document.body.classList.contains('orion-beta');
     document.body.classList.toggle('perf-mode', perf);
     document.body.classList.toggle('no-blur', uiPrefs.get('noblur'));
     document.body.classList.toggle('lg-still', uiPrefs.get('lgstill'));
-    // Liquid glass: enabled when selected and not in performance mode
-    const lg = uiPrefs.get('lg') && !perf;
+    // Liquid glass: enabled by default unless explicitly disabled, and paused cleanly when Orion 2.0 Beta is active
+    const lg = uiPrefs.get('lg') && !perf && !isBeta;
     document.body.classList.toggle('liquid-glass', lg);
     document.body.classList.toggle('theme-liquid-glass', lg);
     setLiquidCursorLight(lg && !uiPrefs.get('lgstill'));
@@ -4026,26 +4056,40 @@ if (jumpToBottomBtnEl) {
 // --- Message Action Functions ---
 window.positionReplyPreview = function() {
     const membersPanel = document.getElementById('chat-members-sidebar') || document.querySelector('.glass-members-sidebar');
+    const chatContainer = document.getElementById('chat-container');
     const inputArea = document.querySelector('.glass-input-area');
-    let rightOffset = 12;
+    const isBeta = document.body.classList.contains('orion-beta');
+    const isBetaMembersCollapsed = isBeta && document.body.classList.contains('orion-beta-members-collapsed');
+    let rightOffset = isBeta ? 16 : 12;
+    let betaMembersWidth = 0;
 
-    if (membersPanel && membersPanel.offsetParent !== null) {
+    if (membersPanel && membersPanel.offsetParent !== null && !isBetaMembersCollapsed) {
         const panelStyle = window.getComputedStyle(membersPanel);
         const rect = membersPanel.getBoundingClientRect();
         if (panelStyle.position !== 'fixed' && panelStyle.display !== 'none' && rect.width > 0) {
-            const marginLeft = parseFloat(panelStyle.marginLeft) || 0;
-            const marginRight = parseFloat(panelStyle.marginRight) || 0;
-            rightOffset = Math.max(Math.ceil(rect.width) + 20, Math.ceil(rect.width + marginLeft + marginRight) + 12);
+            betaMembersWidth = Math.ceil(rect.width);
+            if (isBeta) {
+                rightOffset = betaMembersWidth + 16;
+            } else {
+                const marginLeft = parseFloat(panelStyle.marginLeft) || 0;
+                const marginRight = parseFloat(panelStyle.marginRight) || 0;
+                rightOffset = Math.max(Math.ceil(rect.width) + 20, Math.ceil(rect.width + marginLeft + marginRight) + 12);
+            }
         }
     }
 
-    const bottomOffset = inputArea ? Math.ceil(inputArea.getBoundingClientRect().height) + 10 : 88;
+    if (chatContainer) {
+        chatContainer.style.setProperty('--o2-members-offset', `${isBeta ? betaMembersWidth : 0}px`);
+    }
+
+    const bottomOffset = inputArea ? Math.ceil(inputArea.getBoundingClientRect().height) + (isBeta ? 6 : 10) : 88;
     let activePreviewHeight = 0;
+    const leftEdge = isBeta ? '16px' : '12px';
 
     ['reply-preview-bar', 'edit-preview-bar'].forEach(id => {
         const box = document.getElementById(id);
         if (!box) return;
-        box.style.left = '12px';
+        box.style.left = leftEdge;
         box.style.right = `${rightOffset}px`;
         if (bottomOffset > 50) {
             box.style.bottom = `${bottomOffset}px`;
@@ -4071,7 +4115,7 @@ window.positionReplyPreview = function() {
     }
 
     if (jumpBtn) {
-        jumpBtn.style.left = '12px';
+        jumpBtn.style.left = leftEdge;
         jumpBtn.style.right = `${rightOffset}px`;
         const jumpBottom = (previewStackHeight || typingStackHeight)
             ? baseBottom + previewStackHeight + typingStackHeight
@@ -5215,12 +5259,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.47';
+const CURRENT_APP_VERSION = '1.2.48';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.47';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.48';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -5382,7 +5426,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.47';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.48';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6232,6 +6276,34 @@ function fetchMyProfile(uid) {
         
         // Update global premium status for the emoji picker and upload permissions
         isCurrentUserPremium = isPremium;
+
+        // Orion 2.0 Beta Redesign access + live downgrade enforcement
+        const hasBetaAccess = window.canAccessBetaRedesign(window.currentUserData);
+        const wantsBeta = localStorage.getItem('orion_beta_ui') === 'true';
+        if (hasBetaAccess) {
+            if (wantsBeta && !document.body.classList.contains('orion-beta')) {
+                if (typeof window.applyBetaRedesignState === 'function') {
+                    window.applyBetaRedesignState(true);
+                } else {
+                    document.body.classList.add('orion-beta');
+                }
+            }
+        } else if (document.body.classList.contains('orion-beta') || wantsBeta) {
+            const wasActive = document.body.classList.contains('orion-beta');
+            localStorage.setItem('orion_beta_ui', 'false');
+            if (typeof window.applyBetaRedesignState === 'function') {
+                window.applyBetaRedesignState(false);
+            } else {
+                document.body.classList.remove('orion-beta');
+            }
+            if (wasActive && typeof showNotification === 'function') {
+                showNotification("Beta Redesign requires Premium — switched back to standard view.", "info");
+            }
+        }
+        if (typeof window.syncBetaRedesignCard === 'function') {
+            window.syncBetaRedesignCard();
+        }
+
         applyUiPrefs();
         updateInputButtons();
 
@@ -7456,6 +7528,14 @@ async function openChat(chatId, title) {
             if (openMembersBtn) openMembersBtn.style.display = isSysChannel ? 'none' : '';
             if (headerMenuBtn) headerMenuBtn.style.display = isSysChannel ? 'none' : '';
             if (chatMembersSidebar) chatMembersSidebar.style.display = isSysChannel ? 'none' : '';
+            const betaMembersBtn = document.getElementById('beta-members-toggle-btn');
+            if (betaMembersBtn) {
+                betaMembersBtn.dataset.eligible = isSysChannel ? '0' : '1';
+                if (isSysChannel) {
+                    const countEl = document.getElementById('beta-members-count');
+                    if (countEl) countEl.textContent = '0';
+                }
+            }
             if (typeof window.positionReplyPreview === 'function') window.positionReplyPreview();
 
             if (headerAvatar) {
@@ -7512,6 +7592,12 @@ async function openChat(chatId, title) {
             if (openMembersBtn) openMembersBtn.style.display = 'none';
             if (headerMenuBtn) headerMenuBtn.style.display = 'none';
             if (chatMembersSidebar) chatMembersSidebar.style.display = 'none';
+            const betaMembersBtn = document.getElementById('beta-members-toggle-btn');
+            if (betaMembersBtn) {
+                betaMembersBtn.dataset.eligible = '0';
+                const countEl = document.getElementById('beta-members-count');
+                if (countEl) countEl.textContent = '0';
+            }
             document.body.classList.remove('members-open');
             if (typeof window.positionReplyPreview === 'function') window.positionReplyPreview();
             if (chatTitleElem) {
@@ -9709,6 +9795,8 @@ async function renderMembersList(msnap, groupCreatorId) {
     if (!membersMap) return;
 
     let memberUids = Object.keys(membersMap);
+    const betaMembersCountEl = document.getElementById('beta-members-count');
+    if (betaMembersCountEl) betaMembersCountEl.textContent = String(memberUids.length);
     const myUid = auth.currentUser.uid;
     const amICreator = myUid === groupCreatorId;
     const myRole = membersMap[myUid]?.role || currentChatMemberData?.[myUid]?.role || 'member';
@@ -11367,13 +11455,16 @@ document.addEventListener('click', (e) => {
         document.querySelectorAll('#settings-layout .premium-nav-item, #premium-panel-modal .premium-nav-item').forEach(item => {
             const tab = item.dataset.tab;
             let text = item.innerText.replace(/\s*[\u{1F512}\u{1F513}]/gu, '').replace(/\s*\?\?/g, '').trim();
-            if (!isCurrentUserPremium && ['themes', 'nameplates', 'liquidglass'].includes(tab)) {
+            if (!isCurrentUserPremium && ['themes', 'nameplates'].includes(tab)) {
                 item.innerText = text + ' \u{1F512}';
             } else {
                 item.innerText = text;
             }
         });
 
+        if (typeof window.syncBetaRedesignCard === 'function') {
+            window.syncBetaRedesignCard();
+        }
         setActivePremiumTab(initialTab);
     }
 
@@ -11555,14 +11646,7 @@ document.addEventListener('click', (e) => {
 
     // --- Liquid Glass / Optimisation toggles ---
     const lgToggle = document.getElementById('toggle-liquid-glass');
-    if (lgToggle) lgToggle.onchange = (e) => {
-        if (!isCurrentUserPremium) {
-            e.preventDefault();
-            lgToggle.checked = false; // Revert visually
-            showNotification("Liquid Glass is an Orion Premium feature. Support Orion to unlock!", "info");
-            document.getElementById('payment-modal').style.display = 'flex';
-            return;
-        }
+    if (lgToggle) lgToggle.onchange = () => {
         uiPrefs.set('lg', lgToggle.checked);
         if (lgToggle.checked && uiPrefs.get('perf')) {
             uiPrefs.set('perf', false);
@@ -11574,14 +11658,7 @@ document.addEventListener('click', (e) => {
     };
 
     const lgAnimToggle = document.getElementById('toggle-lg-anim');
-    if (lgAnimToggle) lgAnimToggle.onchange = (e) => {
-        if (!isCurrentUserPremium) {
-            e.preventDefault();
-            lgAnimToggle.checked = !uiPrefs.get('lgstill'); // Revert visually
-            showNotification("Liquid Glass animations are an Orion Premium feature.", "info");
-            document.getElementById('payment-modal').style.display = 'flex';
-            return;
-        }
+    if (lgAnimToggle) lgAnimToggle.onchange = () => {
         uiPrefs.set('lgstill', !lgAnimToggle.checked);
         applyUiPrefs();
     };
@@ -13097,7 +13174,7 @@ document.addEventListener('click', (e) => {
     
     // Check if the click path includes the sidebar, the toggle button, or any active modal
     const isInsideSidebar = path.some(el => el instanceof HTMLElement && el.id === 'chat-members-sidebar');
-    const isToggleBtn = path.some(el => el instanceof HTMLElement && el.id === 'open-members-panel');
+    const isToggleBtn = path.some(el => el instanceof HTMLElement && (el.id === 'open-members-panel' || el.id === 'beta-members-toggle-btn'));
     const isInsideModal = path.some(el => el instanceof HTMLElement && el.classList.contains('modal'));
 
     if (!isInsideSidebar && !isToggleBtn && !isInsideModal) {
@@ -13956,3 +14033,298 @@ new MutationObserver((mutations) => {
     }
 }).observe(document.body, { subtree: true, attributes: true, attributeFilter: ['style'] });
 
+
+// ---- ORION 2.0 REDESIGN [BETA] & CTRL+K QUICK SWITCHER ----
+(function initOrionBetaRedesign() {
+    let paletteItems = [];
+    let paletteActiveIdx = 0;
+
+    function closeBetaCommandPalette() {
+        const overlay = document.getElementById('beta-command-palette');
+        if (!overlay) return;
+        overlay.style.display = 'none';
+        overlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function applyBetaRedesignState(enabled) {
+        const allowed = window.canAccessBetaRedesign(window.currentUserData);
+        const active = Boolean(enabled && allowed);
+        document.body.classList.toggle('orion-beta', active);
+        if (active) {
+            const collapsed = localStorage.getItem('orion_beta_members_collapsed') === '1';
+            document.body.classList.toggle('orion-beta-members-collapsed', collapsed);
+        } else {
+            document.body.classList.remove('orion-beta-members-collapsed');
+            closeBetaCommandPalette();
+        }
+        applyUiPrefs();
+        syncUiPrefToggles();
+        syncBetaRedesignCard();
+        if (typeof window.positionReplyPreview === 'function') {
+            window.positionReplyPreview();
+            setTimeout(window.positionReplyPreview, 240);
+        }
+    }
+    window.applyBetaRedesignState = applyBetaRedesignState;
+
+    function syncBetaRedesignCard() {
+        const unlockedEl = document.getElementById('beta-access-unlocked');
+        const lockedEl = document.getElementById('beta-access-locked');
+        const lockBadge = document.getElementById('beta-lock-badge');
+        const toggle = document.getElementById('toggle-beta-redesign');
+        const allowed = window.canAccessBetaRedesign(window.currentUserData);
+
+        if (unlockedEl) unlockedEl.style.display = allowed ? 'flex' : 'none';
+        if (lockedEl) lockedEl.style.display = allowed ? 'none' : 'block';
+        if (lockBadge) lockBadge.style.display = allowed ? 'none' : 'inline-flex';
+        if (toggle) toggle.checked = allowed && document.body.classList.contains('orion-beta');
+    }
+    window.syncBetaRedesignCard = syncBetaRedesignCard;
+
+    const betaToggle = document.getElementById('toggle-beta-redesign');
+    if (betaToggle) {
+        betaToggle.onchange = () => {
+            if (!window.canAccessBetaRedesign(window.currentUserData)) {
+                betaToggle.checked = false;
+                syncBetaRedesignCard();
+                showNotification("Orion 2.0 Beta Redesign requires Premium.", "info");
+                return;
+            }
+            const next = betaToggle.checked;
+            localStorage.setItem('orion_beta_ui', next ? 'true' : 'false');
+            applyBetaRedesignState(next);
+            showNotification(
+                next ? "Orion 2.0 Beta Redesign enabled." : "Switched back to Classic Orion view.",
+                "success"
+            );
+        };
+    }
+
+    const betaUnlockBtn = document.getElementById('beta-unlock-btn');
+    if (betaUnlockBtn) {
+        betaUnlockBtn.onclick = () => {
+            const paymentModal = document.getElementById('payment-modal');
+            if (paymentModal) paymentModal.style.display = 'flex';
+        };
+    }
+
+    const sidebarSettingsBtn = document.getElementById('beta-sidebar-settings-btn');
+    if (sidebarSettingsBtn) {
+        sidebarSettingsBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (typeof closeSidebarDrawer === 'function') closeSidebarDrawer();
+            if (typeof openPremiumPanelModal === 'function') openPremiumPanelModal('account');
+        };
+    }
+
+    function toggleBetaMembersDrawer() {
+        if (window.innerWidth <= 768) {
+            document.body.classList.toggle('members-open');
+        } else {
+            const nextCollapsed = !document.body.classList.contains('orion-beta-members-collapsed');
+            document.body.classList.toggle('orion-beta-members-collapsed', nextCollapsed);
+            try {
+                localStorage.setItem('orion_beta_members_collapsed', nextCollapsed ? '1' : '0');
+            } catch (_) {}
+        }
+        if (typeof window.positionReplyPreview === 'function') {
+            window.positionReplyPreview();
+            setTimeout(window.positionReplyPreview, 240);
+        }
+    }
+
+    const betaMembersToggleBtn = document.getElementById('beta-members-toggle-btn');
+    if (betaMembersToggleBtn) {
+        betaMembersToggleBtn.onclick = (e) => {
+            e.stopPropagation();
+            toggleBetaMembersDrawer();
+        };
+    }
+
+    function getChatDisplayTitleForPalette(chatId, chat) {
+        const linkEl = document.getElementById(`link-${chatId}`);
+        const domTitle = linkEl ? linkEl.querySelector('.chat-info strong')?.textContent?.trim() : '';
+        if (domTitle) return domTitle;
+        if (chatId === 'channel_orion_updates') return 'Orion Updates';
+        return chat?.title || chat?.name || 'Chat';
+    }
+
+    function buildCommandPaletteItems(query) {
+        const q = (query || '').trim().toLowerCase();
+        const items = [];
+
+        const chatEntries = Array.from(allChatsStore.entries()).map(([chatId, chat]) => {
+            const title = getChatDisplayTitleForPalette(chatId, chat);
+            const isChannel = chat.isChannel === true || chat.type === 'channel' || chat.isSystem === true || chatId === 'channel_orion_updates';
+            const isGroup = !isChannel && (chat.isGroup === true || !!chat.groupId);
+            const kind = isChannel ? 'Channel' : (isGroup ? 'Group' : 'DM');
+            const icon = isChannel ? '📢' : (isGroup ? '#' : '💬');
+            return {
+                section: 'Conversations',
+                id: chatId,
+                title,
+                meta: chat.isUnread ? `${kind} • Unread` : kind,
+                icon,
+                searchText: `${title} ${kind} ${chat.groupTitle || ''}`.toLowerCase(),
+                run: () => openChat(chatId, title)
+            };
+        }).sort((a, b) => a.title.localeCompare(b.title));
+
+        chatEntries.forEach(item => {
+            if (!q || item.searchText.includes(q)) items.push(item);
+        });
+
+        const actions = [];
+        if (currentChatId && currentChatId !== 'channel_orion_updates') {
+            actions.push(
+                { section: 'Actions', title: 'Launch Spy', meta: 'Game', icon: '🕵️', run: () => setupGameLobby('spy') },
+                { section: 'Actions', title: 'Launch Doodle Dash', meta: 'Game', icon: '🎨', run: () => setupGameLobby('doodle') },
+                { section: 'Actions', title: 'Launch Word Rush', meta: 'Game', icon: '📝', run: () => setupGameLobby('wordle') },
+                { section: 'Actions', title: 'Launch World Flags', meta: 'Game', icon: '🚩', run: () => setupGameLobby('flags') }
+            );
+            const betaMembersBtn = document.getElementById('beta-members-toggle-btn');
+            if (betaMembersBtn && betaMembersBtn.dataset.eligible === '1') {
+                actions.push({ section: 'Actions', title: 'Toggle Members Panel', meta: 'View', icon: '👥', run: () => toggleBetaMembersDrawer() });
+            }
+        }
+        actions.push({ section: 'Actions', title: 'Open Settings', meta: 'Preferences', icon: '⚙️', run: () => openPremiumPanelModal('account') });
+
+        actions.forEach(act => {
+            if (!q || `${act.title} ${act.meta}`.toLowerCase().includes(q)) items.push(act);
+        });
+
+        return items;
+    }
+
+    function renderCommandPaletteResults(query) {
+        const resultsEl = document.getElementById('beta-cmd-results');
+        if (!resultsEl) return;
+        paletteItems = buildCommandPaletteItems(query);
+        if (paletteActiveIdx >= paletteItems.length) paletteActiveIdx = 0;
+
+        resultsEl.innerHTML = '';
+        if (paletteItems.length === 0) {
+            resultsEl.innerHTML = '<div class="o2-command-empty">No matching conversations or actions.</div>';
+            return;
+        }
+
+        let lastSection = '';
+        paletteItems.forEach((item, idx) => {
+            if (item.section !== lastSection) {
+                lastSection = item.section;
+                const sec = document.createElement('div');
+                sec.className = 'o2-command-section';
+                sec.textContent = item.section;
+                resultsEl.appendChild(sec);
+            }
+            const row = document.createElement('div');
+            row.className = 'o2-command-item' + (idx === paletteActiveIdx ? ' active' : '');
+            row.dataset.idx = String(idx);
+            row.innerHTML = `
+                <div class="o2-command-item-left">
+                    <span>${item.icon}</span>
+                    <span class="o2-command-item-title">${escapeHTML(item.title)}</span>
+                </div>
+                <span class="o2-command-item-meta">${escapeHTML(item.meta)}</span>
+            `;
+            row.onmouseenter = () => {
+                paletteActiveIdx = idx;
+                resultsEl.querySelectorAll('.o2-command-item').forEach((el, i) => el.classList.toggle('active', i === idx));
+            };
+            row.onclick = () => {
+                closeBetaCommandPalette();
+                item.run();
+            };
+            resultsEl.appendChild(row);
+        });
+    }
+
+    function openBetaCommandPalette() {
+        if (!document.body.classList.contains('orion-beta')) return;
+        const appEl = document.getElementById('app-container');
+        if (!appEl || appEl.style.display === 'none') return;
+        const overlay = document.getElementById('beta-command-palette');
+        const input = document.getElementById('beta-cmd-input');
+        if (!overlay || !input) return;
+
+        paletteActiveIdx = 0;
+        input.value = '';
+        renderCommandPaletteResults('');
+        overlay.style.display = 'flex';
+        overlay.setAttribute('aria-hidden', 'false');
+        requestAnimationFrame(() => input.focus());
+    }
+
+    const quickSearchBtn = document.getElementById('beta-quick-search-btn');
+    if (quickSearchBtn) {
+        quickSearchBtn.onclick = (e) => {
+            e.stopPropagation();
+            if (typeof closeSidebarDrawer === 'function') closeSidebarDrawer();
+            openBetaCommandPalette();
+        };
+    }
+
+    const cmdOverlay = document.getElementById('beta-command-palette');
+    const cmdInput = document.getElementById('beta-cmd-input');
+    if (cmdOverlay) {
+        cmdOverlay.addEventListener('click', (e) => {
+            if (e.target === cmdOverlay) closeBetaCommandPalette();
+        });
+    }
+    if (cmdInput) {
+        cmdInput.addEventListener('input', () => {
+            paletteActiveIdx = 0;
+            renderCommandPaletteResults(cmdInput.value);
+        });
+        cmdInput.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (paletteItems.length > 0) {
+                    paletteActiveIdx = (paletteActiveIdx + 1) % paletteItems.length;
+                    const rows = document.querySelectorAll('#beta-cmd-results .o2-command-item');
+                    rows.forEach((el, i) => el.classList.toggle('active', i === paletteActiveIdx));
+                    rows[paletteActiveIdx]?.scrollIntoView({ block: 'nearest' });
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (paletteItems.length > 0) {
+                    paletteActiveIdx = (paletteActiveIdx - 1 + paletteItems.length) % paletteItems.length;
+                    const rows = document.querySelectorAll('#beta-cmd-results .o2-command-item');
+                    rows.forEach((el, i) => el.classList.toggle('active', i === paletteActiveIdx));
+                    rows[paletteActiveIdx]?.scrollIntoView({ block: 'nearest' });
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const chosen = paletteItems[paletteActiveIdx];
+                if (chosen) {
+                    closeBetaCommandPalette();
+                    chosen.run();
+                }
+            } else if (e.key === 'Escape') {
+                e.preventDefault();
+                closeBetaCommandPalette();
+            }
+        });
+    }
+
+    document.addEventListener('keydown', (e) => {
+        if ((e.ctrlKey || e.metaKey) && e.key && e.key.toLowerCase() === 'k') {
+            if (!document.body.classList.contains('orion-beta')) return;
+            e.preventDefault();
+            const overlay = document.getElementById('beta-command-palette');
+            if (overlay && overlay.style.display === 'flex') {
+                closeBetaCommandPalette();
+            } else {
+                openBetaCommandPalette();
+            }
+        } else if (e.key === 'Escape') {
+            const overlay = document.getElementById('beta-command-palette');
+            if (overlay && overlay.style.display === 'flex') {
+                e.preventDefault();
+                closeBetaCommandPalette();
+            }
+        }
+    });
+
+    syncBetaRedesignCard();
+})();

@@ -5020,10 +5020,61 @@ body.theme-liquid-glass .ota-update-banner {
     flex-shrink: 0 !important;
 }
 
-/* ---------------- THEME ARCHITECTURE: SLEEK MINIMALIST MODERN ---------------- */
-/* Applied to Standard/Default Theme when Liquid Glass is turned off */
+/* Hide Orion 2.0 Beta-only chrome in Classic modes */
+.o2-sidebar-brand-bar,
+.o2-settings-gear-btn,
+.o2-members-toggle-pill,
+.o2-command-overlay {
+    display: none;
+}
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .glass-sidebar {
+/* Featured Beta Card in Settings (both Classic & Beta) */
+.beta-featured-card {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    flex-wrap: wrap;
+    padding: 16px 18px;
+    margin-bottom: 18px;
+    border-radius: 16px;
+    background: linear-gradient(135deg, color-mix(in srgb, var(--glass-accent, var(--accent)) 18%, rgba(255, 255, 255, 0.06)), rgba(255, 255, 255, 0.03));
+    border: 1px solid color-mix(in srgb, var(--glass-accent, var(--accent)) 38%, rgba(255, 255, 255, 0.14));
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.18), 0 8px 24px rgba(0, 0, 0, 0.22);
+}
+.beta-featured-header {
+    flex: 1 1 240px;
+    min-width: 0;
+}
+.beta-pill-badge {
+    display: inline-flex;
+    align-items: center;
+    padding: 2px 8px;
+    border-radius: 999px;
+    font-size: 10px;
+    font-weight: 800;
+    letter-spacing: 0.7px;
+    background: color-mix(in srgb, var(--glass-accent, var(--accent)) 28%, rgba(255, 255, 255, 0.1));
+    border: 1px solid color-mix(in srgb, var(--glass-accent, var(--accent)) 55%, rgba(255, 255, 255, 0.2));
+    color: #fff;
+}
+.beta-lock-badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 9px;
+    border-radius: 999px;
+    font-size: 11px;
+    font-weight: 700;
+    background: rgba(255, 215, 0, 0.14);
+    border: 1px solid rgba(255, 215, 0, 0.4);
+    color: #ffd700;
+}
+
+/* ---------------- THEME ARCHITECTURE: SLEEK MINIMALIST MODERN ---------------- */
+/* Applied to Standard/Default Theme when Liquid Glass & Beta are turned off */
+
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .glass-sidebar {
     background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, var(--solid-panel, #121214)), var(--solid-panel, #121214)) !important;
     border: 1px solid rgba(255, 255, 255, 0.08) !important;
     border-right: 1px solid color-mix(in srgb, var(--accent) 30%, rgba(255, 255, 255, 0.05)) !important;
@@ -5032,7 +5083,7 @@ body:not(.liquid-glass):not(.theme-liquid-glass) .glass-sidebar {
 }
 
 @media (max-width: 768px) {
-    body:not(.liquid-glass):not(.theme-liquid-glass) .glass-sidebar {
+    body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .glass-sidebar {
         background: linear-gradient(180deg, color-mix(in srgb, var(--accent) 8%, var(--solid-panel, #121214)), var(--solid-panel, #121214)) !important;
         border-radius: 0 16px 16px 0 !important;
         border-right: 1px solid color-mix(in srgb, var(--accent) 30%, rgba(255, 255, 255, 0.05)) !important;
@@ -5042,7 +5093,7 @@ body:not(.liquid-glass):not(.theme-liquid-glass) .glass-sidebar {
     }
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .glass-main {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .glass-main {
     background: var(--solid-bg, #16161c);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 16px;
@@ -5050,23 +5101,23 @@ body:not(.liquid-glass):not(.theme-liquid-glass) .glass-main {
 }
 
 @media (max-width: 768px) {
-    body:not(.liquid-glass):not(.theme-liquid-glass) .glass-main {
+    body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .glass-main {
         background: var(--solid-bg, #16161c) !important;
         border-radius: 0 !important;
         border: none !important;
     }
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .chat-header-glass {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .chat-header-glass {
     background: var(--solid-bg, #121216);
     border-bottom: 1px solid rgba(255, 255, 255, 0.08);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .chat-link,
-body:not(.liquid-glass):not(.theme-liquid-glass) .chat-link.dm-link,
-body:not(.liquid-glass):not(.theme-liquid-glass) .sidebar-group-wrap {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .chat-link,
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .chat-link.dm-link,
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .sidebar-group-wrap {
     background: transparent;
     border: none;
     border-radius: 10px;
@@ -5077,34 +5128,34 @@ body:not(.liquid-glass):not(.theme-liquid-glass) .sidebar-group-wrap {
     transition: background 0.15s ease;
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .chat-link:hover,
-body:not(.liquid-glass):not(.theme-liquid-glass) .chat-link.dm-link:hover {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .chat-link:hover,
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .chat-link.dm-link:hover {
     background: rgba(255, 255, 255, 0.04);
     transform: none !important;
     box-shadow: none;
     border-color: transparent;
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .chat-link.active,
-body:not(.liquid-glass):not(.theme-liquid-glass) .chat-link.dm-link.active {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .chat-link.active,
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .chat-link.dm-link.active {
     background: color-mix(in srgb, var(--glass-accent) 16%, rgba(255, 255, 255, 0.04));
     border-left: 3px solid var(--accent);
     border-radius: 4px 10px 10px 4px;
     box-shadow: none;
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .chat-link.sub-channel {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .chat-link.sub-channel {
     border-radius: 8px;
     margin: 1px 8px;
     padding: 8px 12px 8px 32px !important;
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .group-header {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .group-header {
     border-radius: 8px;
     padding: 8px 12px;
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .user-profile-btn {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .user-profile-btn {
     background: rgba(255, 255, 255, 0.03);
     border: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: 10px;
@@ -5113,17 +5164,17 @@ body:not(.liquid-glass):not(.theme-liquid-glass) .user-profile-btn {
     padding: 10px 14px;
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .sidebar-search input {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .sidebar-search input {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 8px;
     box-shadow: none;
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .glass-card,
-body:not(.liquid-glass):not(.theme-liquid-glass) .modal .modal-content,
-body:not(.liquid-glass):not(.theme-liquid-glass) .modal-content,
-body:not(.liquid-glass):not(.theme-liquid-glass) .group-info-card {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .glass-card,
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .modal .modal-content,
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .modal-content,
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .group-info-card {
     background: var(--solid-panel, #181820);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 14px;
@@ -5132,53 +5183,53 @@ body:not(.liquid-glass):not(.theme-liquid-glass) .group-info-card {
     -webkit-backdrop-filter: none;
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .setting-card,
-body:not(.liquid-glass):not(.theme-liquid-glass) .setting-row {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .setting-card,
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .setting-row {
     background: rgba(255, 255, 255, 0.025);
     border: 1px solid rgba(255, 255, 255, 0.07);
     border-radius: 10px;
     box-shadow: none;
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .glass-btn-primary {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .glass-btn-primary {
     background: var(--accent);
     border: 1px solid rgba(255, 255, 255, 0.1);
     border-radius: 10px;
     box-shadow: 0 2px 8px rgba(112, 0, 255, 0.25);
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .glass-btn-secondary {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .glass-btn-secondary {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 10px;
     box-shadow: none;
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .premium-sidebar {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .premium-sidebar {
     background: rgba(0, 0, 0, 0.2);
     border-right: 1px solid rgba(255, 255, 255, 0.08);
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .premium-nav-item.active {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .premium-nav-item.active {
     background: rgba(255, 255, 255, 0.04);
     border-left: 3px solid var(--accent);
     color: #fff;
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .premium-sidebar-toggle {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .premium-sidebar-toggle {
     border-radius: 8px;
     border: 1px solid rgba(255, 255, 255, 0.08);
     background: rgba(255, 255, 255, 0.04);
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .input-wrapper {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .input-wrapper {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.08);
     border-radius: 12px;
     box-shadow: none;
 }
 
-body:not(.liquid-glass):not(.theme-liquid-glass) .glass-input-area {
+body:not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .glass-input-area {
     background: var(--solid-bg, #121215);
     border-top: 1px solid rgba(255, 255, 255, 0.08);
 }
@@ -6145,11 +6196,11 @@ button:not(:disabled):active {
 }
 
 /* Unified Surface Tokens across Modals & Dropdowns */
-body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):not(.theme-liquid-glass) .modal .modal-content,
-body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):not(.theme-liquid-glass) .modal .glass-card,
-body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):not(.theme-liquid-glass) .modal .group-info-card,
-body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):not(.theme-liquid-glass) .modal .settings-modal,
-body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):not(.theme-liquid-glass) .uv-card,
+body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .modal .modal-content,
+body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .modal .glass-card,
+body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .modal .group-info-card,
+body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .modal .settings-modal,
+body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):not(.theme-liquid-glass):not(.orion-beta) .uv-card,
 #pc-camera-modal > div,
 .spy-modal-card {
     background: var(--surface-elevated);
