@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Doodle Dash Early Round Advance:* Added a check on correct guesses comparing `guessedPlayers` against all non-drawing players in `gameData.players`. When everyone has guessed, the round immediately clears `guessedPlayers` and transitions to the next drawer instead of waiting for the timer to expire.
+
 - *Attachment Menu & PC Camera Fix:* Added `cursor: pointer` to attachment menu buttons. Implemented a `getUserMedia` live webcam capture modal for desktop clients since desktop browsers ignore `<input capture>` and fall back to File Explorer.
 
 - *Payment Flow & Admin Requests:* Removed the old payment QR code and link, replacing it with a 'Contact Admin' request form writing to `adminRequests`. Added a live 'Requests' section to the Admin Panel with DM and dismiss actions, protected by global admin Firebase rules.

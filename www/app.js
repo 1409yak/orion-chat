@@ -41,7 +41,8 @@ import {
     limitToLast,
     endBefore,
     startAfter,
-    orderByKey
+    orderByKey,
+    runTransaction
 } from "https://www.gstatic.com/firebasejs/10.12.2/firebase-database.js";
 
 const firebaseConfig = {
@@ -602,7 +603,26 @@ let doodleUnsubs = [];
 let currentDoodleTurn = -1;
 let isSubmittingDoodleGuess = false;
 let isAdvancingDoodleTurn = false;
+let activeDoodleTimerInt = null;
+let activeDoodleChoiceTimerInt = null;
+let activeDoodleRevealTimeout = null;
+let lastNotifiedDoodleAdvanceAt = 0;
 let podiumCloseTimeout = null;
+
+function clearDoodleTimers() {
+    if (activeDoodleTimerInt) {
+        clearInterval(activeDoodleTimerInt);
+        activeDoodleTimerInt = null;
+    }
+    if (activeDoodleChoiceTimerInt) {
+        clearInterval(activeDoodleChoiceTimerInt);
+        activeDoodleChoiceTimerInt = null;
+    }
+    if (activeDoodleRevealTimeout) {
+        clearTimeout(activeDoodleRevealTimeout);
+        activeDoodleRevealTimeout = null;
+    }
+}
 
 function cleanupLobbyCardListeners() {
     activeLobbyCardUnsubs.forEach(unsub => {
@@ -632,6 +652,7 @@ function getPlayerDisplayName(playerEntry) {
 }
 
 function cleanupDoodleListeners() {
+    clearDoodleTimers();
     doodleUnsubs.forEach(u => {
         if (typeof u === 'function') u();
     });
@@ -683,6 +704,7 @@ async function startGame(gameId, chatId = activeGameChatId || currentChatId) {
             }
 
             const durationMs = 60000;
+            lastNotifiedDoodleAdvanceAt = 0;
             await update(targetGameRef, {
                 status: 'choosing',
                 type: 'doodle',
@@ -697,6 +719,10 @@ async function startGame(gameId, chatId = activeGameChatId || currentChatId) {
                 drawer: firstDrawerUid,
                 drawerUid: firstDrawerUid,
                 wordOptions: options,
+                guessedPlayers: null,
+                turnLocks: null,
+                lastAdvanceReason: null,
+                lastAdvanceAt: null,
                 turnExpiresAt: now + 10000 // 10 seconds to choose
             });
         } else if (lobbyType === 'wordle') {
@@ -1752,6 +1778,7 @@ window.selectDoodleWord = async (chosenWord) => {
         targetWord: word,
         word: word,
         usedWords: updatedUsedWords,
+        guessedPlayers: null,
         roundStartTime: now,
         startedAt: now,
         roundExpiresAt: now + roundDuration,
@@ -1789,7 +1816,7 @@ function startDoodleGame(gameData, gameId = activeGameId, chatId = activeGameCha
     const drawerUid = gameData.drawer || gameData.drawerUid;
     const isDrawer = (myUid === drawerUid);
 
-    window.localGuessedCorrect = gameData.players?.[myUid]?.guessedCorrect || false;
+    window.localGuessedCorrect = !!(gameData.guessedPlayers?.[myUid] || gameData.players?.[myUid]?.guessedCorrect);
     if (chatBoxEl && gameData.status === 'choosing') chatBoxEl.innerHTML = '';
 
     // Open modal before reading canvas clientWidth/clientHeight so layout size is non-zero
@@ -1859,15 +1886,23 @@ function startDoodleGame(gameData, gameId = activeGameId, chatId = activeGameCha
             if (choiceTimer) choiceTimer.innerText = `${leftSec}s`;
             if (leftSec <= 0 && !choiceExpiredTriggered) {
                 choiceExpiredTriggered = true;
-                clearInterval(choiceTimerInterval);
+                if (activeDoodleChoiceTimerInt) {
+                    clearInterval(activeDoodleChoiceTimerInt);
+                    activeDoodleChoiceTimerInt = null;
+                }
                 if (isDrawer || auth.currentUser.uid === (gameData.hostId || gameData.host)) {
                     window.selectDoodleWord(options[0] || DOODLE_WORDS[0]);
                 }
             }
         };
-        const choiceTimerInterval = setInterval(updateChoiceTimer, 1000);
+        activeDoodleChoiceTimerInt = setInterval(updateChoiceTimer, 1000);
         updateChoiceTimer();
-        doodleUnsubs.push(() => clearInterval(choiceTimerInterval));
+        doodleUnsubs.push(() => {
+            if (activeDoodleChoiceTimerInt) {
+                clearInterval(activeDoodleChoiceTimerInt);
+                activeDoodleChoiceTimerInt = null;
+            }
+        });
 
     } else if (gameData.status === 'playing') {
         if (selectionOverlay) selectionOverlay.style.display = 'none';
@@ -1891,7 +1926,6 @@ function startDoodleGame(gameData, gameId = activeGameId, chatId = activeGameCha
         ctx.fillRect(0, 0, cvs.width, cvs.height);
 
         let currentRoundStatus = 'playing';
-        let revealTimeoutId = null;
         let revealTriggered = false;
 
         const roundExpiresAt = gameData.roundExpiresAt || gameData.turnEndTime || (window.getServerTime() + 30000);
@@ -1934,16 +1968,18 @@ function startDoodleGame(gameData, gameId = activeGameId, chatId = activeGameCha
             if (timeLeft <= 0 && isDrawer && !revealTriggered) {
                 revealTriggered = true;
                 currentRoundStatus = 'reveal';
-                clearInterval(timerInt);
+                if (activeDoodleTimerInt) {
+                    clearInterval(activeDoodleTimerInt);
+                    activeDoodleTimerInt = null;
+                }
                 update(ref(db, `games/${chatId}/${gameId}`), { status: 'reveal' });
             }
         };
 
-        const timerInt = setInterval(updateTimerText, 1000);
+        activeDoodleTimerInt = setInterval(updateTimerText, 1000);
         updateTimerText();
         doodleUnsubs.push(() => {
-            clearInterval(timerInt);
-            if (revealTimeoutId) clearTimeout(revealTimeoutId);
+            clearDoodleTimers();
         });
 
         // Drawer pointer handling (drawing, eraser, bucket)
@@ -2092,14 +2128,25 @@ function startDoodleGame(gameData, gameId = activeGameId, chatId = activeGameCha
         const freshData = snap.val();
         if (!freshData) return;
 
+        if (freshData.lastAdvanceReason === 'all_guessed' && freshData.lastAdvanceAt && freshData.lastAdvanceAt !== lastNotifiedDoodleAdvanceAt) {
+            lastNotifiedDoodleAdvanceAt = freshData.lastAdvanceAt;
+            if (typeof showNotification === 'function') {
+                showNotification("Everyone guessed the word! Moving to the next drawer...", "info");
+            }
+        }
+
         if (freshData.status === 'reveal') {
+            if (activeDoodleTimerInt) {
+                clearInterval(activeDoodleTimerInt);
+                activeDoodleTimerInt = null;
+            }
             if (selectionOverlay) selectionOverlay.style.display = 'none';
             if (wordDisplayEl) wordDisplayEl.innerText = `${freshData.targetWord || freshData.word || ''}`;
             if (statusEl) statusEl.innerText = `Round Over! The word was: ${freshData.targetWord || freshData.word || ''}`;
             cvs.style.opacity = '0.3';
 
-            if (auth.currentUser.uid === (freshData.drawer || freshData.drawerUid) && !revealTimeoutId) {
-                revealTimeoutId = setTimeout(() => window.advanceDoodleTurn(freshData.currentTurnIndex), 3000);
+            if (auth.currentUser.uid === (freshData.drawer || freshData.drawerUid) && !activeDoodleRevealTimeout) {
+                activeDoodleRevealTimeout = setTimeout(() => window.advanceDoodleTurn(freshData.currentTurnIndex), 3000);
             }
         } else if (freshData.status === 'finished' && !doodleEnded) {
             doodleEnded = true;
@@ -2145,15 +2192,43 @@ window.clearDoodle = async () => {
     await update(ref(db, `games/${chatId}/${activeGameId}/doodle`), { clearAt: Date.now() });
 };
 
-window.advanceDoodleTurn = async (expectedTurnIndex = null) => {
+window.advanceDoodleTurn = async (arg1 = null, options = {}) => {
     const chatId = activeGameChatId || currentChatId;
-    if (!chatId || !activeGameId || isAdvancingDoodleTurn) return;
+    const targetGameId = (typeof arg1 === 'string' && arg1) ? arg1 : activeGameId;
+    const expectedTurnIndex = (typeof arg1 === 'number') ? arg1 : (options.expectedTurnIndex ?? null);
+
+    if (!chatId || !targetGameId || isAdvancingDoodleTurn) return;
     isAdvancingDoodleTurn = true;
+    clearDoodleTimers();
     try {
-        const gameRef = ref(db, `games/${chatId}/${activeGameId}`);
+        const gameRef = ref(db, `games/${chatId}/${targetGameId}`);
+        const initialSnap = await get(gameRef);
+        const initialG = initialSnap.val();
+        if (!initialG) return;
+        if (options.requirePlayingStatus) {
+            if (initialG.status !== 'playing') return;
+        } else if (initialG.status !== 'playing' && initialG.status !== 'reveal' && initialG.status !== 'choosing') {
+            return;
+        }
+        if (expectedTurnIndex !== null && initialG.currentTurnIndex !== expectedTurnIndex) return;
+
+        // Atomic per-turn lock prevents concurrent guessers from double-advancing or skipping turns
+        const lockKey = `${initialG.currentRound || 1}_${initialG.currentTurnIndex ?? 0}`;
+        const lockRef = ref(db, `games/${chatId}/${targetGameId}/turnLocks/${lockKey}`);
+        const lockRes = await runTransaction(lockRef, (current) => {
+            if (current !== null) return;
+            return auth.currentUser?.uid || true;
+        });
+        if (!lockRes.committed) return;
+
         const snap = await get(gameRef);
         const g = snap.val();
-        if (!g || (g.status !== 'playing' && g.status !== 'reveal' && g.status !== 'choosing')) return;
+        if (!g) return;
+        if (options.requirePlayingStatus) {
+            if (g.status !== 'playing') return;
+        } else if (g.status !== 'playing' && g.status !== 'reveal' && g.status !== 'choosing') {
+            return;
+        }
         if (expectedTurnIndex !== null && g.currentTurnIndex !== expectedTurnIndex) return;
 
         let nextIdx = (g.currentTurnIndex ?? 0) + 1;
@@ -2166,25 +2241,33 @@ window.advanceDoodleTurn = async (expectedTurnIndex = null) => {
             nextRound++;
         }
 
+        const advanceAt = Date.now();
+        const advanceReason = options.reason || null;
+
         // Check Game Over
         if (nextRound > (g.maxRounds || 1)) {
-            await update(gameRef, { status: 'finished' });
+            await update(gameRef, {
+                status: 'finished',
+                guessedPlayers: null,
+                lastAdvanceReason: advanceReason,
+                lastAdvanceAt: advanceAt
+            });
             return;
         }
 
         const nextDrawerUid = order[nextIdx] || g.drawerUid || g.drawer;
 
         // When a new drawer's turn starts: 10 seconds to choose from 3 random words
-        const options = [];
-        while (options.length < 3) {
+        const wordOptions = [];
+        while (wordOptions.length < 3) {
             const word = DOODLE_WORDS[Math.floor(Math.random() * DOODLE_WORDS.length)];
-            if (!options.includes(word)) options.push(word);
+            if (!wordOptions.includes(word)) wordOptions.push(word);
         }
 
-        await remove(ref(db, `games/${chatId}/${activeGameId}/doodle/strokes`));
-        await remove(ref(db, `games/${chatId}/${activeGameId}/doodle/chat`));
-        await remove(ref(db, `games/${chatId}/${activeGameId}/doodle/snapshot`));
-        await update(ref(db, `games/${chatId}/${activeGameId}/doodle`), { clearAt: Date.now() });
+        await remove(ref(db, `games/${chatId}/${targetGameId}/doodle/strokes`));
+        await remove(ref(db, `games/${chatId}/${targetGameId}/doodle/chat`));
+        await remove(ref(db, `games/${chatId}/${targetGameId}/doodle/snapshot`));
+        await update(ref(db, `games/${chatId}/${targetGameId}/doodle`), { clearAt: advanceAt });
 
         const updates = {
             status: 'choosing',
@@ -2192,7 +2275,10 @@ window.advanceDoodleTurn = async (expectedTurnIndex = null) => {
             currentRound: nextRound,
             drawer: nextDrawerUid,
             drawerUid: nextDrawerUid,
-            wordOptions: options,
+            wordOptions: wordOptions,
+            guessedPlayers: null,
+            lastAdvanceReason: advanceReason,
+            lastAdvanceAt: advanceAt,
             turnExpiresAt: window.getServerTime() + 10000 // 10 seconds to choose
         };
         Object.keys(g.players || {}).forEach(uid => {
@@ -2244,12 +2330,11 @@ window.submitDoodleGuess = async () => {
             const timeLeft = Math.max(1, Math.floor((roundExpiresAt - window.getServerTime()) / 1000));
             const points = timeLeft * 10;
 
-            await update(ref(db, `games/${chatId}/${activeGameId}/players/${myUid}`), {
-                score: (gData.players?.[myUid]?.score || 0) + points,
-                guessedCorrect: true
-            });
-            await update(ref(db, `games/${chatId}/${activeGameId}/players/${drawerId}`), {
-                score: (gData.players?.[drawerId]?.score || 0) + Math.floor(points / 2)
+            await update(gameRef, {
+                [`players/${myUid}/score`]: increment(points),
+                [`players/${myUid}/guessedCorrect`]: true,
+                [`guessedPlayers/${myUid}`]: true,
+                [`players/${drawerId}/score`]: increment(Math.floor(points / 2))
             });
 
             push(ref(db, `games/${chatId}/${activeGameId}/doodle/chat`), {
@@ -2258,13 +2343,30 @@ window.submitDoodleGuess = async () => {
                 isSystem: true
             });
 
-            const players = Object.keys(gData.players || {});
-            const nonDrawers = players.filter(id => id !== drawerId);
             const freshSnap = await get(gameRef);
-            const allGuessed = nonDrawers.length > 0 && nonDrawers.every(id => freshSnap.val()?.players?.[id]?.guessedCorrect);
+            const freshGameData = freshSnap.val();
+            if (!freshGameData) return;
 
-            if (allGuessed) {
-                await update(gameRef, { status: 'reveal' });
+            const allPlayers = Object.keys(freshGameData.players || {});
+            const activeDrawerId = freshGameData.drawer || freshGameData.drawerUid || drawerId;
+            const nonDrawers = allPlayers.filter(uid => uid !== activeDrawerId);
+            const guessedUids = Object.keys(freshGameData.guessedPlayers || {});
+            if (!guessedUids.includes(myUid)) {
+                guessedUids.push(myUid);
+            }
+            allPlayers.forEach(uid => {
+                if (freshGameData.players?.[uid]?.guessedCorrect && !guessedUids.includes(uid)) {
+                    guessedUids.push(uid);
+                }
+            });
+
+            const everyoneGuessed = nonDrawers.length > 0 && nonDrawers.every(uid => guessedUids.includes(uid));
+
+            if (everyoneGuessed && freshGameData.status === 'playing') {
+                await window.advanceDoodleTurn(freshGameData.currentTurnIndex, {
+                    requirePlayingStatus: true,
+                    reason: 'all_guessed'
+                });
             }
         } else {
             push(ref(db, `games/${chatId}/${activeGameId}/doodle/chat`), {
@@ -4116,12 +4218,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.35';
+const CURRENT_APP_VERSION = '1.2.36';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.35';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.36';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4283,7 +4385,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.35';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.36';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
