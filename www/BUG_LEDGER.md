@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Payment Flow & Admin Requests:* Removed the old payment QR code and link, replacing it with a 'Contact Admin' request form writing to `adminRequests`. Added a live 'Requests' section to the Admin Panel with DM and dismiss actions, protected by global admin Firebase rules.
+
 - *Doodle Dash Timer Sync:* Replaced local `Date.now()` comparisons with Firebase `.info/serverTimeOffset` via `window.getServerTime()` so word-selection and round countdowns stay synchronized across devices with different system clocks.
 
 - *Multi-Lobby & Game Start Fix:* Migrated game lobbies from a single `games/${chatId}` slot to unique `games/${chatId}/${gameId}` keys so multiple users can host lobbies without overwriting or blocking each other. Fixed `startGame` state transitions and listener binding, added live player counters to lobby chat cards, and added an `ACTIVE LOBBY: {Game Name}` banner near the pinned messages bar.

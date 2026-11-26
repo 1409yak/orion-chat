@@ -4116,12 +4116,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.33';
+const CURRENT_APP_VERSION = '1.2.34';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.33';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.34';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4283,7 +4283,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.33';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.34';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -4639,6 +4639,9 @@ function openAnimatedModal(modalEl) {
 
 function closeAnimatedModal(modalEl, onClosed) {
     if (!modalEl) return;
+    if (modalEl.id === 'admin-panel-modal' && typeof detachAdminRequestsListener === 'function') {
+        detachAdminRequestsListener();
+    }
     dismissKeyboard();
     modalEl.classList.remove('modal-visible');
     modalEl.classList.add('modal-closing');
@@ -4793,6 +4796,8 @@ onAuthStateChanged(auth, (user) => {
         handleUrlJoin(); // Check for join link on auth
         handleChatUrlParam(); // NEW: Check for chat link from notification click
     } else {
+        window.currentUserData = null;
+        if (typeof detachAdminRequestsListener === 'function') detachAdminRequestsListener();
         document.getElementById('auth-container').style.display = 'flex';
         document.getElementById('app-container').style.display = 'none';
     }
@@ -4944,6 +4949,7 @@ function fetchMyProfile(uid) {
             console.warn(`No profile found for UID: ${uid}`);
             return;
         }
+        window.currentUserData = { ...data, username: getDisplayName(data) };
 
         // Ensure email is in the database record if it's missing (helps others see the correct nickname)
         if (!data.email && auth.currentUser.email) {
@@ -5008,7 +5014,7 @@ function fetchMyProfile(uid) {
         document.getElementById('my-qr-code').src =
             `https://api.qrserver.com/v1/create-qr-code/?size=150x150&data=${data.friendId}`;
         
-        const isAdmin = data.isAdmin === true || String(data.isAdmin).toLowerCase() === "true";
+        const isAdmin = data.role === 'admin' || data.isAdmin === true || String(data.isAdmin).toLowerCase() === "true";
         const isPremium = isAdmin || data.type === "Premium";
         const displayType = isAdmin ? "Admin" : (data.type || "Basic");
         
@@ -10255,6 +10261,101 @@ document.addEventListener('click', (e) => {
         p.onanimationend = () => { p.remove(); createParticle(container, themeId); };
     }
 
+    let activeAdminRequestsOff = null;
+
+    function detachAdminRequestsListener() {
+        if (activeAdminRequestsOff) {
+            activeAdminRequestsOff();
+            activeAdminRequestsOff = null;
+        }
+    }
+
+    function renderAdminRequests(requestsObj) {
+        const requestsList = document.getElementById('admin-requests-list');
+        const badgeEl = document.getElementById('admin-requests-badge');
+        const entries = requestsObj && typeof requestsObj === 'object'
+            ? Object.entries(requestsObj)
+                .filter(([, req]) => req && typeof req === 'object')
+                .map(([id, req]) => ({ id, ...req }))
+                .sort((a, b) => (Number(b.timestamp) || 0) - (Number(a.timestamp) || 0))
+            : [];
+
+        if (badgeEl) {
+            if (entries.length > 0) {
+                badgeEl.textContent = String(entries.length);
+                badgeEl.style.display = 'inline-block';
+            } else {
+                badgeEl.textContent = '0';
+                badgeEl.style.display = 'none';
+            }
+        }
+
+        if (!requestsList) return;
+        requestsList.innerHTML = '';
+
+        if (entries.length === 0) {
+            requestsList.innerHTML = '<p style="text-align: center; opacity: 0.6; font-size: 13px; margin: 20px 0;">No pending requests.</p>';
+            return;
+        }
+
+        entries.forEach(req => {
+            const displayUsername = String(req.username || 'Unknown').substring(0, 15);
+            const formattedTime = req.timestamp ? new Date(req.timestamp).toLocaleString() : 'Unknown time';
+
+            const card = document.createElement('div');
+            card.style.cssText = 'background: rgba(255, 255, 255, 0.04); border: 1px solid var(--glass-border); border-radius: 14px; padding: 14px; display: flex; flex-direction: column; gap: 10px;';
+
+            card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px; flex-wrap: wrap;">
+                    <strong style="font-size: 14px; color: var(--accent);">${escapeHTML(displayUsername)}</strong>
+                    <small style="opacity: 0.6; font-size: 11px;">${escapeHTML(formattedTime)}</small>
+                </div>
+                <div style="font-size: 13px; line-height: 1.5; opacity: 0.9; word-break: break-word;">${escapeHTML(req.note || '')}</div>
+                <div style="display: flex; gap: 8px; justify-content: flex-end; flex-wrap: wrap;">
+                    <button type="button" class="glass-btn-primary admin-req-msg-btn" style="width: auto; padding: 8px 14px; font-size: 12px; min-height: 36px;">Message</button>
+                    <button type="button" class="glass-btn-secondary admin-req-dismiss-btn" style="padding: 8px 14px; font-size: 12px; min-height: 36px;">Dismiss</button>
+                </div>
+            `;
+
+            const msgBtn = card.querySelector('.admin-req-msg-btn');
+            if (msgBtn) {
+                msgBtn.onclick = () => {
+                    const myUid = auth.currentUser?.uid;
+                    if (!myUid || !req.uid) return;
+                    if (req.uid === myUid) {
+                        showNotification("This request is from your own account.", "info");
+                        return;
+                    }
+                    closeAnimatedModal(document.getElementById('admin-panel-modal'));
+                    startChat(myUid, req.uid, displayUsername);
+                };
+            }
+
+            const dismissBtn = card.querySelector('.admin-req-dismiss-btn');
+            if (dismissBtn) {
+                dismissBtn.onclick = async () => {
+                    dismissBtn.disabled = true;
+                    try {
+                        await remove(ref(db, 'adminRequests/' + req.id));
+                        if (typeof showNotification === 'function') {
+                            showNotification("Request dismissed.", "info");
+                        }
+                    } catch (err) {
+                        console.error("[AdminRequests] Dismiss failed:", err);
+                        dismissBtn.disabled = false;
+                        if (typeof showNotification === 'function') {
+                            showNotification("Failed to dismiss request.", "error");
+                        }
+                    }
+                };
+            }
+
+            requestsList.appendChild(card);
+        });
+
+        if (window.twemoji) twemoji.parse(requestsList);
+    }
+
     function setActiveAdminTab(tabId) {
         document.querySelectorAll('.admin-nav-item').forEach(item => {
             item.classList.toggle('active', item.dataset.tab === tabId);
@@ -10275,6 +10376,27 @@ document.addEventListener('click', (e) => {
         closeAnimatedModal(document.getElementById('profile-modal')); // Close profile modal
         document.getElementById('admin-panel-modal').style.display = 'flex';
         setActiveAdminTab('users');
+
+        const isGlobalAdmin = window.currentUserData && (
+            window.currentUserData.role === 'admin' ||
+            window.currentUserData.isAdmin === true ||
+            String(window.currentUserData.isAdmin).toLowerCase() === 'true'
+        );
+        if (isGlobalAdmin) {
+            detachAdminRequestsListener();
+            const requestsList = document.getElementById('admin-requests-list');
+            if (requestsList) {
+                requestsList.innerHTML = '<p style="text-align: center; opacity: 0.7; font-size: 13px;">Loading requests...</p>';
+            }
+            activeAdminRequestsOff = onValue(ref(db, 'adminRequests'), (snap) => {
+                renderAdminRequests(snap.val());
+            }, (err) => {
+                console.error("[AdminRequests] Listener error:", err);
+                if (requestsList) {
+                    requestsList.innerHTML = '<p style="text-align: center; color: #ff6b6b; font-size: 13px;">Failed to load requests.</p>';
+                }
+            });
+        }
 
         const adminUsersList = document.getElementById('admin-users-list');
         adminUsersList.innerHTML = '<p style="text-align: center; opacity: 0.7;">Loading users...</p>';
@@ -11849,6 +11971,50 @@ document.getElementById('open-payment-modal-btn').onclick = () => {
 
 document.getElementById('close-payment-modal').onclick = () => {
     closeAnimatedModal(document.getElementById('payment-modal'));
+};
+
+window.submitAdminRequest = async function() {
+    const user = auth.currentUser;
+    if (!user) return;
+
+    const submitBtn = document.getElementById('submit-admin-request-btn');
+    const noteInput = document.getElementById('payment-request-note');
+    const note = noteInput ? noteInput.value.trim() : "";
+    const rawUsername = window.currentUserData?.username ||
+        window.currentUserData?.displayName ||
+        (window.currentUserData ? getDisplayName(window.currentUserData) : null) ||
+        user.displayName ||
+        (user.email ? user.email.split('@')[0] : null) ||
+        "Unknown";
+    const username = String(rawUsername).substring(0, 15);
+
+    if (submitBtn) submitBtn.disabled = true;
+    try {
+        const reqRef = push(ref(db, 'adminRequests'));
+        await set(reqRef, {
+            uid: user.uid,
+            username: username,
+            type: 'payment',
+            note: note || "Requested to contact admin regarding payment.",
+            status: 'pending',
+            timestamp: Date.now()
+        });
+        if (noteInput) noteInput.value = '';
+        if (typeof showNotification === 'function') {
+            showNotification("Request sent! An admin will contact you shortly.", "success");
+        }
+        const paymentModal = document.getElementById('payment-modal');
+        if (paymentModal && paymentModal.style.display !== 'none') {
+            closeAnimatedModal(paymentModal);
+        }
+    } catch (err) {
+        console.error("[AdminRequest] Failed:", err);
+        if (typeof showNotification === 'function') {
+            showNotification("Failed to send request.", "error");
+        }
+    } finally {
+        if (submitBtn) submitBtn.disabled = false;
+    }
 };
 // ---- Sidebar quick search (UI helper; filters rendered friend/chat rows) ----
 (function () {
