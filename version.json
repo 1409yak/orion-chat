@@ -1,6 +1,6 @@
 {
-  "version": "1.2.43",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.43/bundle.zip",
-  "checksum": "addd50f32ae3a461c58490e5fef9d9160852bd7797a145588b42f729ad5c5621",
-  "notes": "Faster chat loading, instant message sending, zero-flicker updates, and smart scrolling!"
+  "version": "1.2.44",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.44/bundle.zip",
+  "checksum": "dca37a94ab2f123143febb769b7033770de1f68a277118411034f7b0ecbf9ca2",
+  "notes": "Cleaner grouped messages, 1-click hover actions, smoother image loading, and unified UI polish!"
 }
