@@ -1,6 +1,6 @@
 {
-  "version": "1.2.44",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.44/bundle.zip",
-  "checksum": "dca37a94ab2f123143febb769b7033770de1f68a277118411034f7b0ecbf9ca2",
-  "notes": "Cleaner grouped messages, 1-click hover actions, smoother image loading, and unified UI polish!"
+  "version": "1.2.45",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.45/bundle.zip",
+  "checksum": "eb42ac167b419eed7c6ec5e9abd1834ff8b6863ab4ce4524d696e6d05b16492f",
+  "notes": "Added live typing indicators, day dividers, smooth loading skeletons, and subtle message sounds!"
 }
