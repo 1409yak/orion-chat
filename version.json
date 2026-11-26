@@ -1,6 +1,6 @@
 {
-  "version": "1.2.35",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.35/bundle.zip",
-  "checksum": "438e22174ce3f7ac6cb74051054088842e8db980757c52f62d02c3acc5eae260",
-  "notes": "Fixed PC camera capture and attachment menu hover cursor."
+  "version": "1.2.36",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.36/bundle.zip",
+  "checksum": "03611dc621c374980d6813b206c4d06373f77cd77eead852977de75fa6c1f8dd",
+  "notes": "Doodle Dash now moves to the next turn right away when everyone guesses the word!"
 }
