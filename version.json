@@ -1,6 +1,6 @@
 {
-  "notes": "Liquid Glass is now the default look for everyone! Plus, Premium users can now unlock the massive new Orion 2.0 Redesign [BETA] in Settings.",
-  "version": "1.2.48",
-  "checksum": "3de57aea16ce48e180902bde5ec2782426975561054dc3724ff52d5e2a847bc0",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.48/bundle.zip"
+  "notes": "Massive Orion 2.0 [BETA] overhaul: new minimalist layout, dedicated Friends hub, clean full-width chat stream, and streamlined navigation!",
+  "version": "1.2.49",
+  "checksum": "dfd25e0042c667e8c7ed919ece500e7de20099bae33990307347e1d41aeaff17",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.49/bundle.zip"
 }
