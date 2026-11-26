@@ -4218,12 +4218,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.36';
+const CURRENT_APP_VERSION = '1.2.37';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.36';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.37';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4385,7 +4385,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.36';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.37';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -10549,10 +10549,122 @@ document.addEventListener('click', (e) => {
         };
     });
 
+    let allAdminUsers = [];
+
+    const ADMIN_USER_TIERS = [
+        { value: 'Basic', label: 'Basic', color: 'rgba(148, 163, 184, 0.35)' },
+        { value: 'Premium', label: 'Premium', color: 'linear-gradient(135deg, #d97706, #f59e0b)' }
+    ];
+
+    function updateAdminUserStats() {
+        const totalEl = document.getElementById('stat-total-users');
+        const premEl = document.getElementById('stat-premium-users');
+        if (totalEl) totalEl.innerText = String(allAdminUsers.length);
+        if (premEl) {
+            const premCount = allAdminUsers.filter(u => u.type === 'Premium' || u.isAdmin).length;
+            premEl.innerText = String(premCount);
+        }
+    }
+
+    function renderAdminPremiumList(users) {
+        const adminUsersList = document.getElementById('admin-users-list');
+        if (!adminUsersList) return;
+
+        adminUsersList.innerHTML = '';
+        if (!users || users.length === 0) {
+            adminUsersList.innerHTML = '<p style="text-align: center; opacity: 0.6; font-size: 13px; margin: 20px 0;">No matching users found.</p>';
+            return;
+        }
+
+        users.forEach(user => {
+            const currentTier = user.type === 'Premium' ? 'Premium' : 'Basic';
+            const activeIndex = Math.max(0, ADMIN_USER_TIERS.findIndex(t => t.value === currentTier));
+
+            const item = document.createElement('div');
+            item.style.cssText = 'background: rgba(255, 255, 255, 0.04); border: 1px solid var(--glass-border); border-radius: 14px; padding: 12px 14px; margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; gap: 12px; flex-wrap: wrap;';
+
+            const adminTag = user.isAdmin ? ' <span style="font-size: 11px; opacity: 0.85;">👑</span>' : '';
+            const sliderHtml = `
+                <div class="tier-slider" data-uid="${escapeHTML(user.uid)}">
+                    <div class="tier-slider-thumb" style="width: calc((100% - 6px) / ${ADMIN_USER_TIERS.length}); transform: translateX(${activeIndex * 100}%); background: ${ADMIN_USER_TIERS[activeIndex].color};"></div>
+                    ${ADMIN_USER_TIERS.map((t, idx) => `
+                        <button type="button" class="tier-slider-btn ${idx === activeIndex ? 'active' : ''}" data-tier="${t.value}" data-index="${idx}">${t.label}</button>
+                    `).join('')}
+                </div>
+            `;
+
+            item.innerHTML = `
+                <div style="min-width: 0; flex: 1;">
+                    <strong style="display: block; font-size: 14px;">${escapeHTML(user.username)}${adminTag}</strong>
+                    <small style="display: block; opacity: 0.6; font-size: 12px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${escapeHTML(user.email || 'No email')}</small>
+                </div>
+                ${sliderHtml}
+            `;
+
+            const sliderEl = item.querySelector('.tier-slider');
+            const thumbEl = item.querySelector('.tier-slider-thumb');
+            const btns = item.querySelectorAll('.tier-slider-btn');
+
+            const applySliderVisual = (idx) => {
+                if (thumbEl) {
+                    thumbEl.style.transform = `translateX(${idx * 100}%)`;
+                    thumbEl.style.background = ADMIN_USER_TIERS[idx].color;
+                }
+                btns.forEach((b, bIdx) => b.classList.toggle('active', bIdx === idx));
+            };
+
+            btns.forEach(btn => {
+                btn.onclick = async () => {
+                    const newType = btn.dataset.tier;
+                    const newIdx = Number(btn.dataset.index);
+                    const prevTier = user.type === 'Premium' ? 'Premium' : 'Basic';
+                    const prevIdx = Math.max(0, ADMIN_USER_TIERS.findIndex(t => t.value === prevTier));
+                    if (!newType || newType === prevTier) return;
+
+                    applySliderVisual(newIdx);
+                    sliderEl.style.pointerEvents = 'none';
+                    const ok = await updateUserType(user.uid, newType);
+                    sliderEl.style.pointerEvents = '';
+
+                    if (ok) {
+                        user.type = newType;
+                        updateAdminUserStats();
+                        if (typeof showNotification === 'function') {
+                            showNotification(`${user.username} updated to ${newType}.`, "success");
+                        }
+                    } else {
+                        applySliderVisual(prevIdx);
+                    }
+                };
+            });
+
+            adminUsersList.appendChild(item);
+        });
+
+        if (window.twemoji) twemoji.parse(adminUsersList);
+    }
+
+    const adminPremiumSearchInput = document.getElementById('admin-premium-search');
+    if (adminPremiumSearchInput) {
+        adminPremiumSearchInput.addEventListener('input', (e) => {
+            const query = e.target.value.trim().toLowerCase();
+            const filtered = allAdminUsers.filter(u => {
+                const nameMatch = (u.username || '').toLowerCase().includes(query) || (u.fullUsername || '').toLowerCase().includes(query);
+                const emailMatch = (u.email || '').toLowerCase().includes(query);
+                return nameMatch || emailMatch;
+            });
+            renderAdminPremiumList(filtered);
+        });
+    }
+
     async function openAdminPanelModal() {
         closeAnimatedModal(document.getElementById('profile-modal')); // Close profile modal
         document.getElementById('admin-panel-modal').style.display = 'flex';
         setActiveAdminTab('users');
+
+        if (adminPremiumSearchInput) {
+            adminPremiumSearchInput.value = '';
+        }
 
         const isGlobalAdmin = window.currentUserData && (
             window.currentUserData.role === 'admin' ||
@@ -10582,53 +10694,28 @@ document.addEventListener('click', (e) => {
         const usersData = usersSnap.val();
 
         if (!usersData) {
+            allAdminUsers = [];
+            updateAdminUserStats();
             adminUsersList.innerHTML = '<p style="text-align: center; opacity: 0.7;">No users found.</p>';
             return;
         }
 
-        adminUsersList.innerHTML = '';
-        let totalUsers = 0;
-        let premiumUsers = 0;
-
-        for (const uid in usersData) {
-            totalUsers++;
-            const user = usersData[uid];
-            if (user.type === 'Premium' || user.isAdmin === true || String(user.isAdmin).toLowerCase() === "true") {
-                premiumUsers++;
-            }
-
-            const item = document.createElement('div');
-            item.className = 'selection-item';
-            item.style.display = 'flex';
-            item.style.justifyContent = 'space-between';
-            item.style.alignItems = 'center';
-            item.innerHTML = `
-                <div>
-                    <strong>${escapeHTML(getDisplayName(user))}</strong>
-                    <small style="display: block; opacity: 0.7;">${escapeHTML(user.email || "")}</small>
-                    <small style="display: block; opacity: 0.5;">Type: <span id="user-type-${uid}">${user.type || "Basic"}</span></small>
-                </div>
-                <div style="display: flex; gap: 5px;">
-                    <button class="glass-btn-secondary" data-uid="${uid}" data-type="Basic">Basic</button>
-                    <button class="glass-btn-primary" data-uid="${uid}" data-type="Premium">Premium</button>
-                </div>
-            `;
-            adminUsersList.appendChild(item);
-        }
-
-        document.getElementById('stat-total-users').innerText = totalUsers;
-        document.getElementById('stat-premium-users').innerText = premiumUsers;
-
-        // Add event listeners to the new buttons
-        adminUsersList.querySelectorAll('.glass-btn-secondary, .glass-btn-primary').forEach(button => {
-            button.onclick = async (e) => {
-                const targetUid = e.target.dataset.uid;
-                const newType = e.target.dataset.type;
-                if (targetUid && newType) {
-                    await updateUserType(targetUid, newType);
-                }
+        allAdminUsers = Object.entries(usersData).map(([uid, rawUser]) => {
+            const u = rawUser || {};
+            const fullUsername = String(u.displayName || u.username || u.name || (u.email ? u.email.split('@')[0] : 'User'));
+            const isAdmin = u.role === 'admin' || u.isAdmin === true || String(u.isAdmin).toLowerCase() === 'true';
+            return {
+                uid,
+                username: fullUsername.substring(0, 15),
+                fullUsername,
+                email: u.email || '',
+                type: u.type === 'Premium' ? 'Premium' : 'Basic',
+                isAdmin
             };
-        });
+        }).sort((a, b) => a.username.localeCompare(b.username));
+
+        updateAdminUserStats();
+        renderAdminPremiumList(allAdminUsers);
     }
 
     async function updateUserType(targetUid, newType) {
@@ -10636,12 +10723,13 @@ document.addEventListener('click', (e) => {
             await update(ref(db, `users/${targetUid}`), {
                 type: newType
             });
-            document.getElementById(`user-type-${targetUid}`).innerText = newType; // Update UI immediately
+            return true;
         } catch (err) {
             console.error("Error updating user type:", err);
             showNotification("Failed to update user type", "error");
+            return false;
         }
-}
+    }
 
 /* ---------------- GROUP DETAILS / INFO BOTTOM SHEET ---------------- */
 

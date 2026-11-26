@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Admin Panel Premium UX:* Added a unified live search bar filtering users by both username and email simultaneously, and replaced static tier controls with a color-coded sliding segmented control to visually display and toggle each user's premium tier.
+
 - *Doodle Dash Early Round Advance:* Added a check on correct guesses comparing `guessedPlayers` against all non-drawing players in `gameData.players`. When everyone has guessed, the round immediately clears `guessedPlayers` and transitions to the next drawer instead of waiting for the timer to expire.
 
 - *Attachment Menu & PC Camera Fix:* Added `cursor: pointer` to attachment menu buttons. Implemented a `getUserMedia` live webcam capture modal for desktop clients since desktop browsers ignore `<input capture>` and fall back to File Explorer.
