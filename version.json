@@ -1,6 +1,6 @@
 {
-  "notes": "Zero-flicker chat switching, open stickers with live stats, cleaner message hover actions, and group header polish!",
-  "version": "1.2.46",
-  "checksum": "6fb8350aec701ab8b9e75234858a52dfbaceef5f4625915746afc43eecbd40bb",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.46/bundle.zip"
+  "notes": "Upgraded Liquid Glass to match every theme and smoothed out the Members panel!",
+  "version": "1.2.47",
+  "checksum": "6c31455f1177f7f234974da166e34a1e3c512ef1be6575c36a5f93ddede94c58",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.47/bundle.zip"
 }
