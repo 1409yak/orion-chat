@@ -1,6 +1,6 @@
 {
-  "version": "1.2.37",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.37/bundle.zip",
-  "checksum": "ccba4dbed4c6fa38cdb0308394d63aef392f775c6aa7549a25ff412304f1aff2",
-  "notes": "Bug fixes and performance improvements."
+  "version": "1.2.38",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.38/bundle.zip",
+  "checksum": "fefd30b99acc72c399f0863740be0905491d5b918f84fa53542f05b39f22357e",
+  "notes": "UI improvements: Fixed reply menu positioning and centered the reply preview bar."
 }
