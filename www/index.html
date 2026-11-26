@@ -163,6 +163,21 @@
                 </div>
             </div>
 
+            <div id="edit-preview-bar" class="edit-preview-bar" style="display: none;">
+                <div class="edit-info">
+                    <small>Editing message</small>
+                    <div id="edit-preview-text"></div>
+                </div>
+                <button id="cancel-edit-btn" class="cancel-edit-btn">✕</button>
+            </div>
+            <div id="reply-preview-bar" class="edit-preview-bar" style="display: none;">
+                <div class="edit-info">
+                    <small id="reply-info-title" style="color: #00d4ff;">Replying to User</small>
+                    <div id="reply-preview-text"></div>
+                </div>
+                <button id="cancel-reply-btn" class="cancel-edit-btn">✕</button>
+            </div>
+
             <div class="glass-input-area chat-input-bar">
                 <div id="mention-dropdown" class="mention-dropdown" style="display: none;"></div>
                 <div id="emoji-picker" class="emoji-picker-panel" style="display: none;">
@@ -183,21 +198,6 @@
                     <button type="button" id="create-poll-option">📊 Poll</button>
                     <button type="button" id="open-games-option">🎮 Games</button>
                     <button type="button" id="clipboard-paste-option" onclick="pasteLastCopiedItem()">📋 Clipboard paste</button>
-                </div>
-
-                <div id="edit-preview-bar" class="edit-preview-bar" style="display: none;">
-                    <div class="edit-info">
-                        <small>Editing message</small>
-                        <div id="edit-preview-text"></div>
-                    </div>
-                    <button id="cancel-edit-btn" class="cancel-edit-btn">✕</button>
-                </div>
-                <div id="reply-preview-bar" class="edit-preview-bar" style="display: none;">
-                    <div class="edit-info">
-                        <small id="reply-info-title" style="color: #00d4ff;">Replying to User</small>
-                        <div id="reply-preview-text"></div>
-                    </div>
-                    <button id="cancel-reply-btn" class="cancel-edit-btn">✕</button>
                 </div>
 
                 <div id="group-muted-banner" class="group-muted-banner" style="display: none; width: 100%; text-align: center; padding: 10px 14px; background: rgba(239, 68, 68, 0.15); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 12px; color: #f87171; font-weight: 600; font-size: 13px; margin-bottom: 6px;">
@@ -570,7 +570,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.2.39</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.2.40</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>

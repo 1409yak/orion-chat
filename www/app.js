@@ -2955,6 +2955,34 @@ function insertMessageIntoDOM(messageElement, messageTimestamp) {
 }
 
 // --- Message Action Functions ---
+window.positionReplyPreview = function() {
+    const membersPanel = document.getElementById('chat-members-sidebar') || document.querySelector('.glass-members-sidebar');
+    const inputArea = document.querySelector('.glass-input-area');
+    let rightOffset = 12;
+
+    if (membersPanel && membersPanel.offsetParent !== null) {
+        const panelStyle = window.getComputedStyle(membersPanel);
+        const rect = membersPanel.getBoundingClientRect();
+        if (panelStyle.position !== 'fixed' && panelStyle.display !== 'none' && rect.width > 0) {
+            rightOffset = Math.ceil(rect.width) + 12;
+        }
+    }
+
+    const bottomOffset = inputArea ? Math.ceil(inputArea.getBoundingClientRect().height) + 10 : 88;
+
+    ['reply-preview-bar', 'edit-preview-bar'].forEach(id => {
+        const box = document.getElementById(id);
+        if (!box) return;
+        box.style.left = '12px';
+        box.style.right = `${rightOffset}px`;
+        if (bottomOffset > 50) {
+            box.style.bottom = `${bottomOffset}px`;
+        }
+    });
+};
+
+window.addEventListener('resize', window.positionReplyPreview);
+
 async function editMessage(messageId, currentText) {
     if (!currentChatId) return;
 
@@ -2968,6 +2996,7 @@ async function editMessage(messageId, currentText) {
     input.value = currentText;
     previewText.innerText = currentText;
     previewBar.style.display = 'flex';
+    window.positionReplyPreview();
     
     input.focus();
     // Move cursor to end
@@ -2987,6 +3016,7 @@ async function replyToMessage(messageId, text, senderName) {
     previewTitle.innerText = `Replying to ${senderName}`;
     previewText.innerText = text.startsWith('data:image/') ? "Image" : text;
     previewBar.style.display = 'flex';
+    window.positionReplyPreview();
     document.getElementById('message-input').focus();
 }
 
@@ -4258,12 +4288,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.39';
+const CURRENT_APP_VERSION = '1.2.40';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.39';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.40';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4425,7 +4455,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.39';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.40';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6266,6 +6296,7 @@ async function openChat(chatId, title) {
             if (openMembersBtn) openMembersBtn.style.display = isSysChannel ? 'none' : '';
             if (headerMenuBtn) headerMenuBtn.style.display = isSysChannel ? 'none' : '';
             if (chatMembersSidebar) chatMembersSidebar.style.display = isSysChannel ? 'none' : '';
+            if (typeof window.positionReplyPreview === 'function') window.positionReplyPreview();
 
             if (headerAvatar) {
                 const cachedPic = chatData.profilePic || (chatData.groupId ? groupProfilePics.get(chatData.groupId) : null);
@@ -6317,6 +6348,7 @@ async function openChat(chatId, title) {
             if (headerMenuBtn) headerMenuBtn.style.display = 'none';
             if (chatMembersSidebar) chatMembersSidebar.style.display = 'none';
             document.body.classList.remove('members-open');
+            if (typeof window.positionReplyPreview === 'function') window.positionReplyPreview();
             editGroupBtn.style.display = 'none';
 
             // For private chats, fetch partner's latest name and online/offline status
@@ -11572,6 +11604,7 @@ document.getElementById('close-sticker-request-notification-modal').onclick = ()
 document.getElementById('open-members-panel').onclick = (e) => {
     e.stopPropagation(); // Prevent the toggle click from immediately triggering the "click outside" listener
     document.body.classList.toggle('members-open');
+    if (typeof window.positionReplyPreview === 'function') window.positionReplyPreview();
 };
 
 // Close members panel when clicking outside on mobile
@@ -11587,6 +11620,7 @@ document.addEventListener('click', (e) => {
 
     if (!isInsideSidebar && !isToggleBtn && !isInsideModal) {
         document.body.classList.remove('members-open');
+        if (typeof window.positionReplyPreview === 'function') window.positionReplyPreview();
     }
 });
 

@@ -1021,20 +1021,20 @@ body.liquid-glass .sticker-bubble {
     gap: 10px;
     backdrop-filter: blur(40px);
     border: 1px solid var(--glass-border);
-    border-radius: 14px;
+    border-radius: 16px;
     padding: 8px 14px;
-    position: relative;
-    bottom: auto;
-    left: auto;
-    transform: none;
-    width: calc(100% - 24px);
+    position: absolute;
+    bottom: 88px;
+    left: 12px;
+    right: 12px;
+    width: auto;
     max-width: 680px;
-    margin: 0 auto 8px auto;
+    margin: 0 auto;
     box-sizing: border-box;
     overflow: hidden;
-    z-index: 5;
+    z-index: 20;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #reply-preview-bar {
@@ -2346,13 +2346,14 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
         top: 0px;
     }
     #reply-preview-bar, #edit-preview-bar {
-        position: relative;
-        bottom: auto;
-        width: calc(100% - 24px);
+        position: absolute;
+        bottom: 84px;
+        width: auto;
         max-width: 680px;
-        left: auto;
+        left: 12px;
+        right: 12px;
         transform: none;
-        margin: 0 auto 8px auto !important;
+        margin: 0 auto !important;
         padding: 8px 14px !important;
     }
 

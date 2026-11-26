@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Floating Reply Box Alignment:* Reverted the full-width reply strip back to a floating `position: absolute` box and added `positionReplyPreview()` to dynamically offset its `right` edge by the visible Members panel width, keeping it centered strictly between the left edge of the chat and the Members panel.
+
 - *Reply Preview Containment:* Moved and constrained the reply preview bar strictly inside the chat column flex container (removing viewport-relative positioning) so it stays centered over the chat input and never overflows into the Members side panel.
 
 - *Chat Reply UI Fixes:* Added top/bottom viewport clamping to the message Reply/Pin action menu so it never clips outside chat borders on top or bottom messages. Centered the 'Replying to' preview bar above the input with clean text ellipsis.
