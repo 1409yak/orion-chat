@@ -4116,12 +4116,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.34';
+const CURRENT_APP_VERSION = '1.2.35';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.34';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.35';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4283,7 +4283,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.34';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.35';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -8616,7 +8616,7 @@ document.addEventListener('click', (e) => {
             plusMenu.style.display = 'none';
             plusMenu.classList.add('hidden');
         }
-        document.getElementById('camera-input')?.click();
+        triggerCameraCapture();
         return;
     }
     
@@ -9067,10 +9067,85 @@ if (fileUploadInput) {
     };
 }
 
+window.openPcCameraModal = async function() {
+    let stream;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+    } catch (err) {
+        console.error("[Camera] Webcam access failed:", err);
+        if (typeof showNotification === 'function') {
+            showNotification("Could not access webcam. Check browser permissions.", "error");
+        }
+        return;
+    }
+
+    const existing = document.getElementById('pc-camera-modal');
+    if (existing) existing.remove();
+
+    const modal = document.createElement('div');
+    modal.id = 'pc-camera-modal';
+    modal.style.cssText = 'position:fixed;inset:0;background:rgba(0,0,0,0.8);display:flex;align-items:center;justify-content:center;z-index:10000;padding:20px;backdrop-filter:blur(4px);';
+    modal.innerHTML = `
+        <div style="background:#1e1e2a;border:1px solid rgba(255,255,255,0.12);border-radius:14px;padding:16px;max-width:480px;width:100%;color:#fff;display:flex;flex-direction:column;gap:12px;">
+            <video id="pc-camera-video" autoplay playsinline style="width:100%;border-radius:10px;background:#000;max-height:360px;object-fit:cover;"></video>
+            <div style="display:flex;gap:10px;">
+                <button type="button" id="pc-camera-cancel" style="flex:1;padding:10px;border-radius:8px;border:none;background:rgba(255,255,255,0.1);color:#fff;cursor:pointer;font-weight:600;">Cancel</button>
+                <button type="button" id="pc-camera-snap" style="flex:1;padding:10px;border-radius:8px;border:none;background:#4CAF50;color:#fff;cursor:pointer;font-weight:600;">📸 Take Photo</button>
+            </div>
+        </div>
+    `;
+    document.body.appendChild(modal);
+    if (window.twemoji) twemoji.parse(modal);
+
+    const video = document.getElementById('pc-camera-video');
+    video.srcObject = stream;
+
+    const cleanup = () => {
+        document.removeEventListener('keydown', onKeyDown);
+        stream.getTracks().forEach(track => track.stop());
+        modal.remove();
+    };
+
+    const onKeyDown = (ev) => {
+        if (ev.key === 'Escape') cleanup();
+    };
+    document.addEventListener('keydown', onKeyDown);
+    modal.addEventListener('click', (ev) => {
+        if (ev.target === modal) cleanup();
+    });
+
+    document.getElementById('pc-camera-cancel').onclick = cleanup;
+
+    const snapBtn = document.getElementById('pc-camera-snap');
+    snapBtn.onclick = () => {
+        snapBtn.disabled = true;
+        const canvas = document.createElement('canvas');
+        canvas.width = video.videoWidth || 640;
+        canvas.height = video.videoHeight || 480;
+        canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+
+        canvas.toBlob(async (blob) => {
+            cleanup();
+            if (!blob) return;
+            const file = new File([blob], `camera_${Date.now()}.jpg`, { type: 'image/jpeg' });
+            await handleMediaUpload(file, 'Camera');
+        }, 'image/jpeg', 0.9);
+    };
+};
+
+function triggerCameraCapture() {
+    const isMobile = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent);
+    if (!isMobile && navigator.mediaDevices && navigator.mediaDevices.getUserMedia) {
+        window.openPcCameraModal();
+    } else {
+        document.getElementById('camera-input')?.click();
+    }
+}
+
 const cameraInput = document.getElementById('camera-input');
 const cameraBtn = document.getElementById('camera-btn');
 if (cameraBtn && cameraInput) {
-    cameraBtn.onclick = () => cameraInput.click();
+    cameraBtn.onclick = triggerCameraCapture;
 }
 if (cameraInput) {
     cameraInput.onchange = async (e) => {

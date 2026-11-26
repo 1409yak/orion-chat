@@ -809,6 +809,18 @@ input {
     word-break: break-word;
     box-sizing: border-box;
     transition: background 0.2s;
+    cursor: pointer;
+}
+
+#plus-menu button,
+#plus-menu button *,
+.plus-popup button,
+.plus-popup button *,
+#attachment-options-menu button,
+#attachment-options-menu button *,
+.msg-action-menu button,
+.msg-action-menu button * {
+    cursor: pointer !important;
 }
 
 .msg-action-menu button:hover {
