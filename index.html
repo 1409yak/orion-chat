@@ -142,7 +142,6 @@
                     </div>
                 </div>
                 <button id="chat-header-menu-btn" class="chat-header-menu-btn" aria-label="Chat options" title="Chat details" style="display: none;">⋮</button>
-                <button id="edit-group-btn" class="members-btn" style="display: none;">Edit Group</button>
                 <button id="open-members-panel" class="members-btn" aria-label="Show members" style="display: none;">Members</button>
             </div>
             
@@ -195,7 +194,7 @@
                     <div id="picker-tab-content-stickers" class="picker-tab-content" style="display: none;"></div>
                 </div>
                 <!-- Plus Menu Popup -->
-                <div id="plus-menu" class="msg-action-menu plus-popup hidden" style="display: none; flex-direction: column; gap: 5px; bottom: 85px; top: auto; right: 20px !important; left: auto !important; width: 160px; z-index: 501;">
+                <div id="plus-menu" class="plus-popup hidden" style="display: none; flex-direction: column; gap: 5px; bottom: 85px; top: auto; right: 20px !important; left: auto !important; width: 160px; z-index: 501;">
                     <button type="button" id="camera-option-btn">📷 Camera</button>
                     <button type="button" id="upload-image-option">📁 Files</button>
                     <button type="button" id="create-poll-option">📊 Poll</button>
@@ -573,7 +572,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.2.45</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.2.46</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>
@@ -781,14 +780,20 @@
 
     <!-- Sticker Picker Modal -->
     <div id="sticker-picker-modal" class="modal">
-        <div class="glass-card modal-content" style="width: 450px;">
-            <h3>Select a Sticker</h3>
+        <div class="glass-card modal-content" style="width: 480px; max-width: 94vw;">
+            <div style="display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 12px;">
+                <h3 style="margin: 0;">Stickers</h3>
+                <div style="display: flex; align-items: center; gap: 6px;">
+                    <button type="button" id="sticker-modal-sort-btn" class="glass-btn-secondary" style="padding: 6px 10px; font-size: 12px;">🔥 Popular</button>
+                    <button type="button" id="sticker-modal-upload-btn" class="glass-btn-primary" style="padding: 6px 12px; font-size: 12px; width: auto;">+ Upload</button>
+                </div>
+            </div>
             <div class="field-group">
-                <label>Your Stickers</label>
+                <label>My Saved Stickers</label>
                 <div id="my-stickers-picker-grid" class="theme-grid sticker-grid"></div>
             </div>
             <div class="field-group">
-                <label>Received Stickers</label>
+                <label>Community Stickers</label>
                 <div id="allowed-stickers-grid" class="theme-grid sticker-grid"></div>
             </div>
             <div class="modal-actions-vertical">
@@ -796,17 +801,19 @@
             </div>
         </div>
     </div>
-    <!-- Sticker Pack Preview Modal -->
+    <!-- Sticker Preview Modal -->
     <div id="sticker-pack-preview-modal" class="modal">
-        <div class="glass-card modal-content" style="width: 480px; max-width: 92vw;">
-            <h3 id="pack-preview-title" style="margin-bottom: 4px; font-size: 18px; text-align: center;">Pack Name</h3>
-            <p id="pack-preview-author" style="margin-top: 0; margin-bottom: 20px; font-size: 13px; opacity: 0.7; text-align: center;">Author</p>
+        <div class="glass-card modal-content" style="width: 460px; max-width: 92vw;">
+            <h3 id="pack-preview-title" style="margin-bottom: 4px; font-size: 18px; text-align: center;">Sticker</h3>
+            <p id="pack-preview-author" style="margin-top: 0; margin-bottom: 10px; font-size: 13px; opacity: 0.7; text-align: center;">Author</p>
+            <div id="sticker-preview-stats" class="sticker-stats-row" style="display: flex; justify-content: center; gap: 10px; margin-bottom: 14px;"></div>
             
             <div class="field-group">
                 <div id="pack-preview-stickers-grid" class="theme-grid sticker-grid" style="max-height: 280px; overflow-y: auto; padding: 4px;"></div>
             </div>
             <div class="modal-actions-vertical" style="margin-top: 15px;">
-                <button id="toggle-pack-collection-btn" class="glass-btn-primary">+ Add to Collection</button>
+                <button id="toggle-pack-collection-btn" class="glass-btn-primary">+ Save to My Stickers</button>
+                <button id="delete-sticker-preview-btn" class="glass-btn-secondary" style="display: none; color: #ff6b6b;">🗑️ Delete Sticker</button>
                 <button id="close-pack-preview-modal" class="glass-btn-secondary">Close</button>
             </div>
         </div>
@@ -823,19 +830,6 @@
             <div class="modal-actions-vertical">
                 <button id="confirm-create-pack-btn" class="glass-btn-primary">Create Pack</button>
                 <button id="close-create-pack-modal" class="glass-btn-secondary">Cancel</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- Sticker Request Notification Modal -->
-    <div id="sticker-request-notification-modal" class="modal">
-        <div class="glass-card modal-content">
-            <h3>Sticker Request</h3>
-            <p id="sticker-request-message">A user wants to use your sticker.</p>
-            <div class="modal-actions-vertical">
-                <button id="approve-sticker-request-btn" class="glass-btn-primary">Approve</button>
-                <button id="deny-sticker-request-btn" class="glass-btn-secondary" style="color: #ff4b2b;">Deny</button>
-                <button id="close-sticker-request-notification-modal" class="glass-btn-secondary">Decide Later</button>
             </div>
         </div>
     </div>
@@ -1093,41 +1087,6 @@
       <div class="ota-actions">
         <button id="btn-apply-update" class="ota-btn-primary">Update & Reload</button>
         <button id="btn-dismiss-update" class="ota-btn-secondary">Later</button>
-      </div>
-    </div>
-
-    <!-- Telegram-Style Message Context Menu Sheet -->
-    <div id="message-context-backdrop" class="message-context-backdrop hidden"></div>
-    <div id="message-context-sheet" class="message-context-sheet hidden" role="menu">
-      <div class="message-context-reactions">
-        <button type="button" class="ctx-reaction-btn" data-emoji="👍" title="Thumbs Up">👍</button>
-        <button type="button" class="ctx-reaction-btn" data-emoji="❤️" title="Heart">❤️</button>
-        <button type="button" class="ctx-reaction-btn" data-emoji="🔥" title="Fire">🔥</button>
-        <button type="button" class="ctx-reaction-btn" data-emoji="😂" title="Laugh">😂</button>
-        <button type="button" class="ctx-reaction-btn" data-emoji="😮" title="Surprised">😮</button>
-        <button type="button" class="ctx-reaction-btn" data-emoji="😢" title="Sad">😢</button>
-      </div>
-      <div class="message-context-actions">
-        <button type="button" id="ctx-action-reply" class="ctx-action-item">
-          <span class="ctx-icon">↩️</span>
-          <span class="ctx-label">Reply</span>
-        </button>
-        <button type="button" id="ctx-action-copy" class="ctx-action-item">
-          <span class="ctx-icon">📋</span>
-          <span class="ctx-label">Copy Text</span>
-        </button>
-        <button type="button" id="ctx-action-pin" class="ctx-action-item">
-          <span class="ctx-icon">📌</span>
-          <span class="ctx-label">Pin Message</span>
-        </button>
-        <button type="button" id="ctx-action-edit" class="ctx-action-item">
-          <span class="ctx-icon">✏️</span>
-          <span class="ctx-label">Edit</span>
-        </button>
-        <button type="button" id="ctx-action-delete" class="ctx-action-item ctx-danger">
-          <span class="ctx-icon">🗑️</span>
-          <span class="ctx-label">Delete</span>
-        </button>
       </div>
     </div>
 

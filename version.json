@@ -1,6 +1,6 @@
 {
-  "version": "1.2.45",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.45/bundle.zip",
-  "checksum": "eb42ac167b419eed7c6ec5e9abd1834ff8b6863ab4ce4524d696e6d05b16492f",
-  "notes": "Added live typing indicators, day dividers, smooth loading skeletons, and subtle message sounds!"
+  "notes": "Zero-flicker chat switching, open stickers with live stats, cleaner message hover actions, and group header polish!",
+  "version": "1.2.46",
+  "checksum": "6fb8350aec701ab8b9e75234858a52dfbaceef5f4625915746afc43eecbd40bb",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.46/bundle.zip"
 }

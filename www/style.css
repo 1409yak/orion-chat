@@ -734,61 +734,11 @@ input {
     margin-top: 10px;
 }
 
-.msg-actions {
+#plus-menu,
+.plus-popup,
+#attachment-options-menu {
     position: absolute;
-    top: 2px;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    z-index: 10;
-}
-
-.sent .msg-actions {
-    right: calc(100% + 10px); /* Moves arrow to the left of sent bubbles (center of chat) */
-}
-
-.rcv .msg-actions {
-    left: calc(100% + 10px); /* Moves arrow to the right of received bubbles (center of chat) */
-}
-
-.msg-action-btn {
-    background: none;
-    border: none;
-    color: var(--text);
-    opacity: 0; /* Hidden by default */
-    visibility: hidden;
-    font-size: 16px;
-    cursor: pointer;
-    padding: 5px;
-    border-radius: 50%;
-    transition: opacity 0.2s, background 0.2s, visibility 0.2s;
-    line-height: 1;
-}
-
-.msg-bubble:hover .msg-action-btn {
-    opacity: 0.4;
-    visibility: visible;
-}
-
-.msg-action-btn:hover {
-    opacity: 1;
-    background: rgba(255,255,255,0.1);
-}
-
-@media (max-width: 768px) {
-    .msg-action-btn {
-        display: none !important;
-    }
-}
-
-.msg-action-menu,
-.message-action-menu {
-    position: absolute;
-    right: 0;
-    top: 0px;
-    margin-top: 0;
-    margin-bottom: 0;
-    background: rgba(15, 15, 25, 0.8);
+    background: rgba(15, 15, 25, 0.85);
     backdrop-filter: blur(25px);
     border: 1px solid var(--glass-border);
     border-radius: 16px;
@@ -797,7 +747,7 @@ input {
     flex-direction: column;
     white-space: normal;
     gap: 5px;
-    z-index: 500; /* Increased z-index to ensure it's above other elements */
+    z-index: 501;
     min-width: 100px;
     max-width: calc(100vw - 40px);
     box-sizing: border-box;
@@ -815,14 +765,9 @@ input {
     z-index: 501;
 }
 
-.rcv .msg-action-menu,
-.rcv .message-action-menu {
-    right: auto;
-    left: 0;
-    top: 0px;
-}
-
-.msg-action-menu button {
+#plus-menu button,
+.plus-popup button,
+#attachment-options-menu button {
     width: 100%;
     background: var(--glass-bright);
     border: 1px solid var(--glass-border);
@@ -843,19 +788,14 @@ input {
 .plus-popup button,
 .plus-popup button *,
 #attachment-options-menu button,
-#attachment-options-menu button *,
-.msg-action-menu button,
-.msg-action-menu button * {
+#attachment-options-menu button * {
     cursor: pointer !important;
 }
 
-.msg-action-menu button:hover {
+#plus-menu button:hover,
+.plus-popup button:hover,
+#attachment-options-menu button:hover {
     background: var(--glass-bright);
-}
-
-.msg-action-menu .delete-btn {
-    color: #ff4b2b !important;
-    border-color: rgba(255, 75, 43, 0.3) !important;
 }
 
 /* Inline Sticker in Chat - Transparent PNG with Drop Shadow (No Box/Background) */
@@ -1792,7 +1732,7 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
     color: #ffd700;
     text-align: center;
 }
-.system-msg .msg-author, .system-msg .msg-timestamp, .system-msg .msg-actions, .system-msg .msg-reactions-bar {
+.system-msg .msg-author, .system-msg .msg-timestamp, .system-msg .msg-quick-actions, .system-msg .msg-reactions-bar {
     display: none !important;
 }
 
@@ -1916,9 +1856,16 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
 .field-group label { display: block; font-size: 11px; font-weight: 600; opacity: 0.6; margin-bottom: 8px; text-transform: uppercase; }
 .field-group input, .field-group textarea { width: 100%; background: rgba(0,0,0,0.2); border: 1px solid var(--glass-border); color: white; border-radius: 12px; padding: 12px; box-sizing: border-box; outline: none; }
 
-#edit-group-btn {
-    margin-left: auto; /* Pushes the edit button to the right */
-    user-select: none;
+#chat-title-text.is-group-clickable {
+    cursor: pointer;
+    transition: color 0.15s ease, opacity 0.15s ease;
+    border-radius: 6px;
+}
+
+#chat-title-text.is-group-clickable:hover {
+    color: var(--accent);
+    text-decoration: underline;
+    text-underline-offset: 3px;
 }
 .modal-actions-vertical { display: flex; flex-direction: column; gap: 10px; margin-top: 10px; }
 .glass-btn-secondary { background: rgba(255,255,255,0.1); border: none; border-radius: 12px; color: white; font-weight: 600; cursor: pointer; padding: 12px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1); user-select: none; }
@@ -2196,8 +2143,7 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
         gap: 8px;
     }
 
-    /* Mobile Chat Header Redesign: Hide separate members and edit buttons */
-    #edit-group-btn,
+    /* Mobile Chat Header Redesign: Hide separate members button */
     #open-members-panel {
         display: none !important;
     }
@@ -2368,15 +2314,8 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
         pointer-events: auto !important;
     }
 
-    /* Message Bubble & Action Menu Constraints */
+    /* Message Bubble Constraints */
     .msg-wrapper { max-width: 85% !important; min-width: 0 !important; }
-    .sent .msg-action-menu,
-    .sent .message-action-menu {
-        right: auto;
-        left: 0;
-        margin-left: 0;
-        top: 0px;
-    }
     #reply-preview-bar, #edit-preview-bar {
         position: absolute;
         bottom: 84px;
@@ -2779,7 +2718,7 @@ img.emoji {
     .sticker-trigger-btn:hover { opacity: 1; transform: scale(1.2); }
     .camera-icon-btn:hover { opacity: 1; transform: scale(1.2); }
     .emoji-picker-panel span:hover { transform: scale(1.4); filter: drop-shadow(0 0 5px white); }
-    .msg-action-menu button:hover { background: rgba(255,255,255,0.2); }
+    #plus-menu button:hover, .plus-popup button:hover, #attachment-options-menu button:hover { background: rgba(255,255,255,0.2); }
     .auth-buttons button:hover { opacity: 0.85; transform: translateY(-2px); box-shadow: 0 5px 15px rgba(0,0,0,0.3); }
     .logout-link:hover { opacity: 0.8; transform: scale(1.05); }
     .back-btn:hover { transform: translateX(-5px); opacity: 0.8; }
@@ -3071,8 +3010,8 @@ body.theme-retro #active-lobby-banner {
     background: linear-gradient(180deg, #f9fbff 0%, #e4ecf7 100%);
     border-bottom: 1px solid #9cb1c6;
 }
-body.theme-retro .message-context-sheet,
-body.theme-retro .msg-action-menu {
+body.theme-retro #plus-menu,
+body.theme-retro .plus-popup {
     background: var(--solid-panel) !important;
     border: 1px solid #9cb1c6 !important;
     color: var(--text-main);
@@ -3119,12 +3058,14 @@ body.theme-hacker #edit-preview-bar {
     border-radius: 0;
     backdrop-filter: none;
 }
-body.theme-hacker .msg-action-menu {
+body.theme-hacker #plus-menu,
+body.theme-hacker .plus-popup {
     background: #000;
     border: 1px solid var(--accent);
     border-radius: 0;
 }
-body.theme-hacker .msg-action-menu button {
+body.theme-hacker #plus-menu button,
+body.theme-hacker .plus-popup button {
     background: #000;
     border: 1px solid var(--accent);
     color: var(--accent);
@@ -4290,7 +4231,8 @@ body.liquid-glass .glass-main,
 body.liquid-glass .glass-card,
 body.liquid-glass .glass-members-sidebar,
 body.liquid-glass .emoji-picker-panel,
-body.liquid-glass .msg-action-menu {
+body.liquid-glass #plus-menu,
+body.liquid-glass .plus-popup {
     background:
         radial-gradient(120% 70% at 0% 0%, rgb(255 255 255 / calc(.24 * var(--lg-s))) 0%, rgb(255 255 255 / 0) 48%),
         radial-gradient(90% 60% at 100% 100%, rgb(255 255 255 / calc(.10 * var(--lg-s))) 0%, rgb(255 255 255 / 0) 55%),
@@ -4307,7 +4249,8 @@ body.liquid-glass .msg-action-menu {
         0 22px 55px rgb(0 0 0 / .38);
 }
 body.liquid-glass .emoji-picker-panel,
-body.liquid-glass .msg-action-menu { background-color: rgb(var(--lg-base) / .62); }
+body.liquid-glass #plus-menu,
+body.liquid-glass .plus-popup { background-color: rgb(var(--lg-base) / .62); }
 
 body.liquid-glass .chat-header-glass,
 body.liquid-glass .glass-input-area {
@@ -4452,7 +4395,8 @@ body.liquid-glass:not(.lg-still) .glider-thumb { transition: transform .6s var(-
 /* Windows melt in */
 body.liquid-glass:not(.lg-still) .modal .glass-card { animation: lg-pop .55s var(--lg-spring) both; }
 body.liquid-glass:not(.lg-still) .emoji-picker-panel,
-body.liquid-glass:not(.lg-still) .msg-action-menu { animation: lg-pop-sm .38s var(--lg-spring) both; transform-origin: bottom left; }
+body.liquid-glass:not(.lg-still) #plus-menu,
+body.liquid-glass:not(.lg-still) .plus-popup { animation: lg-pop-sm .38s var(--lg-spring) both; transform-origin: bottom left; }
 @keyframes lg-pop { 0% { opacity: 0; transform: translateY(26px) scale(.9); } 60% { opacity: 1; } 100% { opacity: 1; transform: none; } }
 @keyframes lg-pop-sm { 0% { opacity: 0; transform: translateY(12px) scale(.92); } 100% { opacity: 1; transform: none; } }
 body.liquid-glass:not(.lg-still) .switch-slider::after { transition-timing-function: var(--lg-spring); transition-duration: .45s; }
@@ -5275,156 +5219,6 @@ body:not(.liquid-glass):not(.theme-liquid-glass) .glass-input-area {
     font-variant-numeric: tabular-nums;
 }
 
-/* ---------------- TELEGRAM-STYLE MESSAGE CONTEXT MENU ---------------- */
-.message-context-backdrop {
-    position: fixed;
-    inset: 0;
-    background: rgba(0, 0, 0, 0.45);
-    z-index: 10000;
-    opacity: 1;
-    transition: opacity 0.2s ease;
-    pointer-events: auto;
-}
-
-.message-context-backdrop.hidden {
-    opacity: 0 !important;
-    pointer-events: none !important;
-}
-
-.message-context-sheet {
-    position: fixed;
-    z-index: 10001;
-    background: rgba(22, 24, 38, 0.95);
-    backdrop-filter: blur(24px);
-    -webkit-backdrop-filter: blur(24px);
-    border: 1px solid var(--glass-border);
-    border-radius: 18px;
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65), 0 0 24px rgba(112, 0, 255, 0.2);
-    width: 250px;
-    max-width: 90vw;
-    padding: 10px;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    box-sizing: border-box;
-    transition: transform 0.22s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.18s ease;
-    will-change: transform, opacity;
-    transform: scale(1);
-    opacity: 1;
-    pointer-events: auto;
-    user-select: none;
-    -webkit-user-select: none;
-}
-
-.message-context-sheet.hidden {
-    transform: scale(0.92) !important;
-    opacity: 0 !important;
-    pointer-events: none !important;
-}
-
-.message-context-reactions {
-    display: flex;
-    align-items: center;
-    justify-content: space-around;
-    padding: 4px 2px 8px;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
-    gap: 4px;
-}
-
-.ctx-reaction-btn {
-    background: transparent;
-    border: none;
-    font-size: 24px;
-    cursor: pointer;
-    padding: 6px 8px;
-    border-radius: 12px;
-    transition: transform 0.15s ease, background 0.15s ease;
-    line-height: 1;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
-
-.ctx-reaction-btn:hover {
-    transform: scale(1.25);
-    background: rgba(255, 255, 255, 0.1);
-}
-
-.ctx-reaction-btn:active {
-    transform: scale(0.95);
-}
-
-.message-context-actions {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-}
-
-.ctx-action-item {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    width: 100%;
-    padding: 10px 14px;
-    background: transparent;
-    border: none;
-    border-radius: 10px;
-    color: var(--text, #ffffff);
-    font-size: 14px;
-    font-weight: 500;
-    cursor: pointer;
-    text-align: left;
-    transition: background 0.15s ease;
-    box-sizing: border-box;
-    font-family: inherit;
-}
-
-.ctx-action-item:hover {
-    background: rgba(255, 255, 255, 0.08);
-}
-
-.ctx-action-item:active {
-    background: rgba(255, 255, 255, 0.14);
-}
-
-.ctx-action-item .ctx-icon {
-    font-size: 16px;
-    width: 20px;
-    display: inline-flex;
-    justify-content: center;
-}
-
-.ctx-action-item .ctx-label {
-    flex: 1;
-}
-
-.ctx-action-item.ctx-danger {
-    color: #ef4444;
-}
-
-.ctx-action-item.ctx-danger:hover {
-    background: rgba(239, 68, 68, 0.15);
-}
-
-@media (max-width: 768px) {
-    .message-context-sheet.mobile-bottom-docked {
-        left: 16px !important;
-        right: 16px !important;
-        bottom: 24px !important;
-        top: auto !important;
-        width: auto !important;
-        max-width: calc(100vw - 32px) !important;
-        border-radius: 20px;
-        box-shadow: 0 16px 48px rgba(0, 0, 0, 0.8), 0 0 30px rgba(112, 0, 255, 0.25);
-    }
-}
-
-body:not(.liquid-glass):not(.theme-liquid-glass) .message-context-sheet {
-    background: var(--solid-panel, #181920);
-    border: 1px solid rgba(255, 255, 255, 0.1);
-    box-shadow: 0 16px 40px rgba(0, 0, 0, 0.7);
-}
-
 /* WhatsApp-Style Fullscreen Image Viewer Modal */
 #image-viewer-modal {
     position: fixed;
@@ -5985,10 +5779,7 @@ body.theme-retro #active-lobby-text {
 .uv-card,
 #plus-menu,
 .plus-popup,
-#attachment-options-menu,
-.msg-action-menu,
-.message-action-menu,
-.message-context-sheet:not(.hidden) {
+#attachment-options-menu {
     animation: orionPopIn 0.16s var(--ease-snappy);
 }
 
@@ -6151,23 +5942,31 @@ button:not(:disabled):active {
 
 .msg-quick-actions {
     position: absolute;
-    top: -14px;
+    top: -16px;
     left: 10px;
     right: auto;
-    display: none;
+    display: flex;
     align-items: center;
     gap: 2px;
     padding: 3px 5px;
     background: var(--surface-floating, rgba(32, 34, 46, 0.96));
     border: var(--surface-border, 1px solid rgba(255, 255, 255, 0.09));
     border-radius: 999px;
-    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.42);
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
-    z-index: 12;
+    z-index: 15;
     opacity: 0;
+    pointer-events: none;
     transform: translateY(3px);
-    transition: opacity 0.12s ease, transform 0.12s ease;
+    transition: opacity 0.14s ease, transform 0.14s ease;
+}
+
+/* Clamp top on the first visible message so hover pill never clips beneath sticky chat header */
+#messages-container > .msg-wrapper:first-child .msg-quick-actions,
+#messages-container > .chat-date-divider:first-child + .msg-wrapper .msg-quick-actions,
+#load-older-messages-btn + .chat-date-divider + .msg-wrapper .msg-quick-actions {
+    top: 4px;
 }
 
 /* Keep outgoing (sent) quick actions anchored inward from the right edge so they never clip near the Members sidebar */
@@ -6176,19 +5975,13 @@ button:not(:disabled):active {
     right: 10px;
 }
 
-.message.own .msg-quick-actions,
-.message-row.own .msg-quick-actions {
-    right: auto;
-    left: 10px;
-}
-
-/* Only enable hover pill on desktop pointer devices; keep touch/mobile tap UX untouched */
+/* Enable hover pill on desktop pointer devices; tap message on touch screens toggles .msg-actions-open */
 @media (hover: hover) and (pointer: fine) {
     .msg-wrapper:hover .msg-quick-actions,
     .message:hover .msg-quick-actions,
     .message-row:hover .msg-quick-actions {
-        display: flex;
         opacity: 1;
+        pointer-events: auto;
         transform: translateY(0);
     }
 
@@ -6197,12 +5990,24 @@ button:not(:disabled):active {
     }
 }
 
+@media (hover: none), (pointer: coarse) {
+    .msg-wrapper.msg-actions-open .msg-quick-actions {
+        opacity: 1;
+        pointer-events: auto;
+        transform: translateY(0);
+    }
+
+    .msg-wrapper.msg-actions-open .msg-reactions-bar {
+        display: none;
+    }
+}
+
 .msg-quick-actions button {
     background: transparent;
     border: none;
-    color: rgba(255, 255, 255, 0.85);
-    width: 26px;
-    height: 26px;
+    color: rgba(255, 255, 255, 0.86);
+    width: 28px;
+    height: 28px;
     border-radius: 50%;
     display: inline-flex;
     align-items: center;
@@ -6212,9 +6017,25 @@ button:not(:disabled):active {
     padding: 0;
 }
 
+.msg-quick-actions button svg {
+    width: 14px;
+    height: 14px;
+    display: block;
+    pointer-events: none;
+}
+
 .msg-quick-actions button:hover {
     background: rgba(255, 255, 255, 0.12);
     color: #fff;
+}
+
+.msg-quick-actions button.danger-action {
+    color: rgba(248, 113, 113, 0.9);
+}
+
+.msg-quick-actions button.danger-action:hover {
+    background: rgba(239, 68, 68, 0.18);
+    color: #fca5a5;
 }
 
 /* Unified Surface Tokens across Modals & Dropdowns */
@@ -6236,11 +6057,8 @@ body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):
 #plus-menu,
 .plus-popup,
 #attachment-options-menu,
-.msg-action-menu,
-.message-action-menu,
 .emoji-picker-panel,
-#mention-dropdown,
-.message-context-sheet {
+#mention-dropdown {
     border-radius: var(--radius-card);
     border: var(--surface-border);
     box-shadow: var(--shadow-elevated);
@@ -6346,6 +6164,73 @@ body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):
     flex: 1;
     height: 1px;
     background: rgba(255, 255, 255, 0.09);
+}
+
+/* =====================================================================
+   OPEN STICKERS & STATS (v1.2.46)
+   ===================================================================== */
+
+.sticker-stats-row {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-wrap: wrap;
+    gap: 8px;
+}
+
+.sticker-stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 10px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: rgba(255, 255, 255, 0.08);
+    border: 1px solid rgba(255, 255, 255, 0.12);
+    color: rgba(255, 255, 255, 0.9);
+    font-variant-numeric: tabular-nums;
+}
+
+.sticker-card {
+    position: relative;
+}
+
+.sticker-card-badge {
+    position: absolute;
+    right: 3px;
+    bottom: 3px;
+    padding: 1px 5px;
+    border-radius: 999px;
+    font-size: 9px;
+    font-weight: 700;
+    line-height: 1.3;
+    background: rgba(15, 16, 26, 0.85);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    color: #fff;
+    pointer-events: none;
+    font-variant-numeric: tabular-nums;
+}
+
+.sticker-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 10px;
+    flex-wrap: wrap;
+}
+
+.sticker-toolbar .sticker-toolbar-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.sticker-sort-active {
+    background: color-mix(in srgb, var(--accent) 26%, transparent) !important;
+    border-color: var(--accent) !important;
+    color: #fff !important;
 }
 
 

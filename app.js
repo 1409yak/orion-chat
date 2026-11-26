@@ -144,9 +144,46 @@ window.clearChatCleanups = function() {
 
 let currentChatId = null;
 let currentChatOpenToken = 0;
+window._chatSwitchToken = 0;
 let unreadBelowCount = 0;
 let userPinnedToBottom = true;
 const stickerMetadataCache = new Map();
+const MAX_CACHED_CHATS = 20;
+window.chatMessageCache = new Map(); // chatId -> { messages: Map<msgId, msgData>, scrollTop: number | null, hasMore: boolean }
+window.globalAdminUids = new Set();
+
+window.isGlobalAdmin = function(userData = window.currentUserData) {
+    if (!userData) return false;
+    return userData.role === 'admin' || userData.isAdmin === true || String(userData.isAdmin).toLowerCase() === 'true';
+};
+
+window.isGlobalModOrAdmin = function(userData = window.currentUserData) {
+    if (!userData) return false;
+    if (window.isGlobalAdmin(userData)) return true;
+    return userData.role === 'mod' || userData.role === 'moderator';
+};
+
+window.canModerateChat = function(chatId = currentChatId, chatData = currentChatData) {
+    const myUid = auth.currentUser?.uid;
+    if (!myUid) return false;
+    if (window.isGlobalModOrAdmin()) return true;
+    const data = chatData || (chatId ? allChatsStore.get(chatId) : null);
+    if (!data) return false;
+    if (myUid === (data.creatorId || currentChatCreatorId)) return true;
+    const myRole = currentChatMemberData?.[myUid]?.role || data?.members?.[myUid]?.role || 'member';
+    return myRole === 'admin' || myRole === 'mod' || myRole === 'moderator';
+};
+
+window.canDeleteMessage = function(msgData, chatId = currentChatId) {
+    const myUid = auth.currentUser?.uid;
+    if (!myUid || !msgData) return false;
+    const senderUid = msgData.sender_id || msgData.sender || msgData.senderId || '';
+    if (senderUid === myUid) return true;
+    if (!window.canModerateChat(chatId)) return false;
+    if (!window.isGlobalAdmin() && window.globalAdminUids?.has?.(senderUid)) return false;
+    return true;
+};
+
 let currentChatData = null;
 let currentChatCreatorId = null; // Store globally for profile viewing context
 let selectedGroupMembers = [];
@@ -4106,7 +4143,7 @@ async function deleteMessage(messageId) {
             console.error("Error deleting message:", err);
             
             if (err.message.includes("permission_denied")) {
-                showNotification("Permission Denied: You can only delete your own messages.", "error");
+                showNotification("Permission Denied: You do not have permission to delete this message.", "error");
             } else {
                 showNotification("Failed to delete message.", "error");
             }
@@ -4217,6 +4254,7 @@ function canCurrentUserPin(chatData = currentChatData) {
     if (!myUid || !currentChatId) return false;
     const isGroup = !!(chatData?.isGroup || chatData?.isChannel || chatData?.type === 'channel' || chatData?.isSystem);
     if (!isGroup) return true;
+    if (window.isGlobalModOrAdmin()) return true;
     if (myUid === (chatData?.creatorId || currentChatCreatorId)) return true;
     const myRole = currentChatMemberData?.[myUid]?.role || chatData?.members?.[myUid]?.role || 'member';
     return myRole === 'admin' || myRole === 'mod' || myRole === 'moderator';
@@ -4375,323 +4413,43 @@ function updatePinnedMessageBanner(chatData, expectedChatId = currentChatId) {
     }
 }
 
-function positionActionMenu(actionMenu, bubble, wrap, e) {
-    actionMenu.style.transform = '';
-    actionMenu.style.right = 'auto';
-    actionMenu.style.left = '0px';
-    actionMenu.style.bottom = 'auto';
-    actionMenu.style.top = '0px';
-    actionMenu.style.display = 'flex';
+window.closeTouchMessageActions = function(exceptWrap = null) {
+    document.querySelectorAll('.msg-wrapper.msg-actions-open').forEach(w => {
+        if (exceptWrap && w === exceptWrap) return;
+        w.classList.remove('msg-actions-open');
+    });
+};
 
-    wrap.style.zIndex = '100';
-    wrap.style.position = 'relative';
-    bubble.style.zIndex = '100';
-    bubble.style.position = 'relative';
-
-    const margin = 8; // Safe breathing room from top/bottom/side edges
-    const chatContainer = document.getElementById('messages-container') || document.getElementById('chat-container');
-    const rawContainerRect = chatContainer
-        ? chatContainer.getBoundingClientRect()
-        : { top: 0, left: 0, right: window.innerWidth, bottom: window.innerHeight, width: window.innerWidth, height: window.innerHeight };
-
-    const boundsTop = Math.max(rawContainerRect.top, 0);
-    const boundsBottom = Math.min(rawContainerRect.bottom, window.innerHeight);
-    const boundsLeft = Math.max(rawContainerRect.left, 0);
-    const boundsRight = Math.min(rawContainerRect.right, window.innerWidth);
-
-    const bubbleRect = bubble.getBoundingClientRect();
-    const menuRect = actionMenu.getBoundingClientRect();
-    const menuWidth = actionMenu.offsetWidth || menuRect.width;
-    const menuHeight = actionMenu.offsetHeight || menuRect.height;
-    const parentRect = (actionMenu.offsetParent || bubble).getBoundingClientRect();
-
-    // Calculate desired top in viewport coordinates and clamp within chat bounds
-    let targetTop = bubbleRect.top;
-    const minTop = boundsTop + margin;
-    const maxTop = Math.max(minTop, boundsBottom - menuHeight - margin);
-    if (targetTop > maxTop) {
-        targetTop = maxTop;
-    }
-    if (targetTop < minTop) {
-        targetTop = minTop;
-    }
-
-    actionMenu.style.bottom = 'auto';
-    actionMenu.style.top = `${targetTop - parentRect.top}px`;
-
-    const rawX = (e && typeof e.clientX === 'number' && e.clientX > 0) ? e.clientX : bubbleRect.left;
-    let leftPos = rawX;
-    const minLeft = boundsLeft + margin;
-    const maxLeft = Math.max(minLeft, boundsRight - menuWidth - margin);
-    if (leftPos > maxLeft) {
-        leftPos = maxLeft;
-    }
-    if (leftPos < minLeft) {
-        leftPos = minLeft;
-    }
-
-    actionMenu.style.left = `${leftPos - parentRect.left}px`;
-}
-
-function createPinActionMenuButton(messageId, closeMenuFn) {
-    if (!canCurrentUserPin()) return null;
-    const pinBtn = document.createElement('button');
-    pinBtn.className = 'glass-btn-secondary action-menu-btn';
-    pinBtn.innerHTML = '📌 Pin Message';
-    pinBtn.onclick = (e) => {
-        e.stopPropagation();
-        pinMessage(messageId);
-        if (typeof closeMenuFn === 'function') closeMenuFn();
-    };
-    return pinBtn;
-}
-
-// --- Telegram-Style Message Context Menu Controller ---
-let activeContextTarget = null;
-
-function openMessageContextMenu(messageId, msg, isMe, posX, posY) {
-    const sheet = document.getElementById('message-context-sheet');
-    const backdrop = document.getElementById('message-context-backdrop');
-    if (!sheet) return;
-
-    const myUid = auth.currentUser ? auth.currentUser.uid : null;
-    const isGroupAdmin = currentChatMemberData?.[myUid]?.role === 'admin' || myUid === currentChatCreatorId;
-    const canDelete = isMe || isGroupAdmin;
-    const canEdit = isMe && !msg.poll && !msg.stickerId;
-    const canCopy = !msg.poll && !msg.stickerId && !!msg.text;
-    const canPin = canCurrentUserPin();
-
-    activeContextTarget = {
-        messageId,
-        msg,
-        isMe,
-        canDelete,
-        canEdit,
-        canCopy,
-        canPin
-    };
-
-    const pinBtn = document.getElementById('ctx-action-pin');
-    if (pinBtn) pinBtn.style.display = canPin ? 'flex' : 'none';
-
-    const editBtn = document.getElementById('ctx-action-edit');
-    if (editBtn) editBtn.style.display = canEdit ? 'flex' : 'none';
-
-    const deleteBtn = document.getElementById('ctx-action-delete');
-    if (deleteBtn) deleteBtn.style.display = canDelete ? 'flex' : 'none';
-
-    const copyBtn = document.getElementById('ctx-action-copy');
-    if (copyBtn) copyBtn.style.display = canCopy ? 'flex' : 'none';
-
-    if (window.twemoji) twemoji.parse(sheet);
-
-    const isMobile = window.innerWidth <= 768;
-    if (isMobile) {
-        sheet.classList.add('mobile-bottom-docked');
-        sheet.style.left = '';
-        sheet.style.top = '';
-        sheet.classList.remove('hidden');
+window.copyMessageText = function(text) {
+    if (!text) return;
+    if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).then(() => {
+            showNotification("Copied to clipboard", "info");
+        }).catch(() => {
+            showNotification("Copied to clipboard", "info");
+        });
     } else {
-        sheet.classList.remove('mobile-bottom-docked');
-        sheet.classList.remove('hidden');
-        const margin = 8;
-        const sheetRect = sheet.getBoundingClientRect();
-        const sheetWidth = sheet.offsetWidth || sheetRect.width || 250;
-        const sheetHeight = sheet.offsetHeight || sheetRect.height || 220;
-        let left = (typeof posX === 'number' && posX > 0) ? posX : (window.innerWidth / 2 - sheetWidth / 2);
-        let top = (typeof posY === 'number' && posY > 0) ? posY : (window.innerHeight / 2 - sheetHeight / 2);
-
-        const maxLeft = Math.max(margin, window.innerWidth - sheetWidth - margin);
-        if (left > maxLeft) left = maxLeft;
-        if (left < margin) left = margin;
-
-        const maxTop = Math.max(margin, window.innerHeight - sheetHeight - margin);
-        if (top > maxTop) top = maxTop;
-        if (top < margin) top = margin;
-
-        sheet.style.left = `${left}px`;
-        sheet.style.top = `${top}px`;
+        const ta = document.createElement('textarea');
+        ta.value = text;
+        document.body.appendChild(ta);
+        ta.select();
+        document.execCommand('copy');
+        document.body.removeChild(ta);
+        showNotification("Copied to clipboard", "info");
     }
+};
 
-    if (backdrop) backdrop.classList.remove('hidden');
-}
-
-function closeMessageContextMenu() {
-    const sheet = document.getElementById('message-context-sheet');
-    const backdrop = document.getElementById('message-context-backdrop');
-    if (sheet) sheet.classList.add('hidden');
-    if (backdrop) backdrop.classList.add('hidden');
-    activeContextTarget = null;
-}
-window.closeMessageContextMenu = closeMessageContextMenu;
-
-function attachMessageContextMenu(element, messageId, msg, isMe) {
-    if (!element) return;
-    let touchTimer = null;
-    let touchStartX = 0;
-    let touchStartY = 0;
-    let isTouchMoved = false;
-
-    // Desktop: contextmenu (right-click)
-    element.addEventListener('contextmenu', (e) => {
-        if (e.target.tagName === 'A' || e.target.tagName === 'BUTTON' || e.target.closest('button')) return;
-        e.preventDefault();
-        e.stopPropagation();
-        openMessageContextMenu(messageId, msg, isMe, e.clientX, e.clientY);
-    });
-
-    // Mobile: 450ms touch-and-hold (cleared on touchmove / touchend)
-    element.addEventListener('touchstart', (e) => {
-        if (e.touches.length !== 1) return;
-        const touch = e.touches[0];
-        touchStartX = touch.clientX;
-        touchStartY = touch.clientY;
-        isTouchMoved = false;
-
-        if (touchTimer) clearTimeout(touchTimer);
-        touchTimer = setTimeout(() => {
-            if (!isTouchMoved) {
-                if (window.navigator?.vibrate) {
-                    try { window.navigator.vibrate(40); } catch (_) {}
-                }
-                openMessageContextMenu(messageId, msg, isMe, touchStartX, touchStartY);
-            }
-        }, 450);
-    }, { passive: true });
-
-    element.addEventListener('touchmove', (e) => {
-        if (!touchTimer) return;
-        const touch = e.touches[0];
-        if (Math.abs(touch.clientX - touchStartX) > 8 || Math.abs(touch.clientY - touchStartY) > 8) {
-            isTouchMoved = true;
-            clearTimeout(touchTimer);
-            touchTimer = null;
-        }
-    }, { passive: true });
-
-    element.addEventListener('touchend', () => {
-        if (touchTimer) {
-            clearTimeout(touchTimer);
-            touchTimer = null;
-        }
-    }, { passive: true });
-
-    element.addEventListener('touchcancel', () => {
-        if (touchTimer) {
-            clearTimeout(touchTimer);
-            touchTimer = null;
-        }
-    }, { passive: true });
-}
-
-let isMessageContextMenuInitialized = false;
-function initMessageContextMenu() {
-    if (isMessageContextMenuInitialized) return;
-    isMessageContextMenuInitialized = true;
-
-    const backdrop = document.getElementById('message-context-backdrop');
-    if (backdrop) backdrop.onclick = closeMessageContextMenu;
-
-    document.querySelectorAll('.ctx-reaction-btn').forEach(btn => {
-        btn.onclick = (e) => {
-            e.stopPropagation();
-            const emoji = btn.dataset.emoji;
-            if (activeContextTarget && emoji) {
-                toggleReaction(activeContextTarget.messageId, emoji);
-            }
-            closeMessageContextMenu();
-        };
-    });
-
-    const replyBtn = document.getElementById('ctx-action-reply');
-    if (replyBtn) {
-        replyBtn.onclick = (e) => {
-            e.stopPropagation();
-            if (activeContextTarget) {
-                const { messageId, msg } = activeContextTarget;
-                const senderName = msg.sender_name || (msg.sender_id === 'system' ? 'Orion System' : 'User');
-                replyToMessage(messageId, msg.text || (msg.stickerId ? '[Sticker]' : ''), senderName);
-            }
-            closeMessageContextMenu();
-        };
-    }
-
-    const copyBtn = document.getElementById('ctx-action-copy');
-    if (copyBtn) {
-        copyBtn.onclick = (e) => {
-            e.stopPropagation();
-            if (activeContextTarget && activeContextTarget.msg?.text) {
-                const text = activeContextTarget.msg.text;
-                if (navigator.clipboard?.writeText) {
-                    navigator.clipboard.writeText(text).then(() => {
-                        showNotification("Copied to clipboard", "info");
-                    }).catch(() => {
-                        showNotification("Copied to clipboard", "info");
-                    });
-                } else {
-                    const ta = document.createElement('textarea');
-                    ta.value = text;
-                    document.body.appendChild(ta);
-                    ta.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(ta);
-                    showNotification("Copied to clipboard", "info");
-                }
-            }
-            closeMessageContextMenu();
-        };
-    }
-
-    const pinBtn = document.getElementById('ctx-action-pin');
-    if (pinBtn) {
-        pinBtn.onclick = (e) => {
-            e.stopPropagation();
-            if (activeContextTarget && activeContextTarget.canPin) {
-                pinMessage(activeContextTarget.messageId);
-            }
-            closeMessageContextMenu();
-        };
-    }
-
-    const editBtn = document.getElementById('ctx-action-edit');
-    if (editBtn) {
-        editBtn.onclick = (e) => {
-            e.stopPropagation();
-            if (activeContextTarget && activeContextTarget.canEdit) {
-                editMessage(activeContextTarget.messageId, activeContextTarget.msg.text || '');
-            }
-            closeMessageContextMenu();
-        };
-    }
-
-    const deleteBtn = document.getElementById('ctx-action-delete');
-    if (deleteBtn) {
-        deleteBtn.onclick = (e) => {
-            e.stopPropagation();
-            if (activeContextTarget && activeContextTarget.canDelete) {
-                deleteMessage(activeContextTarget.messageId, !!activeContextTarget.msg.stickerId);
-            }
-            closeMessageContextMenu();
-        };
-    }
-
-    // Dismiss on message list scroll
-    const messagesCont = document.getElementById('messages-container');
-    if (messagesCont) {
-        messagesCont.addEventListener('scroll', closeMessageContextMenu, { passive: true });
-    }
-
-    // Dismiss on outside click
-    document.addEventListener('pointerdown', (e) => {
-        const sheet = document.getElementById('message-context-sheet');
-        if (sheet && !sheet.classList.contains('hidden')) {
-            if (!sheet.contains(e.target) && !e.target.closest('.msg-bubble')) {
-                closeMessageContextMenu();
-            }
-        }
+function attachTouchQuickActionsToggle(bubble, wrap) {
+    if (!bubble || !wrap) return;
+    bubble.addEventListener('click', (e) => {
+        if (!window.matchMedia || !window.matchMedia('(hover: none), (pointer: coarse)').matches) return;
+        if (suppressSwipeClick) return;
+        if (e.target.closest('a, button, input, select, textarea, .chat-embedded-image, .image-embed-wrapper, .reply-quote, .reaction-tag, .reaction-emoji, .expand-reactions-btn, .msg-quick-actions, .poll-option')) return;
+        const wasOpen = wrap.classList.contains('msg-actions-open');
+        window.closeTouchMessageActions(wasOpen ? null : wrap);
+        wrap.classList.toggle('msg-actions-open', !wasOpen);
     });
 }
-window.initMessageContextMenu = initMessageContextMenu;
 
 // --- HORIZONTAL SWIPE-TO-REPLY GESTURE ---
 let swipeStartX = 0;
@@ -4709,7 +4467,7 @@ document.addEventListener('touchstart', (e) => {
 
     // Do not swipe system messages or when touching interactive controls
     if (msgBubble.closest('.system-msg')) return;
-    if (e.target.closest('button, a, input, select, textarea, .msg-action-menu, .reaction-emoji, .expand-reactions-btn, .image-embed-wrapper, .chat-embedded-image')) return;
+    if (e.target.closest('button, a, input, select, textarea, .msg-quick-actions, .reaction-emoji, .expand-reactions-btn, .image-embed-wrapper, .chat-embedded-image')) return;
 
     activeSwipeMessage = msgBubble;
     swipeStartX = e.touches[0].clientX;
@@ -4976,19 +4734,92 @@ async function getOrCreatePackForUpload(myUid, myName, defaultTargetPackId = nul
     }
 }
 
+function computeStickerStats(meta, statsData) {
+    const ownersObj = (statsData && typeof statsData.owners === 'object' && statsData.owners) ? statsData.owners : {};
+    const ownerKeys = new Set(Object.keys(ownersObj));
+    if (meta?.ownerId) ownerKeys.add(meta.ownerId);
+    const usageCount = Number(statsData?.usageCount || 0);
+    return {
+        ownerCount: ownerKeys.size,
+        usageCount
+    };
+}
+
+let communityStickerSortMode = 'popular'; // 'popular' | 'recent'
+
+async function loadAllCommunityStickers(myUid) {
+    const [metaSnap, statsSnap, mineSnap] = await Promise.all([
+        safeGet(ref(db, 'sticker_metadata')),
+        safeGet(ref(db, 'stickerStats')),
+        myUid ? safeGet(ref(db, `user_stickers/${myUid}`)) : Promise.resolve(null)
+    ]);
+    const allMeta = metaSnap?.val() || {};
+    const allStats = statsSnap?.val() || {};
+    const myMap = mineSnap?.val() || {};
+    const list = [];
+    Object.entries(allMeta).forEach(([id, meta]) => {
+        if (!meta || typeof meta !== 'object') return;
+        meta.stickerId = meta.stickerId || id;
+        stickerMetadataCache.set(id, meta);
+        const { ownerCount, usageCount } = computeStickerStats(meta, allStats[id]);
+        const isCreator = Boolean(myUid && meta.ownerId === myUid);
+        const isSaved = Boolean(isCreator || myMap[id]);
+        list.push({
+            stickerId: id,
+            meta,
+            ownerCount,
+            usageCount,
+            isCreator,
+            isSaved
+        });
+    });
+    return list;
+}
+
+function sortStickersList(list, mode = communityStickerSortMode) {
+    const sorted = [...list];
+    if (mode === 'popular') {
+        sorted.sort((a, b) => (b.usageCount - a.usageCount) || ((b.meta.createdAt || 0) - (a.meta.createdAt || 0)));
+    } else {
+        sorted.sort((a, b) => (b.meta.createdAt || 0) - (a.meta.createdAt || 0));
+    }
+    return sorted;
+}
+
+function triggerStickerUploadFlow(onUploaded = null) {
+    if (!auth.currentUser) {
+        showNotification("You must be logged in to upload stickers.", "error");
+        return;
+    }
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.accept = 'image/png, image/webp, image/gif';
+    input.onchange = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        await uploadSticker(file);
+        if (typeof onUploaded === 'function') onUploaded();
+    };
+    input.click();
+}
+
 async function openStickerPackPreview(stickerId) {
     if (!stickerId) return;
     const myUid = auth.currentUser?.uid;
     const modal = document.getElementById('sticker-pack-preview-modal');
     const titleElem = document.getElementById('pack-preview-title');
     const authorElem = document.getElementById('pack-preview-author');
+    const statsElem = document.getElementById('sticker-preview-stats');
     const gridElem = document.getElementById('pack-preview-stickers-grid');
     const actionBtn = document.getElementById('toggle-pack-collection-btn');
+    const deleteBtn = document.getElementById('delete-sticker-preview-btn');
 
     titleElem.innerText = 'Sticker';
     authorElem.innerText = '';
+    if (statsElem) statsElem.innerHTML = '';
     gridElem.innerHTML = '<p style="text-align:center; opacity:0.6; width:100%;">Loading...</p>';
     actionBtn.style.display = 'none';
+    if (deleteBtn) deleteBtn.style.display = 'none';
     modal.style.display = 'flex';
 
     const metaSnap = await safeGet(ref(db, `sticker_metadata/${stickerId}`));
@@ -4999,16 +4830,26 @@ async function openStickerPackPreview(stickerId) {
     }
     meta.stickerId = meta.stickerId || stickerId;
 
-    const [ownerSnap, haveSnap] = await Promise.all([
+    const [ownerSnap, haveSnap, statsSnap] = await Promise.all([
         safeGet(ref(db, `users/${meta.ownerId}`)),
-        myUid ? safeGet(ref(db, `user_stickers/${myUid}/${stickerId}`)) : Promise.resolve(null)
+        myUid ? safeGet(ref(db, `user_stickers/${myUid}/${stickerId}`)) : Promise.resolve(null),
+        safeGet(ref(db, `stickerStats/${stickerId}`))
     ]);
     const ownerName = getDisplayName(ownerSnap?.val() || {});
     const isOwner = meta.ownerId === myUid;
     const haveIt = isOwner || !!(haveSnap && haveSnap.exists());
+    const { ownerCount, usageCount } = computeStickerStats(meta, statsSnap?.val());
 
     titleElem.innerText = getStickerDisplayName(meta);
     authorElem.innerText = `By ${ownerName}`;
+    if (statsElem) {
+        statsElem.innerHTML = `
+            <span class="sticker-stat-pill">\u{1F465} ${formatMoney(ownerCount)} saved</span>
+            <span class="sticker-stat-pill">\u{1F525} ${formatMoney(usageCount)} uses</span>
+        `;
+        if (window.twemoji) twemoji.parse(statsElem);
+    }
+
     gridElem.innerHTML = '';
     gridElem.style.display = 'flex';
     gridElem.style.justifyContent = 'center';
@@ -5022,28 +4863,55 @@ async function openStickerPackPreview(stickerId) {
     actionBtn.style.color = '';
     actionBtn.disabled = false;
     if (isOwner) {
-        actionBtn.innerText = '\u{2713} This is your sticker';
+        actionBtn.innerText = '\u{2713} Your Sticker';
         actionBtn.className = 'glass-btn-secondary';
         actionBtn.disabled = true;
         actionBtn.onclick = null;
     } else if (haveIt) {
-        actionBtn.innerText = '\u{2713} In your collection (Remove)';
+        actionBtn.innerText = '\u{2713} Saved to My Stickers (Remove)';
         actionBtn.className = 'glass-btn-secondary';
         actionBtn.style.color = '#ff4b2b';
         actionBtn.onclick = async () => {
+            if (!myUid) return;
             try {
-                await remove(ref(db, `user_stickers/${myUid}/${stickerId}`));
-                showNotification("Sticker removed from your collection.", "info");
+                await Promise.all([
+                    remove(ref(db, `user_stickers/${myUid}/${stickerId}`)),
+                    remove(ref(db, `stickerStats/${stickerId}/owners/${myUid}`))
+                ]);
+                showNotification("Sticker removed from My Stickers.", "info");
                 closeAnimatedModal(modal);
             } catch (err) { showNotification("Couldn't remove sticker.", "error"); }
         };
     } else {
-        actionBtn.innerText = 'Request this sticker';
+        actionBtn.innerText = '+ Save to My Stickers';
         actionBtn.className = 'glass-btn-primary';
-        actionBtn.onclick = () => {
-            closeAnimatedModal(modal);
-            openStickerRequestModal(stickerId, meta.ownerId, getStickerDisplayName(meta));
+        actionBtn.onclick = async () => {
+            if (!myUid) return;
+            try {
+                const updates = {};
+                updates[`/user_stickers/${myUid}/${stickerId}`] = {
+                    type: 'saved',
+                    metadataRef: stickerId,
+                    createdAt: serverTimestamp()
+                };
+                updates[`/stickerStats/${stickerId}/owners/${myUid}`] = true;
+                await update(ref(db), updates);
+                showNotification("Saved to My Stickers!", "success");
+                closeAnimatedModal(modal);
+            } catch (err) {
+                console.error("Failed to save sticker:", err);
+                showNotification("Couldn't save sticker.", "error");
+            }
         };
+    }
+
+    if (deleteBtn) {
+        const canDeleteSticker = isOwner || window.isGlobalModOrAdmin();
+        deleteBtn.style.display = canDeleteSticker ? '' : 'none';
+        deleteBtn.onclick = canDeleteSticker ? async () => {
+            const deleted = await deleteSticker(stickerId);
+            if (deleted) closeAnimatedModal(modal);
+        } : null;
     }
 }
 
@@ -5052,12 +4920,12 @@ function updatePackPreviewCollectionButton(isInCollection) {
     if (!toggleBtn) return;
 
     if (isInCollection) {
-        toggleBtn.innerText = '\u{2713} In Collection (Remove)';
+        toggleBtn.innerText = '\u{2713} Saved (Remove)';
         toggleBtn.className = 'glass-btn-secondary';
         toggleBtn.style.color = '#ff4b2b';
         toggleBtn.onclick = () => removePackFromCollection(currentPackPreviewId);
     } else {
-        toggleBtn.innerText = '+ Add to Collection';
+        toggleBtn.innerText = '+ Save to My Stickers';
         toggleBtn.className = 'glass-btn-primary';
         toggleBtn.style.color = '';
         toggleBtn.onclick = () => addPackToCollection(currentPackPreviewId);
@@ -5070,16 +4938,12 @@ async function uploadSticker(file, targetPackId = null) {
         return;
     }
     const myUid = auth.currentUser.uid;
-    const userSnap = await get(ref(db, `users/${myUid}`));
-    const userData = userSnap.val();
-    const isAdmin = userData?.isAdmin === true || String(userData?.isAdmin).toLowerCase() === "true";
-    if (!userData || (userData.type !== 'Premium' && !isAdmin)) {
-        showNotification("Only premium users can upload stickers.", "error");
-        return;
-    }
 
-    const ownedStickersSnap = await get(query(ref(db, `user_stickers/${myUid}`), orderByChild('type'), equalTo('owned')));
-    if (ownedStickersSnap.size >= STICKER_UPLOAD_LIMIT) {
+    const myStickersSnap = await safeGet(ref(db, `user_stickers/${myUid}`));
+    const ownedCount = myStickersSnap?.exists()
+        ? Object.values(myStickersSnap.val()).filter(v => v && v.type === 'owned').length
+        : 0;
+    if (ownedCount >= STICKER_UPLOAD_LIMIT) {
         showNotification(`You have reached your limit of ${STICKER_UPLOAD_LIMIT} uploaded stickers.`, "error");
         return;
     }
@@ -5134,6 +4998,10 @@ async function uploadSticker(file, targetPackId = null) {
         metadataRef: stickerId,
         createdAt: serverTimestamp()
     };
+    updates[`/stickerStats/${stickerId}`] = {
+        usageCount: 0,
+        owners: { [myUid]: true }
+    };
 
     try {
         await update(ref(db), updates);
@@ -5141,6 +5009,9 @@ async function uploadSticker(file, targetPackId = null) {
         renderStickerOptions();
         if (activePickerTab === 'stickers' && document.getElementById('emoji-picker')?.style.display !== 'none') {
             renderPickerStickers();
+        }
+        if (document.getElementById('sticker-picker-modal')?.style.display === 'flex') {
+            renderStickerPicker();
         }
     } catch (error) {
         console.error("Error uploading sticker:", error);
@@ -5150,55 +5021,51 @@ async function uploadSticker(file, targetPackId = null) {
 
 async function deleteSticker(stickerId) {
     const confirmed = await showConfirm("Delete Sticker", "Are you sure you want to delete this sticker? This will remove it for everyone.");
-    if (!confirmed) return;
+    if (!confirmed) return false;
 
-    const myUid = auth.currentUser.uid;
+    const myUid = auth.currentUser?.uid;
+    if (!myUid) return false;
     const stickerMetaSnap = await get(ref(db, `sticker_metadata/${stickerId}`));
     const stickerMeta = stickerMetaSnap.val();
 
-    if (!stickerMeta || stickerMeta.ownerId !== myUid) {
-        showNotification("You can only delete your own stickers.", "error");
-        return;
+    if (!stickerMeta || (stickerMeta.ownerId !== myUid && !window.isGlobalModOrAdmin())) {
+        showNotification("You don't have permission to delete this sticker.", "error");
+        return false;
     }
 
     try {
-        // In a real app, a Cloud Function would also delete from Firebase Storage
-        await remove(ref(db, `sticker_metadata/${stickerId}`));
-        await remove(ref(db, `user_stickers/${myUid}/${stickerId}`));
+        const tasks = [
+            remove(ref(db, `sticker_metadata/${stickerId}`)),
+            remove(ref(db, `stickerStats/${stickerId}`)),
+            remove(ref(db, `user_stickers/${myUid}/${stickerId}`))
+        ];
+        if (stickerMeta.ownerId && stickerMeta.ownerId !== myUid) {
+            tasks.push(remove(ref(db, `user_stickers/${stickerMeta.ownerId}/${stickerId}`)));
+        }
+        await Promise.all(tasks);
+        stickerMetadataCache.delete(stickerId);
         showNotification("Sticker deleted.", "success");
-        renderStickerOptions(); // Refresh the list
+        renderStickerOptions();
+        if (activePickerTab === 'stickers' && document.getElementById('emoji-picker')?.style.display !== 'none') {
+            renderPickerStickers();
+        }
+        if (document.getElementById('sticker-picker-modal')?.style.display === 'flex') {
+            renderStickerPicker();
+        }
+        return true;
     } catch (error) {
-        console.error("Error deleting sticker message:", error);
+        console.error("Error deleting sticker:", error);
         showNotification("Failed to delete sticker.", "error");
+        return false;
     }
 }
 
-function resetMessageActionMenus(clickTarget = null) {
-    document.querySelectorAll('.msg-action-menu').forEach(menu => {
-        if (menu.classList.contains('plus-popup')) return;
-        if (clickTarget && menu.parentElement && menu.parentElement.contains(clickTarget)) return;
-        menu.style.display = 'none';
-        menu.style.transform = '';
-        menu.style.top = '';
-        menu.style.bottom = '';
-        menu.style.left = '';
-        menu.style.right = '';
-        const parentWrap = menu.closest('.msg-wrapper');
-        if (parentWrap) {
-            parentWrap.style.zIndex = '';
-            parentWrap.style.position = '';
-        }
-        const parentBubble = menu.closest('.msg-bubble');
-        if (parentBubble) {
-            parentBubble.style.zIndex = '';
-            parentBubble.style.position = '';
-        }
-    });
-}
-
-// Global click listener to close message action menus
+// Global click listener to close open touch quick-action pills when tapping outside
 document.addEventListener('click', (e) => {
-    resetMessageActionMenus(e.target);
+    const openWrap = document.querySelector('.msg-wrapper.msg-actions-open');
+    if (openWrap && !openWrap.contains(e.target)) {
+        window.closeTouchMessageActions();
+    }
 });
 
 async function toggleReaction(messageId, emoji) {
@@ -5346,12 +5213,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.45';
+const CURRENT_APP_VERSION = '1.2.46';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.45';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.46';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -5513,7 +5380,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.45';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.46';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6102,17 +5969,9 @@ window.addEventListener('keydown', (e) => {
             closedPopup = true;
         }
 
-        const msgContextSheet = document.getElementById('message-context-sheet');
-        if (msgContextSheet && !msgContextSheet.classList.contains('hidden')) {
-            closeMessageContextMenu();
-            closedPopup = true;
-        }
-
-        const openActionMenus = Array.from(document.querySelectorAll('.msg-action-menu')).filter(m =>
-            !m.classList.contains('plus-popup') && isElementVisible(m)
-        );
-        if (openActionMenus.length > 0) {
-            resetMessageActionMenus();
+        const openTouchActions = document.querySelectorAll('.msg-wrapper.msg-actions-open');
+        if (openTouchActions.length > 0) {
+            window.closeTouchMessageActions();
             closedPopup = true;
         }
 
@@ -6513,10 +6372,15 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
     if (targetUid !== myUid) {
         const myData = currentChatMemberData?.[myUid];
         const amICreator = myUid === groupCreatorId;
-        const amIAdmin = myData?.role === 'admin';
-        const amIMod = myData?.role === 'mod';
+        const amIGlobalAdmin = window.isGlobalAdmin();
+        const amIGlobalMod = window.isGlobalModOrAdmin();
+        const amIAdmin = myData?.role === 'admin' || amIGlobalAdmin;
+        const amIMod = myData?.role === 'mod' || myData?.role === 'moderator' || amIGlobalMod;
         const targetIsCreator = targetUid === groupCreatorId;
         const targetMemberData = currentChatMemberData?.[targetUid];
+        const targetMemberRole = targetMemberData?.role || 'member';
+        const targetIsGroupAdmin = targetMemberRole === 'admin';
+        const isTargetGlobalAdmin = userData.role === 'admin' || viewedIsAdmin;
 
         // ── Improved Helper: create a row button with the uv- system ──
         const makeActionRow = (label, icon, isDanger, onClick) => {
@@ -6581,7 +6445,6 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
             }
 
             // Group Mute / Unmute (Global admins immune)
-            const isTargetGlobalAdmin = userData.role === 'admin' || viewedIsAdmin;
             if (!isTargetGlobalAdmin) {
                 const groupId = currentChatData?.groupId || chatId;
                 let isMutedInGroup = false;
@@ -6611,7 +6474,14 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
         }
 
         // ── 4. DANGER ZONE ──
-        const hasDanger = friendSnap.exists() || (chatId && amICreator && !targetIsCreator);
+        const canKickTarget = Boolean(
+            chatId &&
+            isGroupChat &&
+            !targetIsCreator &&
+            !isTargetGlobalAdmin &&
+            (amICreator || amIAdmin || (amIMod && !targetIsGroupAdmin))
+        );
+        const hasDanger = friendSnap.exists() || canKickTarget;
         if (hasDanger) {
             const dangerSection = makeSection('Danger Zone', true);
             
@@ -6624,7 +6494,7 @@ async function showUserProfile(targetUid, chatId = null, groupCreatorId = null) 
         }
 
         // Remove from Group
-        if (chatId && amICreator && !targetIsCreator) {
+        if (canKickTarget) {
             dangerSection.appendChild(makeActionRow('Kick from Group', '\u{1F6AB}', true, async () => {
                 closeAnimatedModal(document.getElementById('user-view-modal'));
                 const confirmed = await showConfirm("Remove Member", `Are you sure you want to remove ${userData.displayName || "User"} from this group?`);
@@ -6743,7 +6613,6 @@ function initApp(myUid) {
 
     // Ensure Orion Updates broadcast channel exists and user is subscribed
     ensureOrionUpdatesChannel(myUid);
-    initMessageContextMenu();
 
     // Ensure mobile view starts on conversations/sidebar list
     document.body.classList.remove('chat-open');
@@ -7349,12 +7218,21 @@ function startChat(me, them, name) {
 }/* ---------------- OPEN CHAT ---------------- */
 
 async function openChat(chatId, title) {
+    if (currentChatId && currentChatId !== chatId) {
+        saveChatScrollToCache(currentChatId);
+    }
     if (typeof updateTypingStatus === 'function') updateTypingStatus(false);
     window.clearChatCleanups();
     const openToken = ++currentChatOpenToken;
+    window._chatSwitchToken = openToken;
     dismissKeyboard();
+    const existingCache = window.chatMessageCache.get(chatId);
+    const isCacheHit = Boolean(existingCache && existingCache.messages instanceof Map);
+    const cacheEntry = getOrCreateChatCacheEntry(chatId);
+
     currentChatId = chatId;
-    currentChatData = null;
+    currentChatData = cacheEntry.chatData || allChatsStore.get(chatId) || null;
+    currentChatCreatorId = currentChatData?.creatorId || null;
     closeSidebarDrawer();
 
     const initialPinnedBanner = document.getElementById('pinned-message-banner');
@@ -7376,7 +7254,20 @@ async function openChat(chatId, title) {
     // Close members panel if open when switching chats
     document.body.classList.remove('members-open');
 
-    document.getElementById('chat-title-text').innerText = title;
+    const initTitleEl = document.getElementById('chat-title-text');
+    if (initTitleEl) {
+        if (initTitleEl.innerText !== (title || '')) {
+            initTitleEl.innerText = title || '';
+        }
+        initTitleEl.classList.remove('is-group-clickable');
+        initTitleEl.title = '';
+        initTitleEl.onclick = null;
+    }
+    const initHeaderAvatar = document.getElementById('chat-header-avatar');
+    if (initHeaderAvatar && initHeaderAvatar.dataset.chatId !== chatId) {
+        initHeaderAvatar.dataset.chatId = chatId;
+        initHeaderAvatar.dataset.renderedAvatarKey = '';
+    }
 
     if (chatId === 'channel_orion_updates') {
         const input = document.getElementById('message-input');
@@ -7431,15 +7322,71 @@ async function openChat(chatId, title) {
     currentChatMemberPics.clear();
     currentChatMemberBadges.clear();
 
+    const cont = document.getElementById('messages-container');
+    unreadBelowCount = 0;
+    userPinnedToBottom = true;
+    updateJumpToBottomButton(true);
+
+    // Subtle "Load older messages" button at the top of the feed (shown when batch has >= 60 messages)
+    const loadOlderBtn = document.createElement('button');
+    loadOlderBtn.type = 'button';
+    loadOlderBtn.id = 'load-older-messages-btn';
+    loadOlderBtn.className = 'load-older-messages-btn';
+    loadOlderBtn.textContent = 'Load older messages';
+    loadOlderBtn.style.display = (isCacheHit && cacheEntry.hasMore) ? 'inline-flex' : 'none';
+
+    let currentOldestMessageKey = null;
+    let isLoadingOlderMessages = false;
+    let hasMoreOlderMessages = isCacheHit ? Boolean(cacheEntry.hasMore) : false;
+    let lastSenderId = null;
+
+    if (cont) {
+        if (isCacheHit) {
+            const cachedList = Array.from(cacheEntry.messages.entries()).sort((a, b) => String(a[0]).localeCompare(String(b[0])));
+            const frag = document.createDocumentFragment();
+            frag.appendChild(loadOlderBtn);
+            if (cachedList.length === 0) {
+                cont.replaceChildren(frag);
+                showChatEmptyState(cont);
+            } else {
+                currentOldestMessageKey = cachedList[0][0];
+                let prevSender = null;
+                for (const [mId, mData] of cachedList) {
+                    if (!mData) continue;
+                    const sUid = mData.sender_id || mData.sender;
+                    const el = buildMessageElement(mId, mData, Boolean(prevSender && prevSender === sUid));
+                    prevSender = sUid;
+                    lastSenderId = sUid;
+                    frag.appendChild(el);
+                }
+                cont.replaceChildren(frag);
+                cont.querySelectorAll('.msg-wrapper[data-msg-id]').forEach(el => window.updateMessageGrouping(el));
+                window.syncDateDividers(cont);
+            }
+            if (cacheEntry.scrollTop === null || cacheEntry.scrollTop === undefined) {
+                userPinnedToBottom = true;
+                cont.scrollTop = cont.scrollHeight;
+            } else {
+                cont.scrollTop = cacheEntry.scrollTop;
+                userPinnedToBottom = window.isUserNearBottom();
+            }
+            updateJumpToBottomButton(userPinnedToBottom);
+        } else {
+            cont.replaceChildren(loadOlderBtn);
+            renderChatSkeleton(cont);
+        }
+    }
+
     const typingIndicator = document.getElementById('typing-indicator') || createTypingIndicator();
     typingIndicator.innerText = '';
 
     const chatRef = ref(db, `chats/${chatId}`);
     activeChatMetaOff = onValue(chatRef, (chatSnap) => {
-        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
+        if (currentChatId !== chatId || openToken !== window._chatSwitchToken) return;
         const chatData = chatSnap.val();
         if (!chatData) return;
         currentChatData = chatData;
+        cacheEntry.chatData = chatData;
         updatePinnedMessageBanner(chatData, chatId);
         viewedMessagesInSession.clear();
 
@@ -7453,7 +7400,7 @@ async function openChat(chatId, title) {
 
         if (isGroup && groupId) {
             activeGroupMuteOff = onValue(ref(db, `groups/${groupId}`), (groupSnap) => {
-                if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
+                if (currentChatId !== chatId || openToken !== window._chatSwitchToken) return;
                 const groupData = groupSnap.val() || {};
                 updateGroupMuteUI(groupData, chatData);
             });
@@ -7464,7 +7411,6 @@ async function openChat(chatId, title) {
 
         const chatTitleElem = document.getElementById('chat-title-text');
         const chatDescriptionElem = document.getElementById('chat-description-text');
-        const editGroupBtn = document.getElementById('edit-group-btn');
         const headerAvatar = document.getElementById('chat-header-avatar');
         const openMembersBtn = document.getElementById('open-members-panel');
         const headerMenuBtn = document.getElementById('chat-header-menu-btn');
@@ -7472,8 +7418,35 @@ async function openChat(chatId, title) {
 
         const isChannelOrGroup = chatData.isGroup || chatData.isChannel || chatData.type === 'channel' || chatData.isSystem || chatId === 'channel_orion_updates';
         if (isChannelOrGroup) {
-            chatTitleElem.innerText = chatData.title || chatData.name || title;
-            chatDescriptionElem.innerText = chatData.description || "Official system updates and announcements";
+            const nextGroupTitle = chatData.title || chatData.name || title || '';
+            if (chatTitleElem) {
+                if (chatTitleElem.innerText !== nextGroupTitle) {
+                    chatTitleElem.innerText = nextGroupTitle;
+                }
+                const isSysChannel = chatId === 'channel_orion_updates';
+                if (!isSysChannel && isGroup) {
+                    const canEditGroup = auth.currentUser?.uid === chatData.creatorId;
+                    chatTitleElem.classList.add('is-group-clickable');
+                    chatTitleElem.title = canEditGroup ? 'Click to edit group' : 'Click for group info';
+                    chatTitleElem.onclick = (e) => {
+                        e.stopPropagation();
+                        if (canEditGroup) {
+                            openEditGroupModal(chatId, chatData.title || chatData.name || nextGroupTitle, chatData.description || '', chatData.creatorId);
+                        } else {
+                            openGroupInfoModal(chatId, chatData);
+                        }
+                    };
+                } else {
+                    chatTitleElem.classList.remove('is-group-clickable');
+                    chatTitleElem.title = '';
+                    chatTitleElem.onclick = null;
+                }
+            }
+
+            const nextDesc = chatData.description || "Official system updates and announcements";
+            if (chatDescriptionElem.innerText !== nextDesc) {
+                chatDescriptionElem.innerText = nextDesc;
+            }
             chatDescriptionElem.style.color = '';
             chatDescriptionElem.style.display = 'block';
 
@@ -7485,9 +7458,25 @@ async function openChat(chatId, title) {
 
             if (headerAvatar) {
                 const cachedPic = chatData.profilePic || (chatData.groupId ? groupProfilePics.get(chatData.groupId) : null);
-                if (cachedPic) {
-                    headerAvatar.innerHTML = `<img src="${cachedPic}" style="width:100%; height:100%; object-fit:cover;">`;
+                const desiredAvatarKey = cachedPic
+                    ? `group-pic:${cachedPic}`
+                    : (chatId === 'channel_orion_updates' ? 'sys' : (chatData.groupId ? `group-fallback:${chatData.isChannel ? '1' : '0'}` : `chat-fallback:${chatData.isChannel ? '1' : '0'}`));
+                if (headerAvatar.dataset.renderedAvatarKey !== desiredAvatarKey) {
+                    headerAvatar.dataset.renderedAvatarKey = desiredAvatarKey;
+                    if (cachedPic) {
+                        headerAvatar.innerHTML = `<img src="${cachedPic}" style="width:100%; height:100%; object-fit:cover;">`;
+                    } else if (chatId === 'channel_orion_updates') {
+                        headerAvatar.innerText = '🛡️';
+                    } else if (chatData.groupId) {
+                        headerAvatar.innerText = chatData.isChannel ? '\u{1F4E2}' : '#';
+                    } else {
+                        headerAvatar.innerText = chatData.isChannel ? '\u{1F4E2}' : '\u{1F465}';
+                    }
+                    headerAvatar.style.display = 'flex';
                     twemoji.parse(headerAvatar);
+                }
+
+                if (cachedPic) {
                     if (chatData.profilePic && chatData.groupId && !groupProfilePics.has(chatData.groupId)) {
                         groupProfilePics.set(chatData.groupId, chatData.profilePic);
                     }
@@ -7499,33 +7488,22 @@ async function openChat(chatId, title) {
                         });
                     }
                 } else if (chatData.groupId) {
-                    headerAvatar.innerText = chatData.isChannel ? '\u{1F4E2}' : '#';
                     // Fetch group photo directly from /groups/groupId/profilePic
                     get(ref(db, `groups/${chatData.groupId}/profilePic`)).then(picSnap => {
                         const foundPic = picSnap.val();
                         if (foundPic) {
                             groupProfilePics.set(chatData.groupId, foundPic);
-                            if (currentChatId === chatId) {
-                                headerAvatar.innerHTML = `<img src="${foundPic}" style="width:100%; height:100%; object-fit:cover;">`;
-                                twemoji.parse(headerAvatar);
+                            if (currentChatId === chatId && openToken === window._chatSwitchToken) {
+                                const foundKey = `group-pic:${foundPic}`;
+                                if (headerAvatar.dataset.renderedAvatarKey !== foundKey) {
+                                    headerAvatar.dataset.renderedAvatarKey = foundKey;
+                                    headerAvatar.innerHTML = `<img src="${foundPic}" style="width:100%; height:100%; object-fit:cover;">`;
+                                    twemoji.parse(headerAvatar);
+                                }
                             }
                         }
                     });
-                } else if (chatId === 'channel_orion_updates') {
-                    headerAvatar.innerText = '🛡️';
-                } else {
-                    headerAvatar.innerText = chatData.isChannel ? '\u{1F4E2}' : '\u{1F465}';
                 }
-                headerAvatar.style.display = 'flex';
-                twemoji.parse(headerAvatar);
-            }
-
-            // Only show edit button to the group creator
-            if (auth.currentUser.uid === chatData.creatorId) {
-                editGroupBtn.style.display = 'block'; // Show edit button
-                editGroupBtn.onclick = () => openEditGroupModal(chatId, chatData.title, chatData.description, chatData.creatorId);
-            } else {
-                editGroupBtn.style.display = 'none';
             }
         } else {
             // Strictly hide Members button, Group Details/Menu, and Members Sidebar in 1-on-1 DMs
@@ -7534,16 +7512,23 @@ async function openChat(chatId, title) {
             if (chatMembersSidebar) chatMembersSidebar.style.display = 'none';
             document.body.classList.remove('members-open');
             if (typeof window.positionReplyPreview === 'function') window.positionReplyPreview();
-            editGroupBtn.style.display = 'none';
+            if (chatTitleElem) {
+                chatTitleElem.classList.remove('is-group-clickable');
+                chatTitleElem.title = '';
+                chatTitleElem.onclick = null;
+            }
 
             // For private chats, fetch partner's latest name and online/offline status
             const partnerId = chatId.split('_').find(id => id !== auth.currentUser.uid);
             if (partnerId) {
                 if (activeChatPartnerOff) activeChatPartnerOff();
                 activeChatPartnerOff = onValue(ref(db, `users/${partnerId}`), (pSnap) => {
-                    if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
+                    if (currentChatId !== chatId || openToken !== window._chatSwitchToken) return;
                     const pData = pSnap.val();
-                    document.getElementById('chat-title-text').innerText = getDisplayName(pData);
+                    const partnerDisplay = getDisplayName(pData);
+                    if (chatTitleElem && chatTitleElem.innerText !== partnerDisplay) {
+                        chatTitleElem.innerText = partnerDisplay;
+                    }
                     const isOnline = pData?.status === 'online';
                     chatDescriptionElem.innerText = isOnline ? 'Online' : 'Offline';
                     chatDescriptionElem.style.color = isOnline ? '#22c55e' : 'rgba(255, 255, 255, 0.45)';
@@ -7551,20 +7536,27 @@ async function openChat(chatId, title) {
 
                     if (headerAvatar) {
                         const status = isOnline ? 'online' : '';
-                        const avatarContent = pData?.profilePic
-                            ? `<img src="${pData.profilePic}" style="width:100%; height:100%; object-fit:cover;">`
-                            : '\u{1F464}';
+                        const desiredPicKey = `dm:${partnerId}:${pData?.profilePic || ''}`;
+                        if (headerAvatar.dataset.renderedAvatarKey !== desiredPicKey) {
+                            headerAvatar.dataset.renderedAvatarKey = desiredPicKey;
+                            const avatarContent = pData?.profilePic
+                                ? `<img src="${pData.profilePic}" style="width:100%; height:100%; object-fit:cover;">`
+                                : '\u{1F464}';
 
-                        headerAvatar.innerHTML = `
-                            <div class="member-avatar-container" style="margin-right: 0;">
-                                <div class="avatar-lg" style="margin-bottom: 0; width: 40px; height: 40px; font-size: 20px;">
-                                    ${avatarContent}
+                            headerAvatar.innerHTML = `
+                                <div class="member-avatar-container" style="margin-right: 0;">
+                                    <div class="avatar-lg" style="margin-bottom: 0; width: 40px; height: 40px; font-size: 20px;">
+                                        ${avatarContent}
+                                    </div>
+                                    <span class="status-dot ${status}" style="bottom: 0; right: 0;"></span>
                                 </div>
-                                <span class="status-dot ${status}" style="bottom: 0; right: 0;"></span>
-                            </div>
-                        `;
-                        headerAvatar.style.display = 'flex';
-                        twemoji.parse(headerAvatar);
+                            `;
+                            headerAvatar.style.display = 'flex';
+                            twemoji.parse(headerAvatar);
+                        } else {
+                            const dot = headerAvatar.querySelector('.status-dot');
+                            if (dot) dot.classList.toggle('online', isOnline);
+                        }
                     }
                 });
                 window.registerChatCleanup(activeChatPartnerOff);
@@ -7733,33 +7725,12 @@ async function openChat(chatId, title) {
         window.registerChatCleanup(activeGamesListOff);
     }
 
-    const cont = document.getElementById('messages-container');
-    cont.innerHTML = ''; // Clear once when opening the chat
-    let initialLoadDone = false;
-    unreadBelowCount = 0;
-    userPinnedToBottom = true;
-    updateJumpToBottomButton(true);
-
-    // Subtle "Load older messages" button at the top of the feed (shown when initial batch has 60 messages)
-    const loadOlderBtn = document.createElement('button');
-    loadOlderBtn.type = 'button';
-    loadOlderBtn.id = 'load-older-messages-btn';
-    loadOlderBtn.className = 'load-older-messages-btn';
-    loadOlderBtn.textContent = 'Load older messages';
-    loadOlderBtn.style.display = 'none';
-    cont.appendChild(loadOlderBtn);
-
-    // Immediately show shimmering 5-row skeleton loader before Firebase responds
-    renderChatSkeleton(cont);
-
-    let currentOldestMessageKey = null;
-    let isLoadingOlderMessages = false;
-    let hasMoreOlderMessages = false;
-    let lastSenderId = null;
+    if (!cont) return;
+    let initialLoadDone = isCacheHit;
 
     // Fetch previous 60 messages on demand via endBefore() cursor
     async function loadOlderMessages() {
-        if (isLoadingOlderMessages || !hasMoreOlderMessages || !currentOldestMessageKey || currentChatId !== chatId || openToken !== currentChatOpenToken) return;
+        if (isLoadingOlderMessages || !hasMoreOlderMessages || !currentOldestMessageKey || currentChatId !== chatId || openToken !== window._chatSwitchToken) return;
         isLoadingOlderMessages = true;
         loadOlderBtn.disabled = true;
         loadOlderBtn.textContent = 'Loading older messages...';
@@ -7776,10 +7747,11 @@ async function openChat(chatId, title) {
                 limitToLast(60)
             );
             const olderSnap = await get(olderQuery);
-            if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
+            if (currentChatId !== chatId || openToken !== window._chatSwitchToken) return;
 
             if (!olderSnap.exists() || olderSnap.size === 0) {
                 hasMoreOlderMessages = false;
+                cacheEntry.hasMore = false;
                 loadOlderBtn.style.display = 'none';
                 return;
             }
@@ -7791,6 +7763,7 @@ async function openChat(chatId, title) {
 
             if (olderMessages.length < 60) {
                 hasMoreOlderMessages = false;
+                cacheEntry.hasMore = false;
                 loadOlderBtn.style.display = 'none';
             }
 
@@ -7800,6 +7773,7 @@ async function openChat(chatId, title) {
             const insertedElements = [];
             for (const item of olderMessages) {
                 const msg = item.val;
+                cacheEntry.messages.set(item.key, msg);
                 if (cont.querySelector(`[data-msg-id="${item.key}"]`)) {
                     prevSender = msg.sender_id || msg.sender;
                     continue;
@@ -7825,6 +7799,7 @@ async function openChat(chatId, title) {
             // Preserve scroll position smoothly
             const newScrollHeight = cont.scrollHeight;
             cont.scrollTop = oldScrollTop + (newScrollHeight - oldScrollHeight);
+            cacheEntry.scrollTop = window.isUserNearBottom() ? null : cont.scrollTop;
         } catch (err) {
             console.error("Error loading older messages:", err);
         } finally {
@@ -7838,8 +7813,9 @@ async function openChat(chatId, title) {
 
     // Smart auto-scroll & Jump to latest pill listener
     const onChatScroll = () => {
-        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
+        if (currentChatId !== chatId || openToken !== window._chatSwitchToken) return;
         userPinnedToBottom = window.isUserNearBottom();
+        cacheEntry.scrollTop = userPinnedToBottom ? null : cont.scrollTop;
         updateJumpToBottomButton();
     };
     cont.addEventListener('scroll', onChatScroll, { passive: true });
@@ -7847,134 +7823,229 @@ async function openChat(chatId, title) {
 
     const msgQuery = query(ref(db, `messages/${chatId}`), orderByKey(), limitToLast(60));
 
-    const addedOff = onChildAdded(msgQuery, (snap) => {
-        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
-        const msgId = snap.key;
-        const msgData = snap.val();
-        if (!msgId || !msgData) return;
-
-        clearChatSkeleton(cont);
-        clearChatEmptyState(cont);
-
-        if (!currentOldestMessageKey || msgId < currentOldestMessageKey) {
-            currentOldestMessageKey = msgId;
-        }
-
-        const senderUid = msgData.sender_id || msgData.sender;
-        const existingEl = cont.querySelector(`[data-msg-id="${msgId}"]`);
-
-        if (existingEl) {
-            // Reconcile optimistic message in place without duplicating or flashing
-            existingEl.classList.remove('msg-pending', 'msg-failed');
-            existingEl.querySelectorAll('.msg-failed-indicator').forEach(ind => ind.remove());
-            if (msgData.timestamp) {
-                existingEl.dataset.timestamp = msgData.timestamp;
-            }
-            const tsEl = existingEl.querySelector('.msg-timestamp');
-            if (tsEl) {
-                tsEl.innerHTML = buildMessageTimestampHtml(msgData);
-                if (window.twemoji) twemoji.parse(tsEl);
-            }
-            lastSenderId = senderUid;
-            return;
-        }
-
-        const shouldAutoScroll = !initialLoadDone || window.isUserNearBottom() || senderUid === auth.currentUser?.uid;
-
+    const markMessageViewedIfNeeded = (msgId, senderUid) => {
         if (chatId !== 'channel_orion_updates' && senderUid !== auth.currentUser?.uid && !viewedMessagesInSession.has(msgId)) {
             viewedMessagesInSession.add(msgId);
             update(ref(db, `messages/${chatId}/${msgId}`), {
                 [`viewedBy/${auth.currentUser.uid}`]: true
             }).catch(() => {});
         }
-
-        const isConsecutive = Boolean(lastSenderId && senderUid === lastSenderId);
-        const msgEl = buildMessageElement(msgId, msgData, isConsecutive);
-        insertMessageIntoDOM(msgEl, msgData.timestamp);
-        window.updateMessageGrouping(msgEl);
-        if (msgEl.nextElementSibling && msgEl.nextElementSibling.dataset?.msgId) {
-            window.updateMessageGrouping(msgEl.nextElementSibling);
-        }
-
-        let prevMsgEl = msgEl.previousElementSibling;
-        while (prevMsgEl && (!prevMsgEl.dataset || !prevMsgEl.dataset.msgId)) {
-            prevMsgEl = prevMsgEl.previousElementSibling;
-        }
-        const prevDayKey = prevMsgEl ? window.getDateKey(prevMsgEl.dataset.timestamp) : null;
-        const currDayKey = window.getDateKey(msgData.timestamp);
-        if (prevDayKey !== currDayKey || !cont.querySelector('.chat-date-divider')) {
-            window.syncDateDividers(cont);
-        }
-
-        lastSenderId = senderUid;
-
-        if (initialLoadDone && senderUid !== auth.currentUser?.uid) {
-            window.playOrionSound('incoming');
-        }
-
-        if (shouldAutoScroll) {
-            userPinnedToBottom = true;
-            unreadBelowCount = 0;
-            cont.scrollTop = cont.scrollHeight;
-            updateJumpToBottomButton(true);
-        } else {
-            unreadBelowCount++;
-            updateJumpToBottomButton();
-        }
-        updateInputButtons();
-    });
-    window.registerChatCleanup(addedOff);
-
-    const changedOff = onChildChanged(msgQuery, (snap) => {
-        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
-        const existingEl = cont.querySelector(`[data-msg-id="${snap.key}"]`);
-        if (existingEl) {
-            patchMessageElementInPlace(existingEl, snap.key, snap.val());
-        }
-    });
-    window.registerChatCleanup(changedOff);
-
-    const removedOff = onChildRemoved(msgQuery, (snap) => {
-        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
-        const unsub = activeLobbyCardUnsubs.get(snap.key);
-        if (typeof unsub === 'function') {
-            unsub();
-            activeLobbyCardUnsubs.delete(snap.key);
-        }
-        const existingEl = cont.querySelector(`[data-msg-id="${snap.key}"]`);
-        if (existingEl) {
-            let nextEl = existingEl.nextElementSibling;
-            while (nextEl && (!nextEl.dataset || !nextEl.dataset.msgId)) {
-                nextEl = nextEl.nextElementSibling;
-            }
-            existingEl.remove();
-            if (nextEl) window.updateMessageGrouping(nextEl);
-            window.syncDateDividers(cont);
-            if (!cont.querySelector('[data-msg-id]')) {
-                showChatEmptyState(cont);
-            }
-        }
-    });
-    window.registerChatCleanup(removedOff);
-
-    activeMessagesOff = () => {
-        addedOff();
-        changedOff();
-        removedOff();
-        cont.removeEventListener('scroll', onChatScroll);
     };
 
+    const attachLiveMessageListeners = () => {
+        if (currentChatId !== chatId || openToken !== window._chatSwitchToken) return;
+
+        const addedOff = onChildAdded(msgQuery, (snap) => {
+            if (currentChatId !== chatId || openToken !== window._chatSwitchToken) return;
+            const msgId = snap.key;
+            const msgData = snap.val();
+            if (!msgId || !msgData) return;
+
+            clearChatSkeleton(cont);
+            clearChatEmptyState(cont);
+
+            const prevCached = cacheEntry.messages.get(msgId);
+            cacheEntry.messages.set(msgId, msgData);
+
+            if (!currentOldestMessageKey || msgId < currentOldestMessageKey) {
+                currentOldestMessageKey = msgId;
+            }
+
+            const senderUid = msgData.sender_id || msgData.sender;
+            const existingEl = cont.querySelector(`[data-msg-id="${msgId}"]`);
+
+            if (existingEl) {
+                const wasPending = existingEl.classList.contains('msg-pending') || existingEl.classList.contains('msg-failed');
+                existingEl.classList.remove('msg-pending', 'msg-failed');
+                existingEl.querySelectorAll('.msg-failed-indicator').forEach(ind => ind.remove());
+                if (msgData.timestamp) {
+                    existingEl.dataset.timestamp = msgData.timestamp;
+                }
+                const tsEl = existingEl.querySelector('.msg-timestamp');
+                if (tsEl) {
+                    tsEl.innerHTML = buildMessageTimestampHtml(msgData);
+                    if (window.twemoji) twemoji.parse(tsEl);
+                }
+                if (!wasPending && prevCached && (
+                    prevCached.text !== msgData.text ||
+                    prevCached.edited_at !== msgData.edited_at ||
+                    JSON.stringify(prevCached.reactions || null) !== JSON.stringify(msgData.reactions || null) ||
+                    JSON.stringify(prevCached.poll || null) !== JSON.stringify(msgData.poll || null)
+                )) {
+                    patchMessageElementInPlace(existingEl, msgId, msgData);
+                }
+                lastSenderId = senderUid;
+                return;
+            }
+
+            const shouldAutoScroll = !initialLoadDone || window.isUserNearBottom() || senderUid === auth.currentUser?.uid;
+            markMessageViewedIfNeeded(msgId, senderUid);
+
+            const isConsecutive = Boolean(lastSenderId && senderUid === lastSenderId);
+            const msgEl = buildMessageElement(msgId, msgData, isConsecutive);
+            insertMessageIntoDOM(msgEl, msgData.timestamp);
+            window.updateMessageGrouping(msgEl);
+            if (msgEl.nextElementSibling && msgEl.nextElementSibling.dataset?.msgId) {
+                window.updateMessageGrouping(msgEl.nextElementSibling);
+            }
+
+            let prevMsgEl = msgEl.previousElementSibling;
+            while (prevMsgEl && (!prevMsgEl.dataset || !prevMsgEl.dataset.msgId)) {
+                prevMsgEl = prevMsgEl.previousElementSibling;
+            }
+            const prevDayKey = prevMsgEl ? window.getDateKey(prevMsgEl.dataset.timestamp) : null;
+            const currDayKey = window.getDateKey(msgData.timestamp);
+            if (prevDayKey !== currDayKey || !cont.querySelector('.chat-date-divider')) {
+                window.syncDateDividers(cont);
+            }
+
+            lastSenderId = senderUid;
+
+            if (initialLoadDone && senderUid !== auth.currentUser?.uid) {
+                window.playOrionSound('incoming');
+            }
+
+            if (shouldAutoScroll) {
+                userPinnedToBottom = true;
+                cacheEntry.scrollTop = null;
+                unreadBelowCount = 0;
+                cont.scrollTop = cont.scrollHeight;
+                updateJumpToBottomButton(true);
+            } else {
+                unreadBelowCount++;
+                updateJumpToBottomButton();
+            }
+            updateInputButtons();
+        });
+        window.registerChatCleanup(addedOff);
+
+        const changedOff = onChildChanged(msgQuery, (snap) => {
+            if (currentChatId !== chatId || openToken !== window._chatSwitchToken) return;
+            cacheEntry.messages.set(snap.key, snap.val());
+            const existingEl = cont.querySelector(`[data-msg-id="${snap.key}"]`);
+            if (existingEl) {
+                patchMessageElementInPlace(existingEl, snap.key, snap.val());
+            }
+        });
+        window.registerChatCleanup(changedOff);
+
+        const removedOff = onChildRemoved(msgQuery, (snap) => {
+            if (currentChatId !== chatId || openToken !== window._chatSwitchToken) return;
+            cacheEntry.messages.delete(snap.key);
+            const unsub = activeLobbyCardUnsubs.get(snap.key);
+            if (typeof unsub === 'function') {
+                unsub();
+                activeLobbyCardUnsubs.delete(snap.key);
+            }
+            const existingEl = cont.querySelector(`[data-msg-id="${snap.key}"]`);
+            if (existingEl) {
+                let nextEl = existingEl.nextElementSibling;
+                while (nextEl && (!nextEl.dataset || !nextEl.dataset.msgId)) {
+                    nextEl = nextEl.nextElementSibling;
+                }
+                existingEl.remove();
+                if (nextEl) window.updateMessageGrouping(nextEl);
+                window.syncDateDividers(cont);
+                if (!cont.querySelector('[data-msg-id]')) {
+                    showChatEmptyState(cont);
+                }
+            }
+        });
+        window.registerChatCleanup(removedOff);
+
+        activeMessagesOff = () => {
+            addedOff();
+            changedOff();
+            removedOff();
+            cont.removeEventListener('scroll', onChatScroll);
+        };
+    };
+
+    if (isCacheHit) {
+        // Attach listeners strictly AFTER cache-hit DOM swap & scroll restoration
+        attachLiveMessageListeners();
+        try {
+            const initialSnap = await get(msgQuery);
+            if (currentChatId !== chatId || openToken !== window._chatSwitchToken) return;
+            const serverKeys = new Set();
+            let oldestServerKey = null;
+            initialSnap.forEach(child => {
+                serverKeys.add(child.key);
+                if (!oldestServerKey || child.key < oldestServerKey) {
+                    oldestServerKey = child.key;
+                }
+            });
+            hasMoreOlderMessages = initialSnap.size >= 60;
+            cacheEntry.hasMore = hasMoreOlderMessages;
+            loadOlderBtn.style.display = hasMoreOlderMessages ? 'inline-flex' : 'none';
+
+            // Reconcile any messages deleted from the recent window while viewing another tab
+            let prunedAny = false;
+            if (oldestServerKey) {
+                Array.from(cacheEntry.messages.keys()).forEach(cachedKey => {
+                    if (cachedKey >= oldestServerKey && !serverKeys.has(cachedKey)) {
+                        cacheEntry.messages.delete(cachedKey);
+                        const staleEl = cont.querySelector(`[data-msg-id="${cachedKey}"]`);
+                        if (staleEl && !staleEl.classList.contains('msg-pending')) {
+                            staleEl.remove();
+                            prunedAny = true;
+                        }
+                    }
+                });
+            }
+            if (prunedAny) {
+                cont.querySelectorAll('.msg-wrapper[data-msg-id]').forEach(el => window.updateMessageGrouping(el));
+                window.syncDateDividers(cont);
+                if (!cont.querySelector('[data-msg-id]')) {
+                    showChatEmptyState(cont);
+                }
+            }
+        } catch (err) {
+            console.warn('[Chat] Cache reconciliation check error:', err);
+        }
+        updateInputButtons();
+        return;
+    }
+
+    // Cache Miss: Wait for initial limitToLast(60) batch and render atomically in one DocumentFragment
     try {
         const initialSnap = await get(msgQuery);
-        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
+        if (currentChatId !== chatId || openToken !== window._chatSwitchToken) return;
+
+        const batch = [];
+        initialSnap.forEach(child => {
+            batch.push({ key: child.key, val: child.val() });
+        });
+
         clearChatSkeleton(cont);
-        if (initialSnap.size >= 60) {
-            hasMoreOlderMessages = true;
-            loadOlderBtn.style.display = 'inline-flex';
-        }
-        if (initialSnap.size === 0 && !cont.querySelector('[data-msg-id]')) {
+
+        hasMoreOlderMessages = batch.length >= 60;
+        cacheEntry.hasMore = hasMoreOlderMessages;
+        loadOlderBtn.style.display = hasMoreOlderMessages ? 'inline-flex' : 'none';
+
+        if (batch.length === 0) {
+            cont.replaceChildren(loadOlderBtn);
             showChatEmptyState(cont);
         } else {
+            currentOldestMessageKey = batch[0].key;
+            const frag = document.createDocumentFragment();
+            frag.appendChild(loadOlderBtn);
+            let prevSender = null;
+
+            for (const item of batch) {
+                const msgData = item.val;
+                if (!item.key || !msgData) continue;
+                cacheEntry.messages.set(item.key, msgData);
+                const senderUid = msgData.sender_id || msgData.sender;
+                markMessageViewedIfNeeded(item.key, senderUid);
+                const el = buildMessageElement(item.key, msgData, Boolean(prevSender && prevSender === senderUid));
+                prevSender = senderUid;
+                lastSenderId = senderUid;
+                frag.appendChild(el);
+            }
+
+            cont.replaceChildren(frag);
+            cont.querySelectorAll('.msg-wrapper[data-msg-id]').forEach(el => window.updateMessageGrouping(el));
             window.syncDateDividers(cont);
         }
     } catch (err) {
@@ -7982,13 +8053,15 @@ async function openChat(chatId, title) {
         console.warn('[Chat] Initial batch sync check error:', err);
     }
 
-    if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
+    if (currentChatId !== chatId || openToken !== window._chatSwitchToken) return;
     initialLoadDone = true;
     userPinnedToBottom = true;
+    cacheEntry.scrollTop = null;
     unreadBelowCount = 0;
     cont.scrollTop = cont.scrollHeight;
     updateJumpToBottomButton(true);
     updateInputButtons();
+    attachLiveMessageListeners();
 }
 
 // --- Join Card Renderer ---
@@ -8300,31 +8373,23 @@ function isMessageCurrentlyPinned(messageId) {
     return currentChatData.pinnedMessageId === messageId;
 }
 
+function createQuickActionSvg(pathHtml) {
+    return `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">${pathHtml}</svg>`;
+}
+
 function buildQuickActionsBar(messageId, msg, bubble, wrap, isMe) {
     const bar = document.createElement('div');
     bar.className = 'msg-quick-actions';
 
-    const replyBtn = document.createElement('button');
-    replyBtn.type = 'button';
-    replyBtn.title = 'Reply';
-    replyBtn.setAttribute('aria-label', 'Reply');
-    replyBtn.textContent = '↩️';
-    replyBtn.onclick = (e) => {
-        e.stopPropagation();
-        const replyText = bubble?._replyData?.text || msg.text || '';
-        const senderName = msg.sender_name || bubble?.dataset?.senderName || 'User';
-        replyToMessage(messageId, replyText, senderName);
-        if (typeof window.positionReplyPreview === 'function') window.positionReplyPreview();
-    };
-    bar.appendChild(replyBtn);
-
+    // 1. React
     const reactBtn = document.createElement('button');
     reactBtn.type = 'button';
     reactBtn.title = 'React';
-    reactBtn.setAttribute('aria-label', 'Add reaction');
-    reactBtn.textContent = '😊';
+    reactBtn.setAttribute('aria-label', 'React');
+    reactBtn.innerHTML = createQuickActionSvg('<circle cx="12" cy="12" r="10"/><path d="M8 14s1.5 2 4 2 4-2 4-2"/><line x1="9" y1="9" x2="9.01" y2="9"/><line x1="15" y1="9" x2="15.01" y2="9"/>');
     reactBtn.onclick = async (e) => {
         e.stopPropagation();
+        window.closeTouchMessageActions();
         const picker = document.getElementById('emoji-picker');
         if (!picker) return;
         const isCurrentlyOpen = picker.style.display !== 'none' && window.getComputedStyle(picker).display !== 'none';
@@ -8343,32 +8408,89 @@ function buildQuickActionsBar(messageId, msg, bubble, wrap, isMe) {
     };
     bar.appendChild(reactBtn);
 
-    const pinBtn = document.createElement('button');
-    pinBtn.type = 'button';
-    pinBtn.title = 'Pin / Unpin';
-    pinBtn.setAttribute('aria-label', 'Pin message');
-    pinBtn.textContent = '📌';
-    pinBtn.onclick = (e) => {
+    // 2. Reply
+    const replyBtn = document.createElement('button');
+    replyBtn.type = 'button';
+    replyBtn.title = 'Reply';
+    replyBtn.setAttribute('aria-label', 'Reply');
+    replyBtn.innerHTML = createQuickActionSvg('<polyline points="9 17 4 12 9 7"/><path d="M20 18v-2a4 4 0 0 0-4-4H4"/>');
+    replyBtn.onclick = (e) => {
         e.stopPropagation();
-        if (isMessageCurrentlyPinned(messageId)) {
-            unpinMessage(messageId);
-        } else {
-            pinMessage(messageId);
-        }
+        window.closeTouchMessageActions();
+        const replyText = bubble?._replyData?.text || msg.text || '';
+        const senderName = msg.sender_name || bubble?.dataset?.senderName || 'User';
+        replyToMessage(messageId, replyText, senderName);
+        if (typeof window.positionReplyPreview === 'function') window.positionReplyPreview();
     };
-    bar.appendChild(pinBtn);
+    bar.appendChild(replyBtn);
 
-    const moreBtn = document.createElement('button');
-    moreBtn.type = 'button';
-    moreBtn.title = 'More actions';
-    moreBtn.setAttribute('aria-label', 'More actions');
-    moreBtn.textContent = '⋯';
-    moreBtn.onclick = (e) => {
-        e.stopPropagation();
-        const rect = moreBtn.getBoundingClientRect();
-        openMessageContextMenu(messageId, msg, isMe, rect.left, rect.bottom + 6);
-    };
-    bar.appendChild(moreBtn);
+    // 3. Copy (if message has text and is not a poll/sticker)
+    const canCopy = !msg.poll && !msg.stickerId && typeof msg.text === 'string' && msg.text.trim().length > 0;
+    if (canCopy) {
+        const copyBtn = document.createElement('button');
+        copyBtn.type = 'button';
+        copyBtn.title = 'Copy';
+        copyBtn.setAttribute('aria-label', 'Copy message');
+        copyBtn.innerHTML = createQuickActionSvg('<rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/>');
+        copyBtn.onclick = (e) => {
+            e.stopPropagation();
+            window.closeTouchMessageActions();
+            window.copyMessageText(msg.text);
+        };
+        bar.appendChild(copyBtn);
+    }
+
+    // 4. Edit (own text/media non-poll, non-sticker messages)
+    const canEdit = isMe && !msg.poll && !msg.stickerId;
+    if (canEdit) {
+        const editBtn = document.createElement('button');
+        editBtn.type = 'button';
+        editBtn.title = 'Edit';
+        editBtn.setAttribute('aria-label', 'Edit message');
+        editBtn.innerHTML = createQuickActionSvg('<path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 1 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/>');
+        editBtn.onclick = (e) => {
+            e.stopPropagation();
+            window.closeTouchMessageActions();
+            editMessage(messageId, bubble?._replyData?.text || msg.text || '');
+        };
+        bar.appendChild(editBtn);
+    }
+
+    // 5. Pin / Unpin (only if current user can pin)
+    if (canCurrentUserPin()) {
+        const isPinned = isMessageCurrentlyPinned(messageId);
+        const pinBtn = document.createElement('button');
+        pinBtn.type = 'button';
+        pinBtn.title = isPinned ? 'Unpin' : 'Pin';
+        pinBtn.setAttribute('aria-label', isPinned ? 'Unpin message' : 'Pin message');
+        pinBtn.innerHTML = createQuickActionSvg('<path d="M12 17v5"/><path d="M9 10.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24V16a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V7a1 1 0 0 1 1-1 2 2 0 0 0 0-4H8a2 2 0 0 0 0 4 1 1 0 0 1 1 1z"/>');
+        pinBtn.onclick = (e) => {
+            e.stopPropagation();
+            window.closeTouchMessageActions();
+            if (isMessageCurrentlyPinned(messageId)) {
+                unpinMessage(messageId);
+            } else {
+                pinMessage(messageId);
+            }
+        };
+        bar.appendChild(pinBtn);
+    }
+
+    // 6. Delete (author OR group/global mod/admin, respecting global admin protection)
+    if (window.canDeleteMessage(msg)) {
+        const deleteBtn = document.createElement('button');
+        deleteBtn.type = 'button';
+        deleteBtn.className = 'danger-action';
+        deleteBtn.title = 'Delete';
+        deleteBtn.setAttribute('aria-label', 'Delete message');
+        deleteBtn.innerHTML = createQuickActionSvg('<polyline points="3 6 5 6 21 6"/><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6"/><path d="M10 11v6"/><path d="M14 11v6"/><path d="M9 6V4a1 1 0 0 1 1-1h4a1 1 0 0 1 1 1v2"/>');
+        deleteBtn.onclick = (e) => {
+            e.stopPropagation();
+            window.closeTouchMessageActions();
+            deleteMessage(messageId);
+        };
+        bar.appendChild(deleteBtn);
+    }
 
     return bar;
 }
@@ -8635,90 +8757,9 @@ function buildMessageElement(messageId, msg, isConsecutive = false) {
         renderJoinCard(id, msgContent);
     });
 
-    const actionsContainer = document.createElement('div');
-    actionsContainer.className = 'msg-actions';
-
-    const actionButton = document.createElement('button');
-    actionButton.className = 'msg-action-btn';
-    actionButton.innerHTML = '&#x25BC;';
-
-    const actionMenu = document.createElement('div');
-    actionMenu.className = 'msg-action-menu';
-    actionMenu.style.display = 'none';
-
-    const closeActionMenu = () => {
-        actionMenu.style.display = 'none';
-        actionMenu.style.transform = '';
-        actionMenu.style.top = '';
-        actionMenu.style.bottom = '';
-        wrap.style.zIndex = '';
-        wrap.style.position = '';
-        bubble.style.zIndex = '';
-        bubble.style.position = '';
-    };
-
-    const replyBtn = document.createElement('button');
-    replyBtn.innerText = 'Reply';
-    replyBtn.className = 'glass-btn-secondary';
-    replyBtn.onclick = (e) => {
-        e.stopPropagation();
-        replyToMessage(messageId, bubble._replyData?.text || msg.text, msg.sender_name);
-        closeActionMenu();
-    };
-    actionMenu.appendChild(replyBtn);
-
-    const pinBtn = createPinActionMenuButton(messageId, closeActionMenu);
-    if (pinBtn) actionMenu.appendChild(pinBtn);
-
-    if (isMe) {
-        const editBtn = document.createElement('button');
-        editBtn.innerText = 'Edit';
-        editBtn.className = 'glass-btn-secondary';
-        editBtn.onclick = (e) => {
-            e.stopPropagation();
-            editMessage(messageId, bubble._replyData?.text || msg.text);
-            closeActionMenu();
-        };
-        actionMenu.appendChild(editBtn);
-
-        const deleteBtn = document.createElement('button');
-        deleteBtn.innerText = 'Delete';
-        deleteBtn.className = 'glass-btn-secondary delete-btn';
-        deleteBtn.onclick = (e) => {
-            e.stopPropagation();
-            deleteMessage(messageId);
-            closeActionMenu();
-        };
-        actionMenu.appendChild(deleteBtn);
+    if (!isSystem) {
+        attachTouchQuickActionsToggle(bubble, wrap);
     }
-
-    actionsContainer.appendChild(actionButton);
-    actionsContainer.appendChild(actionMenu);
-
-    const toggleMenu = (e) => {
-        if (e) e.stopPropagation();
-        const isOpening = actionMenu.style.display === 'none' || !actionMenu.style.display;
-        resetMessageActionMenus();
-        if (isOpening) {
-            positionActionMenu(actionMenu, bubble, wrap, e);
-        } else {
-            closeActionMenu();
-        }
-    };
-
-    actionButton.onclick = toggleMenu;
-
-    const isMobile = window.Capacitor?.isNative || /Mobi|Android/i.test(navigator.userAgent);
-    if (isMobile) {
-        actionButton.style.display = 'none';
-        bubble.onclick = (e) => {
-            if (e.target.closest('a, button, .chat-embedded-image, .image-embed-wrapper, .reply-quote, .reaction-tag')) return;
-            toggleMenu(e);
-        };
-    }
-
-    bubble.appendChild(actionsContainer);
-    attachMessageContextMenu(bubble, messageId, msg, isMe);
 
     let avatarHtml;
     if (isSystem) {
@@ -8763,6 +8804,14 @@ function patchMessageElementInPlace(wrap, messageId, msg) {
     if (tsEl) {
         tsEl.innerHTML = buildMessageTimestampHtml(msg);
         if (window.twemoji) twemoji.parse(tsEl);
+    }
+
+    const isMePatch = (msg.sender_id || msg.sender || msg.senderId) === auth.currentUser?.uid;
+    const isSysPatch = (msg.sender_id || msg.sender) === 'system' || msg.type === 'system';
+    const existingQuickBar = wrap.querySelector('.msg-quick-actions');
+    const patchBubble = wrap.querySelector('.msg-bubble');
+    if (existingQuickBar && !isSysPatch) {
+        existingQuickBar.replaceWith(buildQuickActionsBar(messageId, msg, patchBubble, wrap, isMePatch));
     }
 
     // Update Poll in place without rebuilding wrapper
@@ -8816,7 +8865,6 @@ function patchMessageElementInPlace(wrap, messageId, msg) {
             text: msg.stickerId ? '[Sticker]' : (msg.text || ''),
             senderName: msg.sender_name || bubble.dataset.senderName || 'User'
         };
-        attachMessageContextMenu(bubble, messageId, msg, (msg.sender_id || msg.sender) === auth.currentUser?.uid);
     }
 
     if (msg.stickerId) {
@@ -8940,7 +8988,7 @@ function populatePollMessageElement(wrap, msg, isConsecutive, messageId, isMe, i
         openPollResultsModal(messageId, msg.poll);
     };
     bubble.appendChild(viewResultsBtn);
-    attachMessageContextMenu(bubble, messageId, msg, isMe);
+    attachTouchQuickActionsToggle(bubble, wrap);
 
     const author = createAuthorElement(msg, () => showUserProfile(msg.sender_id, currentChatId, currentChatCreatorId));
 
@@ -9099,78 +9147,10 @@ function populateStickerMessageElement(wrap, msg, isConsecutive, messageId, isMe
         });
     }
 
-    const actionsContainer = document.createElement('div');
-    actionsContainer.className = 'msg-actions';
-    const actionButton = document.createElement('button');
-    actionButton.className = 'msg-action-btn';
-    actionButton.innerHTML = '&#x25BC;';
-
-    const actionMenu = document.createElement('div');
-    actionMenu.className = 'msg-action-menu';
-    actionMenu.style.display = 'none';
-
-    const closeStickerActionMenu = () => {
-        actionMenu.style.display = 'none';
-        actionMenu.style.transform = '';
-        actionMenu.style.top = '';
-        actionMenu.style.bottom = '';
-        wrap.style.zIndex = '';
-        wrap.style.position = '';
-        bubble.style.zIndex = '';
-        bubble.style.position = '';
-    };
-
-    const replyBtn = document.createElement('button');
-    replyBtn.innerText = 'Reply';
-    replyBtn.className = 'glass-btn-secondary';
-    replyBtn.onclick = (e) => {
-        e.stopPropagation();
-        replyToMessage(messageId, "[Sticker]", msg.sender_name);
-        closeStickerActionMenu();
-    };
-    actionMenu.appendChild(replyBtn);
-
-    const stickerPinBtn = createPinActionMenuButton(messageId, closeStickerActionMenu);
-    if (stickerPinBtn) actionMenu.appendChild(stickerPinBtn);
-
-    if (isMe) {
-        const deleteBtn = document.createElement('button');
-        deleteBtn.innerText = 'Delete';
-        deleteBtn.className = 'glass-btn-secondary delete-btn';
-        deleteBtn.onclick = (e) => {
-            e.stopPropagation();
-            deleteMessage(messageId);
-            closeStickerActionMenu();
-        };
-        actionMenu.appendChild(deleteBtn);
+    if ((msg.sender_id || msg.sender) !== 'system' && msg.type !== 'system') {
+        attachTouchQuickActionsToggle(bubble, wrap);
     }
-
-    actionsContainer.appendChild(actionButton);
-    actionsContainer.appendChild(actionMenu);
-
-    const toggleStickerMenu = (e) => {
-        if (e) e.stopPropagation();
-        const isOpening = actionMenu.style.display === 'none' || !actionMenu.style.display;
-        resetMessageActionMenus();
-        if (isOpening) {
-            positionActionMenu(actionMenu, bubble, wrap, e);
-        } else {
-            closeStickerActionMenu();
-        }
-    };
-    actionButton.onclick = toggleStickerMenu;
-
-    const isMobileSticker = window.Capacitor?.isNative || /Mobi|Android/i.test(navigator.userAgent);
-    if (isMobileSticker) {
-        actionButton.style.display = 'none';
-        bubble.onclick = (e) => {
-            if (e.target.closest('a, button, .chat-sticker, .reaction-tag')) return;
-            toggleStickerMenu(e);
-        };
-    }
-    bubble.appendChild(actionsContainer);
     syncReactionsContainerInPlace(bubble, messageId, msg.reactions);
-    attachMessageContextMenu(bubble, messageId, msg, isMe);
 
     const pfp = currentChatMemberPics.get(msg.sender_id);
     const avatarHtml = pfp
@@ -9730,8 +9710,8 @@ async function renderMembersList(msnap, groupCreatorId) {
     const myUid = auth.currentUser.uid;
     const amICreator = myUid === groupCreatorId;
     const myRole = membersMap[myUid]?.role || currentChatMemberData?.[myUid]?.role || 'member';
-    const amIAdmin = myRole === 'admin' || amICreator;
-    const amIMod = myRole === 'mod';
+    const amIAdmin = myRole === 'admin' || amICreator || window.isGlobalAdmin();
+    const amIMod = myRole === 'mod' || myRole === 'moderator' || window.isGlobalModOrAdmin();
     const canModerate = amIAdmin || amIMod;
 
     const groupId = currentChatData?.groupId || currentChatId;
@@ -9765,6 +9745,11 @@ async function renderMembersList(msnap, groupCreatorId) {
     const memberDetailsPromises = memberUids.map(async (mUid) => {
         const uSnap = await get(ref(db, `users/${mUid}`));
         const uData = uSnap.val() || {};
+        if (window.isGlobalAdmin(uData)) {
+            window.globalAdminUids.add(mUid);
+        } else {
+            window.globalAdminUids.delete(mUid);
+        }
         const displayName = getDisplayName(uData);
         return { 
             uid: mUid,
@@ -10059,6 +10044,11 @@ async function sendMessage() {
     // 3. Persist to Firebase
     try {
         await set(newMsgRef, payload);
+
+        if (stickerToSend) {
+            runTransaction(ref(db, `stickerStats/${stickerToSend}/usageCount`), (curr) => (Number(curr || 0) + 1)).catch(() => {});
+            set(ref(db, `stickerStats/${stickerToSend}/usedBy/${myUid}`), true).catch(() => {});
+        }
 
         // Record anti-spam history only after successful send
         userRecentMessages.push({ text: txt, timestamp: currentTime });
@@ -11866,6 +11856,7 @@ document.addEventListener('click', (e) => {
     // --- Sticker Options Rendering ---
     async function renderStickerOptions() {
         const grid = document.getElementById('my-stickers-grid');
+        if (!grid) return;
         grid.innerHTML = '';
         const myUid = auth.currentUser?.uid;
         if (!myUid) return;
@@ -11873,63 +11864,61 @@ document.addEventListener('click', (e) => {
         const list = await loadMyStickers(myUid);
         const totalOwnedCount = list.filter(x => x.kind === 'owned').length;
 
-        if (isCurrentUserPremium) {
-            const headerDiv = document.createElement('div');
-            headerDiv.style.cssText = 'grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; margin: 10px 0 15px 0;';
-            headerDiv.innerHTML = `
-                <span style="opacity: 0.7; font-size: 13px;">Uploaded: ${totalOwnedCount}/${STICKER_UPLOAD_LIMIT} stickers</span>
-                <button id="panel-upload-sticker-btn" class="glass-btn-primary" style="padding: 6px 12px; font-size: 12px; width: auto;">+ Upload Sticker</button>
-            `;
-            grid.appendChild(headerDiv);
+        const headerDiv = document.createElement('div');
+        headerDiv.style.cssText = 'grid-column: 1 / -1; display: flex; justify-content: space-between; align-items: center; margin: 10px 0 15px 0;';
+        headerDiv.innerHTML = `
+            <span style="opacity: 0.7; font-size: 13px;">Uploaded: ${totalOwnedCount}/${STICKER_UPLOAD_LIMIT} stickers</span>
+            <button id="panel-upload-sticker-btn" class="glass-btn-primary" style="padding: 6px 12px; font-size: 12px; width: auto;">+ Upload Sticker</button>
+        `;
+        grid.appendChild(headerDiv);
 
-            document.getElementById('panel-upload-sticker-btn').onclick = () => {
-                if (totalOwnedCount >= STICKER_UPLOAD_LIMIT) {
-                    showNotification(`You have reached your limit of ${STICKER_UPLOAD_LIMIT} uploaded stickers.`, "info");
-                    return;
-                }
-                const input = document.createElement('input');
-                input.type = 'file';
-                input.accept = 'image/png, image/webp, image/gif';
-                input.onchange = (e) => {
-                    const file = e.target.files[0];
-                    if (file) uploadSticker(file);
-                };
-                input.click();
-            };
-        }
+        document.getElementById('panel-upload-sticker-btn').onclick = () => {
+            if (totalOwnedCount >= STICKER_UPLOAD_LIMIT) {
+                showNotification(`You have reached your limit of ${STICKER_UPLOAD_LIMIT} uploaded stickers.`, "info");
+                return;
+            }
+            triggerStickerUploadFlow();
+        };
 
         const section = document.createElement('div');
         section.className = 'sticker-pack-section';
         section.style.gridColumn = '1 / -1';
         const header = document.createElement('div');
         header.className = 'sticker-pack-header';
-    header.innerHTML = `<span class="pack-title-author">\u{1F39F}\u{FE0F} My Stickers (${list.length})</span>`;
+        header.innerHTML = `<span class="pack-title-author">\u{1F39F}\u{FE0F} My Saved Stickers (${list.length})</span>`;
         section.appendChild(header);
 
         if (list.length === 0) {
             const hint = document.createElement('small');
             hint.style.cssText = 'opacity:0.6; display:block; padding:8px; line-height:1.5;';
-            hint.innerText = isCurrentUserPremium
-                ? 'Nothing here yet. Upload a sticker, or tap a sticker in a chat to request it from its owner.'
-                : 'Nothing here yet. Tap a sticker in a chat to request it from its owner.';
+            hint.innerText = 'Nothing saved yet. Upload a sticker above, or open any sticker in chat to save it!';
             section.appendChild(hint);
         } else {
             const innerGrid = document.createElement('div');
             innerGrid.className = 'theme-grid sticker-grid';
-            list.forEach(({ meta, kind }) => {
+            list.forEach(({ meta, kind, usageCount, ownerCount }) => {
                 const card = document.createElement('div');
                 card.className = 'sticker-card';
                 card.innerHTML = `<img src="${meta.thumbnailStoragePath || meta.storagePath}" alt="${escapeHTML(getStickerDisplayName(meta))}" decoding="async">`;
-                card.title = getStickerDisplayName(meta) + (kind === 'allowed' ? ' (shared with you)' : ' (yours)');
+                if (usageCount > 0) {
+                    const badge = document.createElement('span');
+                    badge.className = 'sticker-card-badge';
+                    badge.textContent = `\u{1F525}${formatMoney(usageCount)}`;
+                    card.appendChild(badge);
+                }
+                card.title = `${getStickerDisplayName(meta)} \u{2022} \u{1F525} ${formatMoney(usageCount)} uses \u{2022} \u{1F465} ${formatMoney(ownerCount)} saved`;
                 card.onclick = async () => {
                     if (kind === 'owned') {
-                        const ok = await showConfirm("Delete Sticker", `Are you sure you want to delete "${getStickerDisplayName(meta)}"?`);
+                        const ok = await showConfirm("Delete Sticker", `Are you sure you want to delete "${getStickerDisplayName(meta)}" for everyone?`);
                         if (ok) deleteSticker(meta.stickerId);
                     } else {
-                        const ok = await showConfirm("Remove Sticker", `Remove "${getStickerDisplayName(meta)}" from your collection? You can request it again later.`);
+                        const ok = await showConfirm("Remove Sticker", `Remove "${getStickerDisplayName(meta)}" from My Saved Stickers? You can always save it again later.`);
                         if (ok) {
                             try {
-                                await remove(ref(db, `user_stickers/${myUid}/${meta.stickerId}`));
+                                await Promise.all([
+                                    remove(ref(db, `user_stickers/${myUid}/${meta.stickerId}`)),
+                                    remove(ref(db, `stickerStats/${meta.stickerId}/owners/${myUid}`))
+                                ]);
                                 renderStickerOptions();
                             } catch (err) { showNotification("Couldn't remove sticker.", "error"); }
                         }
@@ -12416,13 +12405,13 @@ async function openGroupInfoModal(chatId, chatData) {
         const mutedUsers = groupData.mutedUsers || {};
 
         const myRole = membersMap[myUid]?.role || currentChatMemberData?.[myUid]?.role || 'member';
-        const isAdmin = isCreator || myRole === 'admin';
-        const isMod = myRole === 'mod';
+        const isAdmin = isCreator || myRole === 'admin' || window.isGlobalAdmin();
+        const isMod = myRole === 'mod' || myRole === 'moderator' || window.isGlobalModOrAdmin();
         const canModerate = isAdmin || isMod;
 
-        if (canModerate && myUid) {
+        if (canModerate && myUid && (isCreator || myRole === 'admin' || myRole === 'mod' || myRole === 'moderator')) {
             update(ref(db, `groups/${groupId}/roles`), {
-                [myUid]: isAdmin ? 'admin' : 'mod'
+                [myUid]: (isCreator || myRole === 'admin') ? 'admin' : 'mod'
             }).catch(() => {});
         }
 
@@ -12989,48 +12978,93 @@ if (qrScannerBtn && qrFileInput) {
     };
 }
 
-// --- Sticker Picker Logic ---
+// --- Sticker Picker Logic (Free Community & Saved Stickers) ---
+function syncStickerSortButtons() {
+    const isPop = communityStickerSortMode === 'popular';
+    const label = isPop ? '\u{1F525} Popular' : '\u{1F552} Newest';
+    const modalBtn = document.getElementById('sticker-modal-sort-btn');
+    if (modalBtn) {
+        modalBtn.innerText = label;
+        modalBtn.classList.toggle('sticker-sort-active', isPop);
+        if (window.twemoji) twemoji.parse(modalBtn);
+    }
+    const inlineBtn = document.getElementById('picker-sticker-sort-btn');
+    if (inlineBtn) {
+        inlineBtn.innerText = label;
+        inlineBtn.classList.toggle('sticker-sort-active', isPop);
+        if (window.twemoji) twemoji.parse(inlineBtn);
+    }
+}
+
 async function openStickerPicker() {
-    document.getElementById('sticker-picker-modal').style.display = 'flex';
+    const modal = document.getElementById('sticker-picker-modal');
+    if (modal) modal.style.display = 'flex';
+    const sortBtn = document.getElementById('sticker-modal-sort-btn');
+    if (sortBtn && !sortBtn.dataset.bound) {
+        sortBtn.dataset.bound = '1';
+        sortBtn.onclick = () => {
+            communityStickerSortMode = communityStickerSortMode === 'popular' ? 'recent' : 'popular';
+            syncStickerSortButtons();
+            renderStickerPicker();
+        };
+    }
+    const uploadBtn = document.getElementById('sticker-modal-upload-btn');
+    if (uploadBtn && !uploadBtn.dataset.bound) {
+        uploadBtn.dataset.bound = '1';
+        uploadBtn.onclick = () => triggerStickerUploadFlow(() => renderStickerPicker());
+    }
+    syncStickerSortButtons();
     renderStickerPicker();
 }
 
 async function renderStickerPicker() {
-    const myUid = auth.currentUser.uid;
+    const myUid = auth.currentUser?.uid;
     const myStickersGrid = document.getElementById('my-stickers-picker-grid');
-    const allowedStickersGrid = document.getElementById('allowed-stickers-grid');
+    const communityGrid = document.getElementById('allowed-stickers-grid');
+    if (!myStickersGrid || !communityGrid) return;
+
+    myStickersGrid.innerHTML = '<small style="grid-column:1/-1; opacity:0.6; padding:6px;">Loading...</small>';
+    communityGrid.innerHTML = '<small style="grid-column:1/-1; opacity:0.6; padding:6px;">Loading...</small>';
+
+    const allStickers = await loadAllCommunityStickers(myUid);
+    const savedStickers = sortStickersList(allStickers.filter(s => s.isSaved), communityStickerSortMode);
+    const communityStickers = sortStickersList(allStickers, communityStickerSortMode);
+
     myStickersGrid.innerHTML = '';
-    allowedStickersGrid.innerHTML = '';
+    if (savedStickers.length === 0) {
+        myStickersGrid.innerHTML = '<small style="grid-column:1/-1; opacity:0.6; padding:6px;">No saved stickers yet — pick any sticker below or upload your own!</small>';
+    } else {
+        savedStickers.forEach(item => {
+            myStickersGrid.appendChild(createStickerCard(item.stickerId, item.meta, item.usageCount, item.ownerCount));
+        });
+    }
 
-    const userStickersSnap = await get(ref(db, `user_stickers/${myUid}`));
-    if (!userStickersSnap.exists()) return;
-    
-    const stickerEntries = Object.entries(userStickersSnap.val());
-
-    for (const [stickerId, data] of stickerEntries) {
-        const stickerMetaSnap = await get(ref(db, `sticker_metadata/${stickerId}`));
-        const stickerMeta = stickerMetaSnap.val();
-        if (!stickerMeta) continue;
-
-        const card = createStickerCard(stickerId, stickerMeta);
-        if (data.type === 'owned') {
-            myStickersGrid.appendChild(card);
-        } else if (data.type === 'allowed') {
-            allowedStickersGrid.appendChild(card);
-        }
+    communityGrid.innerHTML = '';
+    if (communityStickers.length === 0) {
+        communityGrid.innerHTML = '<small style="grid-column:1/-1; opacity:0.6; padding:6px;">No community stickers yet — upload the first one!</small>';
+    } else {
+        communityStickers.forEach(item => {
+            communityGrid.appendChild(createStickerCard(item.stickerId, item.meta, item.usageCount, item.ownerCount));
+        });
     }
 }
 
-function createStickerCard(stickerId, stickerMeta) {
+function createStickerCard(stickerId, stickerMeta, usageCount = 0, ownerCount = 0) {
     const card = document.createElement('div');
     card.className = 'sticker-card';
-    // In a real app, stickerUrl would be a signed URL from a Cloud Function
-    const stickerUrl = stickerMeta.thumbnailStoragePath || stickerMeta.storagePath; // Use thumbnail if available
-    card.innerHTML = `<img src="${stickerUrl}" alt="${getStickerDisplayName(stickerMeta)}">`;
-    card.title = getStickerDisplayName(stickerMeta);
+    const stickerUrl = stickerMeta.thumbnailStoragePath || stickerMeta.storagePath;
+    const name = getStickerDisplayName(stickerMeta);
+    card.innerHTML = `<img src="${stickerUrl}" alt="${escapeHTML(name)}" loading="lazy" decoding="async">`;
+    if (usageCount > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'sticker-card-badge';
+        badge.textContent = `\u{1F525}${formatMoney(usageCount)}`;
+        card.appendChild(badge);
+    }
+    card.title = `${name} \u{2022} \u{1F525} ${formatMoney(usageCount)} uses \u{2022} \u{1F465} ${formatMoney(ownerCount)} saved`;
     card.onclick = () => {
         currentStickerPickerMessageId = stickerId;
-        sendMessage(); // Send the sticker
+        sendMessage();
     };
     return card;
 }
@@ -13039,107 +13073,11 @@ document.getElementById('close-sticker-picker').onclick = () => {
     closeAnimatedModal(document.getElementById('sticker-picker-modal'));
 };
 
-// --- Sticker Request System ---
-async function openStickerRequestModal(stickerId, ownerId, stickerName) {
-    const myUid = auth.currentUser.uid;
-    if (ownerId === myUid) {
-        showNotification("You already own this sticker!", "info");
-        return;
-    }
-
-    const confirmed = await showConfirm("Request Sticker", `Do you want to request permission to use "${stickerName}" from its owner?`);
-    if (!confirmed) return;
-
-    const requesterName = document.getElementById('current-user-name').innerText;
-    const requestId = push(ref(db, `sticker_requests/${ownerId}`)).key;
-    
-    const requestData = {
-        stickerId: stickerId,
-        requesterId: myUid,
-        requesterName: requesterName,
-        status: 'pending',
-        createdAt: serverTimestamp()
-    };
-
-    try {
-        await set(ref(db, `sticker_requests/${ownerId}/${requestId}`), requestData);
-        showNotification(`Request for "${stickerName}" sent to owner.`, "success");
-    } catch (error) {
-        console.error("Error sending sticker request:", error);
-        showNotification("Failed to send sticker request.", "error");
-    }
-}
-
-// Listener for incoming sticker requests (for the owner)
-onAuthStateChanged(auth, (user) => {
+onAuthStateChanged(auth, () => {
     if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
         window.Capacitor.Plugins.CapacitorUpdater.notifyAppReady();
     }
-    if (user) {
-        onChildAdded(ref(db, `sticker_requests/${user.uid}`), (snap) => {
-            const request = snap.val();
-            if (request.status === 'pending') {
-                displayStickerRequestNotification(snap.key, request);
-            }
-        });
-    }
 });
-
-function displayStickerRequestNotification(requestId, request) {
-    currentStickerRequest = { requestId, ...request };
-    const modal = document.getElementById('sticker-request-notification-modal');
-    const messageElem = document.getElementById('sticker-request-message');
-    messageElem.innerText = `${request.requesterName} wants permission to use your sticker.`;
-    modal.style.display = 'flex';
-}
-
-document.getElementById('approve-sticker-request-btn').onclick = async () => {
-    if (!currentStickerRequest) return;
-    const { requestId, stickerId, requesterId, ownerId } = currentStickerRequest;
-    const myUid = auth.currentUser.uid;
-
-    const updates = {};
-    updates[`/user_stickers/${requesterId}/${stickerId}`] = {
-        type: 'allowed',
-        metadataRef: stickerId,
-        approvedAt: serverTimestamp()
-    };
-    updates[`/sticker_requests/${myUid}/${requestId}/status`] = 'approved';
-
-    try {
-        await update(ref(db), updates);
-        showNotification(`Approved sticker request for ${currentStickerRequest.requesterName}.`, "success");
-    } catch (error) {
-        console.error("Error approving sticker request:", error);
-        showNotification("Failed to approve request.", "error");
-    } finally {
-        closeAnimatedModal(document.getElementById('sticker-request-notification-modal'));
-        currentStickerRequest = null;
-    }
-};
-
-document.getElementById('deny-sticker-request-btn').onclick = async () => {
-    if (!currentStickerRequest) return;
-    const { requestId, requesterId, ownerId } = currentStickerRequest;
-    const myUid = auth.currentUser.uid;
-
-    try {
-        await update(ref(db, `sticker_requests/${myUid}/${requestId}`), { status: 'denied' });
-        showNotification(`Denied sticker request from ${currentStickerRequest.requesterName}.`, "info");
-        // Optionally, send a notification to the requester about the denial
-    } catch (error) {
-        console.error("Error denying sticker request:", error);
-        showNotification("Failed to deny request.", "error");
-    } finally {
-        closeAnimatedModal(document.getElementById('sticker-request-notification-modal'));
-        currentStickerRequest = null;
-    }
-};
-
-document.getElementById('close-sticker-request-notification-modal').onclick = () => {
-    closeAnimatedModal(document.getElementById('sticker-request-notification-modal'));
-    currentStickerRequest = null;
-};
 
 /* ---------------- MEMBERS PANEL ---------------- */
 
@@ -13168,16 +13106,43 @@ document.addEventListener('click', (e) => {
 
 /* ---------------- BACK BUTTON ---------------- */
 
+function saveChatScrollToCache(chatIdToSave) {
+    if (!chatIdToSave || !window.chatMessageCache?.has(chatIdToSave)) return;
+    const feed = document.getElementById('messages-container');
+    if (!feed) return;
+    const entry = window.chatMessageCache.get(chatIdToSave);
+    entry.scrollTop = (userPinnedToBottom || window.isUserNearBottom()) ? null : feed.scrollTop;
+    window.chatMessageCache.delete(chatIdToSave);
+    window.chatMessageCache.set(chatIdToSave, entry);
+}
+
+function getOrCreateChatCacheEntry(chatId) {
+    let entry = window.chatMessageCache.get(chatId);
+    if (entry) {
+        window.chatMessageCache.delete(chatId);
+        window.chatMessageCache.set(chatId, entry);
+        return entry;
+    }
+    entry = { messages: new Map(), scrollTop: null, hasMore: false };
+    window.chatMessageCache.set(chatId, entry);
+    if (window.chatMessageCache.size > MAX_CACHED_CHATS) {
+        const oldestKey = window.chatMessageCache.keys().next().value;
+        if (oldestKey !== undefined) window.chatMessageCache.delete(oldestKey);
+    }
+    return entry;
+}
+
 function exitChat() {
+    if (currentChatId) saveChatScrollToCache(currentChatId);
     if (typeof updateTypingStatus === 'function') updateTypingStatus(false);
     window.clearChatCleanups();
-    ++currentChatOpenToken;
+    window._chatSwitchToken = ++currentChatOpenToken;
     unreadBelowCount = 0;
     userPinnedToBottom = true;
     window.currentGroupMuteData = null;
     updateJumpToBottomButton(true);
     const cont = document.getElementById('messages-container');
-    if (cont) cont.innerHTML = '';
+    if (cont) cont.replaceChildren();
     const typingEl = document.getElementById('typing-indicator');
     if (typingEl) {
         typingEl.style.display = 'none';
@@ -13696,21 +13661,52 @@ async function safeGet(r) {
     try { return await get(r); } catch (e) { console.warn('Sticker read failed:', e?.message || e); return null; }
 }
 
-// A user only ever sees stickers they uploaded ('owned') or that an owner shared with them ('allowed')
+// Loads stickers uploaded or saved by the user alongside live usage/save stats
 async function loadMyStickers(myUid) {
-    const snap = await safeGet(ref(db, `user_stickers/${myUid}`));
+    const [snap, statsSnap] = await Promise.all([
+        safeGet(ref(db, `user_stickers/${myUid}`)),
+        safeGet(ref(db, 'stickerStats'))
+    ]);
     if (!snap || !snap.exists()) return [];
     const entries = Object.entries(snap.val());
+    const allStats = statsSnap?.val() || {};
     const metaSnaps = await Promise.all(entries.map(([id]) => safeGet(ref(db, `sticker_metadata/${id}`))));
     const list = [];
     entries.forEach(([id, info], i) => {
         const meta = metaSnaps[i] && metaSnaps[i].val();
-        if (!meta) return; // sticker was deleted by its owner
+        if (!meta) return; // sticker was deleted
         meta.stickerId = meta.stickerId || id;
-        list.push({ meta, kind: info.type === 'owned' ? 'owned' : 'allowed' });
+        stickerMetadataCache.set(id, meta);
+        const { ownerCount, usageCount } = computeStickerStats(meta, allStats[id]);
+        list.push({
+            meta,
+            kind: info.type === 'owned' ? 'owned' : 'saved',
+            usageCount,
+            ownerCount
+        });
     });
     list.sort((a, b) => (a.kind === b.kind ? (b.meta.createdAt || 0) - (a.meta.createdAt || 0) : (a.kind === 'owned' ? -1 : 1)));
     return list;
+}
+
+function buildInlineStickerCard(meta, usageCount, ownerCount) {
+    const card = document.createElement('div');
+    card.className = 'sticker-card';
+    const name = getStickerDisplayName(meta);
+    card.innerHTML = `<img src="${meta.thumbnailStoragePath || meta.storagePath}" alt="${escapeHTML(name)}" loading="lazy" decoding="async">`;
+    if (usageCount > 0) {
+        const badge = document.createElement('span');
+        badge.className = 'sticker-card-badge';
+        badge.textContent = `\u{1F525}${formatMoney(usageCount)}`;
+        card.appendChild(badge);
+    }
+    card.title = `${name} \u{2022} \u{1F525} ${formatMoney(usageCount)} uses \u{2022} \u{1F465} ${formatMoney(ownerCount)} saved`;
+    card.onclick = (e) => {
+        e.stopPropagation();
+        currentStickerPickerMessageId = meta.stickerId;
+        sendMessage();
+    };
+    return card;
 }
 
 async function renderPickerStickers() {
@@ -13721,41 +13717,85 @@ async function renderPickerStickers() {
     const myUid = auth.currentUser?.uid;
     if (!myUid) return;
 
-    const list = await loadMyStickers(myUid);
+    const allStickers = await loadAllCommunityStickers(myUid);
+    const savedList = sortStickersList(allStickers.filter(s => s.isSaved), communityStickerSortMode);
+    const communityList = sortStickersList(allStickers, communityStickerSortMode);
+
     container.innerHTML = '';
 
-    const section = document.createElement('div');
-    section.className = 'sticker-pack-section';
-    const header = document.createElement('div');
-    header.className = 'sticker-pack-header';
-    header.innerHTML = `<span class="pack-title-author">\u{1F39F}\u{FE0F} My Stickers (${list.length})</span>`;
-    section.appendChild(header);
+    const toolbar = document.createElement('div');
+    toolbar.className = 'sticker-toolbar';
+    toolbar.innerHTML = `
+        <span style="font-size:12px; opacity:0.75; font-weight:600;">Free Community Stickers (${communityList.length})</span>
+        <div class="sticker-toolbar-actions">
+            <button type="button" id="picker-sticker-sort-btn" class="glass-btn-secondary" style="padding:4px 9px; font-size:11px;">${communityStickerSortMode === 'popular' ? '\u{1F525} Popular' : '\u{1F552} Newest'}</button>
+            <button type="button" id="picker-sticker-upload-btn" class="glass-btn-primary" style="padding:4px 10px; font-size:11px; width:auto;">+ Upload</button>
+        </div>
+    `;
+    container.appendChild(toolbar);
 
-    if (list.length === 0) {
-        const hint = document.createElement('small');
-        hint.style.cssText = 'opacity:0.6; display:block; padding:8px; line-height:1.5;';
-        hint.innerText = isCurrentUserPremium
-            ? 'No stickers yet. Upload yours in Settings \u{2192} Stickers, or tap a sticker in a chat to request it from its owner.'
-            : 'No stickers yet. Tap a sticker in a chat to request it from its owner.';
-        section.appendChild(hint);
-    } else {
-        const grid = document.createElement('div');
-        grid.className = 'theme-grid sticker-grid';
-        list.forEach(({ meta }) => {
-            const card = document.createElement('div');
-            card.className = 'sticker-card';
-            card.innerHTML = `<img src="${meta.thumbnailStoragePath || meta.storagePath}" alt="${escapeHTML(getStickerDisplayName(meta))}" decoding="async">`;
-            card.title = getStickerDisplayName(meta);
-            card.onclick = (e) => {
-                e.stopPropagation();
-                currentStickerPickerMessageId = meta.stickerId;
-                sendMessage();
-            };
-            grid.appendChild(card);
-        });
-        section.appendChild(grid);
+    const sortBtn = toolbar.querySelector('#picker-sticker-sort-btn');
+    if (sortBtn) {
+        sortBtn.classList.toggle('sticker-sort-active', communityStickerSortMode === 'popular');
+        sortBtn.onclick = (e) => {
+            e.stopPropagation();
+            communityStickerSortMode = communityStickerSortMode === 'popular' ? 'recent' : 'popular';
+            renderPickerStickers();
+        };
     }
-    container.appendChild(section);
+    const upBtn = toolbar.querySelector('#picker-sticker-upload-btn');
+    if (upBtn) {
+        upBtn.onclick = (e) => {
+            e.stopPropagation();
+            triggerStickerUploadFlow(() => renderPickerStickers());
+        };
+    }
+
+    const savedSection = document.createElement('div');
+    savedSection.className = 'sticker-pack-section';
+    const savedHeader = document.createElement('div');
+    savedHeader.className = 'sticker-pack-header';
+    savedHeader.innerHTML = `<span class="pack-title-author">\u{2B50} My Saved Stickers (${savedList.length})</span>`;
+    savedSection.appendChild(savedHeader);
+
+    if (savedList.length === 0) {
+        const hint = document.createElement('small');
+        hint.style.cssText = 'opacity:0.6; display:block; padding:6px 4px; line-height:1.4;';
+        hint.innerText = 'No saved stickers yet — pick any community sticker below or tap "+ Upload"!';
+        savedSection.appendChild(hint);
+    } else {
+        const savedGrid = document.createElement('div');
+        savedGrid.className = 'theme-grid sticker-grid';
+        savedList.forEach(({ meta, usageCount, ownerCount }) => {
+            savedGrid.appendChild(buildInlineStickerCard(meta, usageCount, ownerCount));
+        });
+        savedSection.appendChild(savedGrid);
+    }
+    container.appendChild(savedSection);
+
+    const commSection = document.createElement('div');
+    commSection.className = 'sticker-pack-section';
+    commSection.style.marginTop = '10px';
+    const commHeader = document.createElement('div');
+    commHeader.className = 'sticker-pack-header';
+    commHeader.innerHTML = `<span class="pack-title-author">\u{1F30D} Community Stickers (${communityList.length})</span>`;
+    commSection.appendChild(commHeader);
+
+    if (communityList.length === 0) {
+        const hint = document.createElement('small');
+        hint.style.cssText = 'opacity:0.6; display:block; padding:6px 4px; line-height:1.4;';
+        hint.innerText = 'No community stickers uploaded yet. Upload the first one!';
+        commSection.appendChild(hint);
+    } else {
+        const commGrid = document.createElement('div');
+        commGrid.className = 'theme-grid sticker-grid';
+        communityList.forEach(({ meta, usageCount, ownerCount }) => {
+            commGrid.appendChild(buildInlineStickerCard(meta, usageCount, ownerCount));
+        });
+        commSection.appendChild(commGrid);
+    }
+    container.appendChild(commSection);
+    if (window.twemoji) twemoji.parse(container);
 }
 
 if (emojiBtn && emojiPicker) {
@@ -13900,13 +13940,6 @@ window.submitAdminRequest = async function() {
     new MutationObserver(() => { if (input.value) apply(); })
         .observe(document.getElementById('app-container'), { childList: true, subtree: true });
 })();
-
-// Initialize Telegram-style Message Context Menu
-if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', () => initMessageContextMenu());
-} else {
-    initMessageContextMenu();
-}
 
 // Make modals opened via style.display='flex' visible with the new animated CSS
 new MutationObserver((mutations) => {

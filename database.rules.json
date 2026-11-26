@@ -14,11 +14,19 @@
         },
         "mutedUsers": {
           "$mutedUid": {
-            ".write": "(data.parent().parent().child('roles').child(auth.uid).val() === 'admin' || data.parent().parent().child('roles').child(auth.uid).val() === 'mod') && root.child('users').child($mutedUid).child('role').val() !== 'admin' && root.child('users').child($mutedUid).child('isAdmin').val() !== true && root.child('users').child($mutedUid).child('isAdmin').val() !== 'true'"
+            ".write": "(data.parent().parent().child('roles').child(auth.uid).val() === 'admin' || data.parent().parent().child('roles').child(auth.uid).val() === 'mod' || root.child('members').child($groupId).child(auth.uid).child('role').val() === 'admin' || root.child('members').child($groupId).child(auth.uid).child('role').val() === 'mod' || root.child('chats').child($groupId).child('creatorId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'mod' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true') && root.child('users').child($mutedUid).child('role').val() !== 'admin' && root.child('users').child($mutedUid).child('isAdmin').val() !== true && root.child('users').child($mutedUid).child('isAdmin').val() !== 'true'"
           }
         },
         "members": {
-          ".write": "data.parent().child('roles').child(auth.uid).val() === 'admin' || data.parent().child('roles').child(auth.uid).val() === 'mod'"
+          ".write": "data.parent().child('roles').child(auth.uid).val() === 'admin' || data.parent().child('roles').child(auth.uid).val() === 'mod' || root.child('users').child(auth.uid).child('role').val() === 'mod' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('isAdmin').val() === true"
+        }
+      }
+    },
+    "members": {
+      "$chatId": {
+        ".read": "auth != null",
+        "$memberUid": {
+          ".write": "auth != null && (auth.uid === $memberUid || root.child('chats').child($chatId).child('creatorId').val() === auth.uid || data.parent().child(auth.uid).child('role').val() === 'admin' || data.parent().child(auth.uid).child('role').val() === 'mod' || root.child('users').child(auth.uid).child('role').val() === 'mod' || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true') && (newData.exists() || (root.child('users').child($memberUid).child('role').val() !== 'admin' && root.child('users').child($memberUid).child('isAdmin').val() !== true && root.child('users').child($memberUid).child('isAdmin').val() !== 'true'))"
         }
       }
     },
@@ -26,7 +34,41 @@
       "$chatId": {
         ".read": "auth != null",
         ".write": "auth != null",
-        ".indexOn": "timestamp"
+        ".indexOn": "timestamp",
+        "$msgId": {
+          ".write": "auth != null && (newData.exists() || !data.child('sender_id').exists() || data.child('sender_id').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true' || ((root.child('users').child(auth.uid).child('role').val() === 'mod' || root.child('chats').child($chatId).child('creatorId').val() === auth.uid || root.child('members').child($chatId).child(auth.uid).child('role').val() === 'admin' || root.child('members').child($chatId).child(auth.uid).child('role').val() === 'mod') && root.child('users').child(data.child('sender_id').val()).child('role').val() !== 'admin' && root.child('users').child(data.child('sender_id').val()).child('isAdmin').val() !== true && root.child('users').child(data.child('sender_id').val()).child('isAdmin').val() !== 'true'))"
+        }
+      }
+    },
+    "sticker_metadata": {
+      ".read": "auth != null",
+      "$stickerId": {
+        ".write": "auth != null && ((!data.exists() && newData.child('ownerId').val() === auth.uid) || (data.exists() && (data.child('ownerId').val() === auth.uid || (!newData.exists() && (root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'mod' || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')))))"
+      }
+    },
+    "stickerStats": {
+      ".read": "auth != null",
+      "$stickerId": {
+        ".write": "auth != null && (!data.exists() || (!newData.exists() && (root.child('sticker_metadata').child($stickerId).child('ownerId').val() === auth.uid || root.child('users').child(auth.uid).child('role').val() === 'admin' || root.child('users').child(auth.uid).child('role').val() === 'mod' || root.child('users').child(auth.uid).child('isAdmin').val() === true || root.child('users').child(auth.uid).child('isAdmin').val() === 'true')))",
+        "usageCount": {
+          ".write": "auth != null && newData.isNumber() && (!data.exists() || newData.val() >= data.val())"
+        },
+        "owners": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        },
+        "usedBy": {
+          "$uid": {
+            ".write": "auth != null && auth.uid === $uid"
+          }
+        }
+      }
+    },
+    "user_stickers": {
+      "$uid": {
+        ".read": "auth != null && auth.uid === $uid",
+        ".write": "auth != null && auth.uid === $uid"
       }
     },
     "games": {
