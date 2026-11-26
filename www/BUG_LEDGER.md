@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *UI Polish & Stability (Patch 1):* Added smooth CSS pop-in transitions for modals/popups, tactile button feedback, custom thin scrollbars, a debounced `.info/connected` Reconnecting banner, centralized `activeChatCleanups` to prevent listener leaks on chat switching, and Discord-style Escape + auto-focus keyboard ergonomics.
+
 - *New Game (Spy):* Built the multiplayer 'Spy' social deduction game integrated with multi-lobby support (`games/${chatId}/${gameId}`), a 100+ categorized word library, server-synced phase timers via `getServerTime()`, `runTransaction`-protected phase transitions (reveal -> 2 clue rounds -> voting -> spy last-chance guess -> finished), HTML-escaped clues, and clean close/unsubscribe handling.
 
 - *Floating Reply Box Alignment:* Reverted the full-width reply strip back to a floating `position: absolute` box and added `positionReplyPreview()` to dynamically offset its `right` edge by the visible Members panel width, keeping it centered strictly between the left edge of the chat and the Members panel.

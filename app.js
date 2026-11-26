@@ -65,6 +65,58 @@ onValue(ref(db, '.info/serverTimeOffset'), (snap) => {
     window.serverTimeOffset = snap.val() || 0;
 });
 
+// Live Connection Status Banner (.info/connected) - Global listener (do not register in activeChatCleanups)
+(function setupConnectionStatusBanner() {
+    let hasConnectedOnce = false;
+    let disconnectTimer = null;
+    let hideOnlineTimer = null;
+
+    onValue(ref(db, '.info/connected'), (snap) => {
+        const connected = snap.val() === true;
+        const banner = document.getElementById('connection-status-banner');
+
+        if (connected) {
+            if (disconnectTimer) {
+                clearTimeout(disconnectTimer);
+                disconnectTimer = null;
+            }
+            if (hideOnlineTimer) {
+                clearTimeout(hideOnlineTimer);
+                hideOnlineTimer = null;
+            }
+            if (banner && banner.classList.contains('offline') && banner.style.display !== 'none') {
+                banner.classList.remove('offline');
+                banner.classList.add('online');
+                banner.textContent = 'Back online';
+                banner.style.display = 'flex';
+                hideOnlineTimer = setTimeout(() => {
+                    banner.style.display = 'none';
+                    banner.classList.remove('online');
+                    hideOnlineTimer = null;
+                }, 2000);
+            }
+            hasConnectedOnce = true;
+        } else {
+            if (hideOnlineTimer) {
+                clearTimeout(hideOnlineTimer);
+                hideOnlineTimer = null;
+            }
+            if (hasConnectedOnce && !disconnectTimer) {
+                disconnectTimer = setTimeout(() => {
+                    disconnectTimer = null;
+                    const el = document.getElementById('connection-status-banner');
+                    if (el) {
+                        el.classList.remove('online');
+                        el.classList.add('offline');
+                        el.textContent = 'Reconnecting...';
+                        el.style.display = 'flex';
+                    }
+                }, 2000);
+            }
+        }
+    });
+})();
+
 window.getServerTime = function() {
     return Date.now() + window.serverTimeOffset;
 };
@@ -75,7 +127,23 @@ window.formatMoney = function(amount) {
 };
 const formatMoney = window.formatMoney;
 
+window.activeChatCleanups = [];
+
+window.registerChatCleanup = function(unsubFn) {
+    if (typeof unsubFn === 'function') {
+        window.activeChatCleanups.push(unsubFn);
+    }
+};
+
+window.clearChatCleanups = function() {
+    while (window.activeChatCleanups.length > 0) {
+        const fn = window.activeChatCleanups.pop();
+        try { fn(); } catch (e) {}
+    }
+};
+
 let currentChatId = null;
+let currentChatOpenToken = 0;
 let currentChatData = null;
 let currentChatCreatorId = null; // Store globally for profile viewing context
 let selectedGroupMembers = [];
@@ -4405,10 +4473,6 @@ function initMessageContextMenu() {
             }
         }
     });
-
-    document.addEventListener('keydown', (e) => {
-        if (e.key === 'Escape') closeMessageContextMenu();
-    });
 }
 window.initMessageContextMenu = initMessageContextMenu;
 
@@ -5065,12 +5129,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.41';
+const CURRENT_APP_VERSION = '1.2.42';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.41';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.42';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -5232,7 +5296,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.41';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.42';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -5745,6 +5809,9 @@ onAuthStateChanged(auth, (user) => {
         handleUrlJoin(); // Check for join link on auth
         handleChatUrlParam(); // NEW: Check for chat link from notification click
     } else {
+        window.clearChatCleanups();
+        currentChatId = null;
+        currentChatData = null;
         window.currentUserData = null;
         if (typeof detachAdminRequestsListener === 'function') detachAdminRequestsListener();
         document.getElementById('auth-container').style.display = 'flex';
@@ -5795,21 +5862,136 @@ document.getElementById('register-btn').onclick = async () => {
     }
 };
 
-// Global listener to focus message input when user starts typing
+// Discord-Style Keyboard Ergonomics: single global keydown handler
 window.addEventListener('keydown', (e) => {
-    // Only proceed if a chat is open and we aren't already in an input field
-    if (!currentChatId) return;
-    if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
-    
-    // Ignore modifier keys and functional keys (like F1-F12, Arrow keys, etc.)
-    if (e.ctrlKey || e.altKey || e.metaKey || e.key.length > 1) return;
+    const protectedGameOverlayIds = ['flag-game-screen', 'wordle-game-screen', 'doodle-game-screen', 'spy-game-ui'];
+    const isElementVisible = (el) => Boolean(el && getComputedStyle(el).display !== 'none');
 
-    // Don't steal focus if a modal is currently open
-    const isModalOpen = Array.from(document.querySelectorAll('.modal')).some(m => m.style.display === 'flex');
-    if (isModalOpen) return;
+    if (e.key === 'Escape') {
+        // 1. Close any open dropdowns/popups first
+        let closedPopup = false;
+
+        const plusMenu = document.getElementById('plus-menu');
+        if (plusMenu && plusMenu.style.display !== 'none' && !plusMenu.classList.contains('hidden')) {
+            plusMenu.style.display = 'none';
+            plusMenu.classList.add('hidden');
+            closedPopup = true;
+        }
+
+        const attachMenu = document.getElementById('attachment-options-menu');
+        if (attachMenu && attachMenu.style.display !== 'none' && !attachMenu.classList.contains('hidden')) {
+            attachMenu.style.display = 'none';
+            attachMenu.classList.add('hidden');
+            closedPopup = true;
+        }
+
+        const msgContextSheet = document.getElementById('message-context-sheet');
+        if (msgContextSheet && !msgContextSheet.classList.contains('hidden')) {
+            closeMessageContextMenu();
+            closedPopup = true;
+        }
+
+        const openActionMenus = Array.from(document.querySelectorAll('.msg-action-menu')).filter(m =>
+            !m.classList.contains('plus-popup') && isElementVisible(m)
+        );
+        if (openActionMenus.length > 0) {
+            resetMessageActionMenus();
+            closedPopup = true;
+        }
+
+        const emojiPicker = document.getElementById('emoji-picker');
+        if (emojiPicker && emojiPicker.style.display !== 'none' && isElementVisible(emojiPicker)) {
+            emojiPicker.style.display = 'none';
+            activeReactionMessageId = null;
+            closedPopup = true;
+        }
+
+        const mentionDropdown = document.getElementById('mention-dropdown');
+        if (mentionDropdown && mentionDropdown.style.display !== 'none' && isElementVisible(mentionDropdown)) {
+            mentionDropdown.style.display = 'none';
+            closedPopup = true;
+        }
+
+        if (closedPopup) return;
+
+        // 2. Close any open standard modal (never close active in-progress game overlays)
+        const pcCameraModal = document.getElementById('pc-camera-modal');
+        if (pcCameraModal) {
+            document.getElementById('pc-camera-cancel')?.click();
+            return;
+        }
+
+        const imageViewerModal = document.getElementById('image-viewer-modal');
+        if (imageViewerModal && !imageViewerModal.classList.contains('hidden')) {
+            imageViewerModal.classList.add('hidden');
+            const modalImg = document.getElementById('viewer-main-img');
+            if (modalImg) modalImg.src = '';
+            window.currentViewingImage = null;
+            return;
+        }
+
+        const confirmModal = document.getElementById('confirm-modal');
+        if (confirmModal && isElementVisible(confirmModal)) {
+            document.getElementById('confirm-cancel-btn')?.click();
+            return;
+        }
+
+        const protectedSet = new Set(protectedGameOverlayIds);
+        const openStandardModals = Array.from(document.querySelectorAll('.modal')).filter(m => {
+            if (protectedSet.has(m.id)) return false;
+            return m.classList.contains('modal-visible') || isElementVisible(m);
+        });
+
+        if (openStandardModals.length > 0) {
+            const topModal = openStandardModals[openStandardModals.length - 1];
+            if (topModal.id === 'premium-panel-modal') {
+                closeSettings();
+            } else {
+                closeAnimatedModal(topModal);
+            }
+            return;
+        }
+
+        // 3. Cancel active reply if reply preview bar is open (and not behind an active game overlay)
+        const isGameOverlayOpen = protectedGameOverlayIds.some(id => isElementVisible(document.getElementById(id)));
+        if (!isGameOverlayOpen) {
+            const replyBar = document.getElementById('reply-preview-bar');
+            if (replyBar && isElementVisible(replyBar)) {
+                exitReplyMode();
+            }
+        }
+        return;
+    }
+
+    // Auto-focus chat input on typing
+    if (!currentChatId) return;
+    if (e.ctrlKey || e.metaKey || e.altKey) return;
+    if (e.key.length !== 1) return;
+
+    const activeEl = document.activeElement;
+    if (activeEl && (
+        activeEl.tagName === 'INPUT' ||
+        activeEl.tagName === 'TEXTAREA' ||
+        activeEl.tagName === 'SELECT' ||
+        activeEl.isContentEditable
+    )) {
+        return;
+    }
+
+    const isAnyModalOpen = Array.from(document.querySelectorAll('.modal')).some(m =>
+        m.classList.contains('modal-visible') || isElementVisible(m)
+    );
+    const isAnyGameOverlayOpen = protectedGameOverlayIds.some(id => isElementVisible(document.getElementById(id)));
+    const isPcCameraOpen = Boolean(document.getElementById('pc-camera-modal'));
+    const viewerModal = document.getElementById('image-viewer-modal');
+    const isViewerOpen = Boolean(viewerModal && !viewerModal.classList.contains('hidden'));
+
+    if (isAnyModalOpen || isAnyGameOverlayOpen || isPcCameraOpen || isViewerOpen) return;
 
     const input = document.getElementById('message-input');
-    if (input) input.focus();
+    if (input && !input.disabled && isElementVisible(input)) {
+        input.focus();
+    }
 });
 
 /* ---------------- SIDEBAR COLLAPSE ---------------- */
@@ -5858,6 +6040,8 @@ document.getElementById('login-btn').onclick = async () => {
 
 document.getElementById('logout-btn').onclick = async () => {
     try {
+        window.clearChatCleanups();
+        ++currentChatOpenToken;
         closeAnimatedModal(document.getElementById('profile-modal'));
         const uid = auth.currentUser?.uid;
         if (uid) {
@@ -6947,6 +7131,8 @@ function startChat(me, them, name) {
 }/* ---------------- OPEN CHAT ---------------- */
 
 async function openChat(chatId, title) {
+    window.clearChatCleanups();
+    const openToken = ++currentChatOpenToken;
     dismissKeyboard();
     currentChatId = chatId;
     currentChatData = null;
@@ -7000,11 +7186,11 @@ async function openChat(chatId, title) {
     }
 
     // Set up real-time listener for chat details (title, description)
-    if (activeChatMetaOff) activeChatMetaOff();
-    if (activeMembersOff) activeMembersOff();
-    if (activeMessagesOff) activeMessagesOff();
-    if (activeTypingOff) activeTypingOff();
-    if (activeChatPartnerOff) activeChatPartnerOff();
+    if (activeChatMetaOff) { activeChatMetaOff(); activeChatMetaOff = null; }
+    if (activeMembersOff) { activeMembersOff(); activeMembersOff = null; }
+    if (activeMessagesOff) { activeMessagesOff(); activeMessagesOff = null; }
+    if (activeTypingOff) { activeTypingOff(); activeTypingOff = null; }
+    if (activeChatPartnerOff) { activeChatPartnerOff(); activeChatPartnerOff = null; }
     if (activeGroupMuteOff) { activeGroupMuteOff(); activeGroupMuteOff = null; }
     if (activeGamesListOff) { activeGamesListOff(); activeGamesListOff = null; }
     cleanupLobbyCardListeners();
@@ -7031,6 +7217,7 @@ async function openChat(chatId, title) {
 
     const chatRef = ref(db, `chats/${chatId}`);
     activeChatMetaOff = onValue(chatRef, (chatSnap) => {
+        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
         const chatData = chatSnap.val();
         if (!chatData) return;
         currentChatData = chatData;
@@ -7047,9 +7234,11 @@ async function openChat(chatId, title) {
 
         if (isGroup && groupId) {
             activeGroupMuteOff = onValue(ref(db, `groups/${groupId}`), (groupSnap) => {
+                if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
                 const groupData = groupSnap.val() || {};
                 updateGroupMuteUI(groupData, chatData);
             });
+            window.registerChatCleanup(activeGroupMuteOff);
         } else {
             updateGroupMuteUI(null, chatData);
         }
@@ -7133,6 +7322,7 @@ async function openChat(chatId, title) {
             if (partnerId) {
                 if (activeChatPartnerOff) activeChatPartnerOff();
                 activeChatPartnerOff = onValue(ref(db, `users/${partnerId}`), (pSnap) => {
+                    if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
                     const pData = pSnap.val();
                     document.getElementById('chat-title-text').innerText = getDisplayName(pData);
                     const isOnline = pData?.status === 'online';
@@ -7158,15 +7348,18 @@ async function openChat(chatId, title) {
                         twemoji.parse(headerAvatar);
                     }
                 });
+                window.registerChatCleanup(activeChatPartnerOff);
             } else {
                 chatDescriptionElem.style.display = 'none';
             }
         }
     });
+    window.registerChatCleanup(activeChatMetaOff);
 
     updateInputButtons();
 
     activeTypingOff = onValue(ref(db, `typing/${chatId}`), async (snap) => {
+        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
         if (!typingIndicator) return; // Ensure indicator exists
         const typers = snap.val() || {};
         const names = [];
@@ -7176,6 +7369,7 @@ async function openChat(chatId, title) {
                 names.push(uSnap.val()?.displayName || "User");
             }
         }
+        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
         if (names.length > 0) {
             const verb = names.length > 1 ? "are" : "is";
             typingIndicator.innerHTML = `${escapeHTML(names.join(', '))} ${verb} typing<div class="typing-dots"><span></span><span></span><span></span></div>`;
@@ -7191,18 +7385,21 @@ async function openChat(chatId, title) {
             }, { once: true });
         }
     });
+    window.registerChatCleanup(activeTypingOff);
 
     const mRef = ref(db, `messages/${chatId}`);
     const membersRef = ref(db, `members/${chatId}`);
 
     // Get initial data to ensure we have the creatorId for the members list
     const chatSnap = await get(chatRef);
+    if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
     currentChatCreatorId = chatSnap.val()?.creatorId;
 
     if (chatId === 'channel_orion_updates') {
         currentChatMemberData = {};
     } else {
         activeMembersOff = onValue(membersRef, (msnap) => {
+            if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
             currentChatMemberData = msnap.val() || {};
             renderMembersList(msnap, currentChatCreatorId);
             checkMuteStatus();
@@ -7213,9 +7410,10 @@ async function openChat(chatId, title) {
                 });
             }
         });
+        window.registerChatCleanup(activeMembersOff);
 
         activeGamesListOff = onValue(ref(db, `games/${chatId}`), (snap) => {
-            if (currentChatId !== chatId) return;
+            if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
             const banner = document.getElementById('active-lobby-banner');
             const textEl = document.getElementById('active-lobby-text');
             const joinBtn = document.getElementById('active-lobby-join-btn');
@@ -7262,6 +7460,7 @@ async function openChat(chatId, title) {
         }, (err) => {
             console.warn('[Game] Active lobby listener error:', err);
         });
+        window.registerChatCleanup(activeGamesListOff);
     }
 
     const cont = document.getElementById('messages-container');
@@ -7442,7 +7641,7 @@ async function openChat(chatId, title) {
     };
 
     await loadChatMessages(chatId);
-    if (currentChatId !== chatId) return;
+    if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
 
     // Real-time listener for newly appended messages
     const newMsgsQuery = currentNewestMessageKey
@@ -7450,6 +7649,7 @@ async function openChat(chatId, title) {
         : ref(db, `messages/${chatId}`);
 
     const addedOff = onChildAdded(newMsgsQuery, (data) => {
+        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
         // Guard against duplicate if initial batch already rendered it
         if (document.getElementById(`msg-${data.key}`)) return;
 
@@ -7479,6 +7679,7 @@ async function openChat(chatId, title) {
     });
 
     const changedOff = onChildChanged(ref(db, `messages/${chatId}`), (data) => {
+        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
         const wrap = document.getElementById(`msg-${data.key}`);
         if (wrap) {
             const wasConsecutive = wrap.classList.contains('consecutive');
@@ -7487,6 +7688,7 @@ async function openChat(chatId, title) {
     });
 
     const removedOff = onChildRemoved(ref(db, `messages/${chatId}`), (data) => {
+        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
         const unsub = activeLobbyCardUnsubs.get(data.key);
         if (typeof unsub === 'function') {
             unsub();
@@ -7503,6 +7705,7 @@ async function openChat(chatId, title) {
         cont.removeEventListener('scroll', onChatScroll);
         if (topObserver) topObserver.disconnect();
     };
+    window.registerChatCleanup(activeMessagesOff);
 }
 
 // --- Join Card Renderer ---
@@ -7667,6 +7870,7 @@ function attachLobbyCardListener(chatId, messageId, gameId, countBadge, joinBtn,
     });
 
     activeLobbyCardUnsubs.set(messageId, unsub);
+    window.registerChatCleanup(unsub);
 }
 
 function renderMessage(msg, isConsecutive = false, messageId) {
@@ -9127,6 +9331,7 @@ async function renderMembersList(msnap, groupCreatorId) {
             updateMessageBadgesForUser(member.uid, memberRole); // Update badges in existing messages
         });
         activeMemberStatusOffs.set(member.uid, userOff);
+        window.registerChatCleanup(userOff);
 
         div.onclick = (e) => {
             e.stopPropagation(); // Prevent the global "click outside" listener from closing the panel
@@ -10032,15 +10237,10 @@ window.openPcCameraModal = async function() {
     video.srcObject = stream;
 
     const cleanup = () => {
-        document.removeEventListener('keydown', onKeyDown);
         stream.getTracks().forEach(track => track.stop());
         modal.remove();
     };
 
-    const onKeyDown = (ev) => {
-        if (ev.key === 'Escape') cleanup();
-    };
-    document.addEventListener('keydown', onKeyDown);
     modal.addEventListener('click', (ev) => {
         if (ev.target === modal) cleanup();
     });
@@ -10409,18 +10609,6 @@ if (imageViewerModal) {
         }
     };
 }
-
-window.addEventListener('keydown', (e) => {
-    if (e.key === 'Escape') {
-        const modal = document.getElementById('image-viewer-modal');
-        if (modal && !modal.classList.contains('hidden')) {
-            modal.classList.add('hidden');
-            const modalImg = document.getElementById('viewer-main-img');
-            if (modalImg) modalImg.src = '';
-            window.currentViewingImage = null;
-        }
-    }
-}); 
 
 document.getElementById('close-profile-modal').onclick = () => {
     closeAnimatedModal(document.getElementById('profile-modal'));
@@ -12415,6 +12603,8 @@ document.addEventListener('click', (e) => {
 /* ---------------- BACK BUTTON ---------------- */
 
 function exitChat() {
+    window.clearChatCleanups();
+    ++currentChatOpenToken;
     dismissKeyboard();
     document.body.classList.remove('chat-open');
     if (window.innerWidth <= 768) {
@@ -12440,6 +12630,7 @@ function exitChat() {
     activeChatMetaOff = null;
     activeMembersOff = null;
     activeMessagesOff = null;
+    activeTypingOff = null;
 
     currentChatId = null;
     currentChatData = null;

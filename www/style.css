@@ -11,6 +11,8 @@
     --game-danger: #ff4b2b;
     --solid-bg: #16161c;
     --solid-panel: #181820;
+    --ease-snappy: cubic-bezier(0.16, 1, 0.3, 1);
+    --surface-border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
 * {
@@ -29,20 +31,24 @@ body {
 }
 
 /* --- Modern Global Scrollbar --- */
-::-webkit-scrollbar {
-    width: 6px;
+* {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(255, 255, 255, 0.16) transparent;
 }
-::-webkit-scrollbar-track {
+*::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+}
+*::-webkit-scrollbar-track {
     background: transparent;
 }
-::-webkit-scrollbar-thumb {
-    background: var(--glass-border);
-    border-radius: 10px;
+*::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.16);
+    border-radius: 999px;
 }
-::-webkit-scrollbar-thumb:hover {
-    background: var(--glass-bright);
+*::-webkit-scrollbar-thumb:hover {
+    background: rgba(255, 255, 255, 0.28);
 }
-* { scrollbar-width: thin; scrollbar-color: var(--glass-border) transparent; }
 
 .bg-blobs { position: absolute; width: 100%; height: 100%; z-index: -1; overflow: hidden; }
 .blob { position: absolute; border-radius: 50%; filter: blur(100px); opacity: 0.3; will-change: transform; transform: translate3d(0,0,0); }
@@ -5928,10 +5934,91 @@ body.theme-retro #active-lobby-text {
     opacity: 0.55;
 }
 
+/* =====================================================================
+   DISCORD-STYLE POLISH (PATCH 1): MOTION, BUTTONS & CONNECTION BANNER
+   ===================================================================== */
 
+@keyframes orionPopIn {
+    from {
+        opacity: 0;
+        transform: translateY(6px) scale(0.97);
+    }
+    to {
+        opacity: 1;
+        transform: translateY(0) scale(1);
+    }
+}
 
+.modal.modal-visible .modal-content,
+.modal.modal-visible .glass-card,
+.modal.modal-visible .group-info-card,
+.modal.modal-visible .settings-modal,
+.modal.modal-visible .uv-card,
+#confirm-modal .modal-content,
+#pc-camera-modal > div,
+.uv-card,
+#plus-menu,
+.plus-popup,
+#attachment-options-menu,
+.msg-action-menu,
+.message-action-menu,
+.message-context-sheet:not(.hidden) {
+    animation: orionPopIn 0.16s var(--ease-snappy);
+}
 
+button:not(:disabled) {
+    transition: transform 0.1s ease, filter 0.15s ease, background-color 0.15s ease, opacity 0.15s ease;
+}
+button:not(:disabled):hover {
+    filter: brightness(1.08);
+}
+button:not(:disabled):active {
+    transform: scale(0.97);
+}
 
+@keyframes orionBannerSlideIn {
+    from {
+        opacity: 0;
+        transform: translateX(-50%) translateY(-10px);
+    }
+    to {
+        opacity: 1;
+        transform: translateX(-50%) translateY(0);
+    }
+}
 
+#connection-status-banner {
+    position: fixed;
+    top: 14px;
+    left: 50%;
+    transform: translateX(-50%);
+    z-index: 11000;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 7px 16px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    border: var(--surface-border);
+    transition: opacity 0.2s var(--ease-snappy), transform 0.2s var(--ease-snappy), background-color 0.2s ease, border-color 0.2s ease;
+    animation: orionBannerSlideIn 0.2s var(--ease-snappy);
+}
 
+#connection-status-banner.offline {
+    background: rgba(239, 68, 68, 0.22);
+    border: 1px solid rgba(248, 113, 113, 0.45);
+    color: #fecaca;
+}
+
+#connection-status-banner.online {
+    background: rgba(34, 197, 94, 0.22);
+    border: 1px solid rgba(74, 222, 128, 0.45);
+    color: #bbf7d0;
+}
 
