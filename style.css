@@ -74,7 +74,7 @@ body {
     overflow: hidden;
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
 }
-.glass-main { flex: 1; display: flex; flex-direction: column; border-radius: 24px; background: var(--glass); backdrop-filter: blur(40px); border: 1px solid var(--glass-border); overflow: hidden; position: relative; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3); }
+.glass-main { flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 24px; background: var(--glass); backdrop-filter: blur(40px); border: 1px solid var(--glass-border); overflow: hidden; position: relative; box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3); }
 .sidebar-scroll { 
     flex: 1; 
     overflow-y: auto; 
@@ -403,15 +403,18 @@ body {
 .chat-body-wrapper { 
     display: flex; 
     flex: 1; 
+    min-width: 0;
     min-height: 0;
     overflow: hidden; 
     position: relative;
 }
 #messages-container { 
     flex: 1; 
+    min-width: 0;
     min-height: 0;
     padding: 20px 20px 80px; 
     overflow-y: auto; 
+    overflow-x: hidden;
     -webkit-overflow-scrolling: touch;
     overscroll-behavior-y: contain;
     display: flex; 
@@ -1020,18 +1023,18 @@ body.liquid-glass .sticker-bubble {
     border: 1px solid var(--glass-border);
     border-radius: 14px;
     padding: 8px 14px;
-    position: absolute;
-    bottom: 95px;
+    position: relative;
+    bottom: auto;
+    left: auto;
+    transform: none;
     width: calc(100% - 24px);
     max-width: 680px;
-    left: 50%;
-    transform: translateX(-50%);
-    margin: 0 auto;
+    margin: 0 auto 8px auto;
     box-sizing: border-box;
     overflow: hidden;
-    z-index: 100;
+    z-index: 5;
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
-    transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: opacity 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 #reply-preview-bar {
@@ -1565,7 +1568,7 @@ body.theme-retro .uv-action-row:hover { background: #0b77e9; color: #fff; }
 body.theme-hacker .uv-type-badge { border: 1px solid var(--accent); background: none; }
 body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003300, #001a00); animation: uv-banner-flow 10s ease infinite; background-size: 300% 300%; }
 
-.glass-input-area { position: relative; padding: 20px; background: var(--glass); backdrop-filter: blur(20px); border-top: 1px solid var(--glass-border); }
+.glass-input-area { position: relative; min-width: 0; box-sizing: border-box; padding: 20px; background: var(--glass); backdrop-filter: blur(20px); border-top: 1px solid var(--glass-border); }
 .input-wrapper { 
     display: flex; 
     background: rgba(255, 255, 255, 0.03);
@@ -1809,7 +1812,7 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
     overflow: hidden;
     box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.3);
 }
-.glass-main { flex: 1; display: flex; flex-direction: column; border-radius: 24px; background: var(--glass); backdrop-filter: blur(25px); border: 1px solid var(--glass-border); overflow: hidden; position: relative; }
+.glass-main { flex: 1; min-width: 0; display: flex; flex-direction: column; border-radius: 24px; background: var(--glass); backdrop-filter: blur(25px); border: 1px solid var(--glass-border); overflow: hidden; position: relative; }
 
 /* Profile Button */
 .user-profile-btn { margin: 15px; padding: 12px 18px; background: var(--glass-bright); border: 1px solid var(--glass-border); border-radius: 16px; display: flex; justify-content: space-between; align-items: center; cursor: pointer; transition: 0.3s; }
@@ -2343,12 +2346,13 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
         top: 0px;
     }
     #reply-preview-bar, #edit-preview-bar {
-        bottom: 85px;
+        position: relative;
+        bottom: auto;
         width: calc(100% - 24px);
         max-width: 680px;
-        left: 50%;
-        transform: translateX(-50%);
-        margin: 0 auto !important;
+        left: auto;
+        transform: none;
+        margin: 0 auto 8px auto !important;
         padding: 8px 14px !important;
     }
 
