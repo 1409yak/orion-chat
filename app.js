@@ -3804,6 +3804,27 @@ function insertMessageIntoDOM(messageElement, messageTimestamp) {
     }
 }
 
+window.updateMessageGrouping = function(el) {
+    if (!el || !el.dataset || !el.dataset.msgId) return;
+    let prev = el.previousElementSibling;
+    while (prev && (!prev.dataset || !prev.dataset.msgId)) {
+        prev = prev.previousElementSibling;
+    }
+
+    const canGroup = Boolean(
+        prev &&
+        el.dataset.isSpecial !== '1' &&
+        prev.dataset.isSpecial !== '1' &&
+        el.dataset.hasReply !== '1' &&
+        el.dataset.senderId &&
+        el.dataset.senderId === prev.dataset.senderId &&
+        Math.abs(Number(el.dataset.timestamp) - Number(prev.dataset.timestamp)) <= 5 * 60 * 1000 &&
+        new Date(Number(el.dataset.timestamp)).toDateString() === new Date(Number(prev.dataset.timestamp)).toDateString()
+    );
+
+    el.classList.toggle('msg-grouped', canGroup);
+};
+
 window.isUserNearBottom = () => {
     const feed = document.getElementById('messages-container');
     if (!feed) return true;
@@ -5194,12 +5215,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.43';
+const CURRENT_APP_VERSION = '1.2.44';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.43';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.44';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -5361,7 +5382,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.43';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.44';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -7589,6 +7610,7 @@ async function openChat(chatId, title) {
             currentOldestMessageKey = olderMessages[0].key;
 
             let prevSender = null;
+            const insertedElements = [];
             for (const item of olderMessages) {
                 const msg = item.val;
                 if (cont.querySelector(`[data-msg-id="${item.key}"]`)) {
@@ -7600,6 +7622,16 @@ async function openChat(chatId, title) {
                 prevSender = senderUid;
                 const el = buildMessageElement(item.key, msg, isConsecutive);
                 insertMessageIntoDOM(el, msg.timestamp);
+                insertedElements.push(el);
+            }
+
+            if (insertedElements.length > 0) {
+                insertedElements.forEach(el => window.updateMessageGrouping(el));
+                let afterPrepended = insertedElements[insertedElements.length - 1].nextElementSibling;
+                while (afterPrepended && (!afterPrepended.dataset || !afterPrepended.dataset.msgId)) {
+                    afterPrepended = afterPrepended.nextElementSibling;
+                }
+                if (afterPrepended) window.updateMessageGrouping(afterPrepended);
             }
 
             // Preserve scroll position smoothly
@@ -7668,6 +7700,10 @@ async function openChat(chatId, title) {
         const isConsecutive = Boolean(lastSenderId && senderUid === lastSenderId);
         const msgEl = buildMessageElement(msgId, msgData, isConsecutive);
         insertMessageIntoDOM(msgEl, msgData.timestamp);
+        window.updateMessageGrouping(msgEl);
+        if (msgEl.nextElementSibling && msgEl.nextElementSibling.dataset?.msgId) {
+            window.updateMessageGrouping(msgEl.nextElementSibling);
+        }
         lastSenderId = senderUid;
 
         if (shouldAutoScroll) {
@@ -7700,7 +7736,14 @@ async function openChat(chatId, title) {
             activeLobbyCardUnsubs.delete(snap.key);
         }
         const existingEl = cont.querySelector(`[data-msg-id="${snap.key}"]`);
-        if (existingEl) existingEl.remove();
+        if (existingEl) {
+            let nextEl = existingEl.nextElementSibling;
+            while (nextEl && (!nextEl.dataset || !nextEl.dataset.msgId)) {
+                nextEl = nextEl.nextElementSibling;
+            }
+            existingEl.remove();
+            if (nextEl) window.updateMessageGrouping(nextEl);
+        }
     });
     window.registerChatCleanup(removedOff);
 
@@ -8033,19 +8076,101 @@ function buildFormattedMessageHtml(msg, formattedOverride = null) {
     return { htmlContent, formatted };
 }
 
+function isMessageCurrentlyPinned(messageId) {
+    if (!currentChatData) return false;
+    const pins = Array.isArray(currentChatData.pinnedMessages) ? currentChatData.pinnedMessages : [];
+    if (pins.includes(messageId)) return true;
+    return currentChatData.pinnedMessageId === messageId;
+}
+
+function buildQuickActionsBar(messageId, msg, bubble, wrap, isMe) {
+    const bar = document.createElement('div');
+    bar.className = 'msg-quick-actions';
+
+    const replyBtn = document.createElement('button');
+    replyBtn.type = 'button';
+    replyBtn.title = 'Reply';
+    replyBtn.setAttribute('aria-label', 'Reply');
+    replyBtn.textContent = '↩️';
+    replyBtn.onclick = (e) => {
+        e.stopPropagation();
+        const replyText = bubble?._replyData?.text || msg.text || '';
+        const senderName = msg.sender_name || bubble?.dataset?.senderName || 'User';
+        replyToMessage(messageId, replyText, senderName);
+        if (typeof window.positionReplyPreview === 'function') window.positionReplyPreview();
+    };
+    bar.appendChild(replyBtn);
+
+    const reactBtn = document.createElement('button');
+    reactBtn.type = 'button';
+    reactBtn.title = 'React';
+    reactBtn.setAttribute('aria-label', 'Add reaction');
+    reactBtn.textContent = '😊';
+    reactBtn.onclick = async (e) => {
+        e.stopPropagation();
+        const picker = document.getElementById('emoji-picker');
+        if (!picker) return;
+        const isCurrentlyOpen = picker.style.display !== 'none' && window.getComputedStyle(picker).display !== 'none';
+        const isSameMessage = activeReactionMessageId === messageId;
+        if (isCurrentlyOpen && isSameMessage) {
+            picker.style.display = 'none';
+            activeReactionMessageId = null;
+        } else {
+            const pm = document.getElementById('plus-menu');
+            if (pm) { pm.style.display = 'none'; pm.classList.add('hidden'); }
+            activeReactionMessageId = messageId;
+            await renderEmojiPicker();
+            picker.style.display = 'flex';
+            picker.scrollTop = 0;
+        }
+    };
+    bar.appendChild(reactBtn);
+
+    const pinBtn = document.createElement('button');
+    pinBtn.type = 'button';
+    pinBtn.title = 'Pin / Unpin';
+    pinBtn.setAttribute('aria-label', 'Pin message');
+    pinBtn.textContent = '📌';
+    pinBtn.onclick = (e) => {
+        e.stopPropagation();
+        if (isMessageCurrentlyPinned(messageId)) {
+            unpinMessage(messageId);
+        } else {
+            pinMessage(messageId);
+        }
+    };
+    bar.appendChild(pinBtn);
+
+    const moreBtn = document.createElement('button');
+    moreBtn.type = 'button';
+    moreBtn.title = 'More actions';
+    moreBtn.setAttribute('aria-label', 'More actions');
+    moreBtn.textContent = '⋯';
+    moreBtn.onclick = (e) => {
+        e.stopPropagation();
+        const rect = moreBtn.getBoundingClientRect();
+        openMessageContextMenu(messageId, msg, isMe, rect.left, rect.bottom + 6);
+    };
+    bar.appendChild(moreBtn);
+
+    return bar;
+}
+
 function buildMessageElement(messageId, msg, isConsecutive = false) {
     const cont = document.getElementById('messages-container');
     const wrap = document.createElement('div');
+    const senderUid = msg.sender_id || msg.sender || msg.senderId || '';
     wrap.id = `msg-${messageId}`;
     wrap.dataset.msgId = messageId;
-    const senderUid = msg.sender_id || msg.sender || '';
     wrap.dataset.senderId = senderUid;
-    wrap.dataset.timestamp = msg.timestamp || Date.now();
+    wrap.dataset.timestamp = String(msg.timestamp || 0);
+    wrap.dataset.hasReply = (msg.reply_to || msg.replyTo) ? '1' : '0';
+    wrap.dataset.isSpecial = (msg.gameId || msg.gameInvite || msg.isGameInvite || msg.poll || msg.type === 'system' || senderUid === 'system') ? '1' : '0';
     wrap.dataset.textValue = msg.text || '';
     wrap.dataset.mediaKey = `${msg.imageUrl || ''}|${msg.videoUrl || ''}`;
 
     const isMe = senderUid === auth.currentUser?.uid;
-    const isSystem = senderUid === 'system';
+    const isSystem = senderUid === 'system' || msg.type === 'system';
     const myName = document.getElementById('current-user-name')?.innerText || '';
     const escapedMyName = myName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
     const myMentionRegex = myName ? new RegExp(`@${escapedMyName}\\b`, 'i') : null;
@@ -8192,9 +8317,7 @@ function buildMessageElement(messageId, msg, isConsecutive = false) {
     formatted.imageUrls.forEach(url => {
         const imgWrap = document.createElement('div');
         imgWrap.className = 'image-embed-wrapper';
-        imgWrap.style.minHeight = '140px';
-        imgWrap.style.background = 'rgba(255, 255, 255, 0.04)';
-        imgWrap.style.borderRadius = '12px';
+        imgWrap.style.borderRadius = '10px';
         imgWrap.style.display = 'flex';
         imgWrap.style.alignItems = 'center';
         imgWrap.style.justifyContent = 'center';
@@ -8223,13 +8346,19 @@ function buildMessageElement(messageId, msg, isConsecutive = false) {
                 openImageLightbox(url);
             }
         };
-        img.onload = () => {
-            imgWrap.style.minHeight = '';
-            imgWrap.style.background = '';
+        const markLoaded = () => {
+            img.classList.add('img-loaded');
             if (cont && (userPinnedToBottom || window.isUserNearBottom())) {
                 cont.scrollTop = cont.scrollHeight;
             }
         };
+        img.onload = markLoaded;
+        img.onerror = () => {
+            img.classList.add('img-loaded');
+        };
+        if (img.complete && img.naturalWidth > 0) {
+            markLoaded();
+        }
         imgWrap.appendChild(img);
         msgContent.appendChild(imgWrap);
     });
@@ -8390,14 +8519,15 @@ function buildMessageElement(messageId, msg, isConsecutive = false) {
     timestampElem.className = 'msg-timestamp';
     timestampElem.innerHTML = buildMessageTimestampHtml(msg);
 
-    if (!isConsecutive || !isMe) {
-        const header = document.createElement('div');
-        header.className = 'msg-header';
-        header.innerHTML = avatarHtml;
-        header.appendChild(author);
-        wrap.appendChild(header);
-    }
+    const header = document.createElement('div');
+    header.className = 'msg-header';
+    header.innerHTML = avatarHtml;
+    header.appendChild(author);
+    wrap.appendChild(header);
 
+    if (!isSystem) {
+        wrap.appendChild(buildQuickActionsBar(messageId, msg, bubble, wrap, isMe));
+    }
     wrap.appendChild(bubble);
     wrap.appendChild(timestampElem);
     if (window.twemoji) twemoji.parse(wrap);
@@ -8602,6 +8732,7 @@ function populatePollMessageElement(wrap, msg, isConsecutive, messageId, isMe, i
     timestampElem.innerHTML = buildMessageTimestampHtml(msg);
 
     if (!isConsecutive || !isMe) wrap.appendChild(author);
+    wrap.appendChild(buildQuickActionsBar(messageId, msg, bubble, wrap, isMe));
     wrap.appendChild(bubble);
     wrap.appendChild(timestampElem);
 
@@ -8835,14 +8966,15 @@ function populateStickerMessageElement(wrap, msg, isConsecutive, messageId, isMe
     timestampElem.className = 'msg-timestamp';
     timestampElem.innerHTML = buildMessageTimestampHtml(msg);
 
-    if (!isConsecutive || !isMe) {
-        const header = document.createElement('div');
-        header.className = 'msg-header';
-        header.innerHTML = avatarHtml;
-        header.appendChild(author);
-        wrap.appendChild(header);
-    }
+    const header = document.createElement('div');
+    header.className = 'msg-header';
+    header.innerHTML = avatarHtml;
+    header.appendChild(author);
+    wrap.appendChild(header);
 
+    if ((msg.sender_id || msg.sender) !== 'system' && msg.type !== 'system') {
+        wrap.appendChild(buildQuickActionsBar(messageId, msg, bubble, wrap, isMe));
+    }
     wrap.appendChild(bubble);
     wrap.appendChild(timestampElem);
     if (window.twemoji) twemoji.parse(wrap);
@@ -9649,6 +9781,7 @@ async function sendMessage() {
         optimisticEl = buildMessageElement(msgId, optimisticPayload, isConsecutive);
         optimisticEl.classList.add('msg-pending');
         insertMessageIntoDOM(optimisticEl, localTimestamp);
+        window.updateMessageGrouping(optimisticEl);
     }
 
     // 2. Immediately clear input, reply bar, pickers, and scroll to bottom

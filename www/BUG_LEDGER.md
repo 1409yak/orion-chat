@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Chat Ergonomics & Visual Cohesion (Patch 3):* Added Discord-style 5-minute consecutive message grouping (with delete/prepend re-evaluation), a desktop-only 1-click hover action pill (Reply/React/Pin) that flips away from the Members sidebar on outgoing messages, smooth image placeholder fade-ins, and unified translucent surface tokens across all modals and popups.
+
 - *Chat Engine & Scroll Polish (Patch 2):* Migrated chat feed rendering from full-container `onValue` wipes to incremental `onChildAdded`/`onChildChanged`/`onChildRemoved` (`limitToLast(60)`) registered in `activeChatCleanups` to eliminate image/media flicker. Added 0ms optimistic message sending via pre-generated `push().key` IDs and smart auto-scroll with a floating 'Jump to latest' / unread count pill.
 
 - *UI Polish & Stability (Patch 1):* Added smooth CSS pop-in transitions for modals/popups, tactile button feedback, custom thin scrollbars, a debounced `.info/connected` Reconnecting banner, centralized `activeChatCleanups` to prevent listener leaks on chat switching, and Discord-style Escape + auto-focus keyboard ergonomics.

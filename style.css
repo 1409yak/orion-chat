@@ -12,7 +12,13 @@
     --solid-bg: #16161c;
     --solid-panel: #181820;
     --ease-snappy: cubic-bezier(0.16, 1, 0.3, 1);
-    --surface-border: 1px solid rgba(255, 255, 255, 0.08);
+    --surface-elevated: rgba(26, 27, 36, 0.92);
+    --surface-floating: rgba(32, 34, 46, 0.96);
+    --surface-input: rgba(0, 0, 0, 0.28);
+    --surface-border: 1px solid rgba(255, 255, 255, 0.09);
+    --shadow-elevated: 0 12px 32px rgba(0, 0, 0, 0.45);
+    --radius-card: 14px;
+    --radius-control: 10px;
 }
 
 * {
@@ -569,9 +575,20 @@ body {
     display: block;
     max-width: 100%;
     max-height: 400px;
+    min-height: 120px;
+    min-width: 160px;
+    background: rgba(255, 255, 255, 0.05);
+    border-radius: 10px;
     object-fit: contain;
     cursor: zoom-in;
-    transition: transform 0.2s ease;
+    opacity: 0;
+    transition: opacity 0.2s ease, transform 0.2s ease;
+}
+.chat-embedded-image.img-loaded {
+    opacity: 1;
+    min-height: 0;
+    min-width: 0;
+    background: transparent;
 }
 
 /* --- JOIN CARD EMBED --- */
@@ -1900,7 +1917,7 @@ body.theme-hacker .uv-banner { background: linear-gradient(135deg, #001a00, #003
 
 /* Messaging Area */
 .chat-body-wrapper { display: flex; flex: 1; overflow: hidden; }
-#messages-container { flex: 1; padding: 25px; overflow-y: auto; display: flex; flex-direction: column; gap: 15px; }
+#messages-container { flex: 1; padding: 25px; overflow-y: auto; display: flex; flex-direction: column; gap: 0; }
 .glass-members-sidebar { width: 200px; background: rgba(0,0,0,0.1); border-left: 1px solid var(--glass-border); }
 
 /* Selection Box (New Group) */
@@ -6089,4 +6106,149 @@ button:not(:disabled):active {
     opacity: 0.55;
     cursor: default;
 }
+
+/* =====================================================================
+   DISCORD-STYLE POLISH (PATCH 3): GROUPING, HOVER BAR & UNIFIED TOKENS
+   ===================================================================== */
+
+.msg-wrapper,
+.message-wrapper {
+    position: relative;
+    margin-top: 14px;
+}
+
+.msg-wrapper:first-child,
+.message-wrapper:first-child {
+    margin-top: 0;
+}
+
+.msg-wrapper.msg-grouped,
+.message-wrapper.msg-grouped {
+    margin-top: 2px !important;
+}
+
+.msg-wrapper.msg-grouped .msg-author,
+.message-wrapper.msg-grouped .msg-author {
+    display: none;
+}
+
+.msg-wrapper.msg-grouped .msg-header,
+.message-wrapper.msg-grouped .msg-header {
+    visibility: hidden;
+    height: 0;
+    margin-bottom: 0;
+    overflow: hidden;
+}
+
+.msg-quick-actions {
+    position: absolute;
+    top: -14px;
+    left: 10px;
+    right: auto;
+    display: none;
+    align-items: center;
+    gap: 2px;
+    padding: 3px 5px;
+    background: var(--surface-floating, rgba(32, 34, 46, 0.96));
+    border: var(--surface-border, 1px solid rgba(255, 255, 255, 0.09));
+    border-radius: 999px;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.35);
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    z-index: 12;
+    opacity: 0;
+    transform: translateY(3px);
+    transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+/* Keep outgoing (sent) quick actions anchored inward from the right edge so they never clip near the Members sidebar */
+.msg-wrapper.sent .msg-quick-actions {
+    left: auto;
+    right: 10px;
+}
+
+.message.own .msg-quick-actions,
+.message-row.own .msg-quick-actions {
+    right: auto;
+    left: 10px;
+}
+
+/* Only enable hover pill on desktop pointer devices; keep touch/mobile tap UX untouched */
+@media (hover: hover) and (pointer: fine) {
+    .msg-wrapper:hover .msg-quick-actions,
+    .message:hover .msg-quick-actions,
+    .message-row:hover .msg-quick-actions {
+        display: flex;
+        opacity: 1;
+        transform: translateY(0);
+    }
+
+    .msg-wrapper:hover .msg-reactions-bar {
+        display: none;
+    }
+}
+
+.msg-quick-actions button {
+    background: transparent;
+    border: none;
+    color: rgba(255, 255, 255, 0.85);
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    cursor: pointer;
+    padding: 0;
+}
+
+.msg-quick-actions button:hover {
+    background: rgba(255, 255, 255, 0.12);
+    color: #fff;
+}
+
+/* Unified Surface Tokens across Modals & Dropdowns */
+body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):not(.theme-liquid-glass) .modal .modal-content,
+body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):not(.theme-liquid-glass) .modal .glass-card,
+body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):not(.theme-liquid-glass) .modal .group-info-card,
+body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):not(.theme-liquid-glass) .modal .settings-modal,
+body:not(.theme-retro):not(.theme-amoled):not(.theme-hacker):not(.liquid-glass):not(.theme-liquid-glass) .uv-card,
+#pc-camera-modal > div,
+.spy-modal-card {
+    background: var(--surface-elevated);
+    border: var(--surface-border);
+    border-radius: var(--radius-card);
+    box-shadow: var(--shadow-elevated);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+#plus-menu,
+.plus-popup,
+#attachment-options-menu,
+.msg-action-menu,
+.message-action-menu,
+.emoji-picker-panel,
+#mention-dropdown,
+.message-context-sheet {
+    border-radius: var(--radius-card);
+    border: var(--surface-border);
+    box-shadow: var(--shadow-elevated);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+}
+
+.modal .field-group input,
+.modal .field-group textarea,
+.modal .setting-card input,
+.modal .setting-card textarea,
+#admin-panel-modal input,
+#admin-panel-modal select,
+#payment-modal input {
+    background: var(--surface-input);
+    border: var(--surface-border);
+    border-radius: var(--radius-control);
+}
+
 
