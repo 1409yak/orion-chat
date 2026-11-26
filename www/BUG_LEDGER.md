@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *New Game (Spy):* Built the multiplayer 'Spy' social deduction game integrated with multi-lobby support (`games/${chatId}/${gameId}`), a 100+ categorized word library, server-synced phase timers via `getServerTime()`, `runTransaction`-protected phase transitions (reveal -> 2 clue rounds -> voting -> spy last-chance guess -> finished), HTML-escaped clues, and clean close/unsubscribe handling.
+
 - *Floating Reply Box Alignment:* Reverted the full-width reply strip back to a floating `position: absolute` box and added `positionReplyPreview()` to dynamically offset its `right` edge by the visible Members panel width, keeping it centered strictly between the left edge of the chat and the Members panel.
 
 - *Reply Preview Containment:* Moved and constrained the reply preview bar strictly inside the chat column flex container (removing viewport-relative positioning) so it stays centered over the chat input and never overflows into the Members side panel.

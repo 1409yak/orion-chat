@@ -570,7 +570,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.2.40</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.2.41</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>
@@ -881,6 +881,11 @@
                     <strong>Doodle Dash</strong>
                     <small style="opacity: 0.7;">Draw & guess in real time!</small>
                 </div>
+                <div class="theme-card" id="select-spy-game" style="aspect-ratio: auto; padding: 20px; flex-direction: column; gap: 10px;">
+                    <div style="font-size: 40px;">🕵️</div>
+                    <strong>Spy</strong>
+                    <small style="opacity: 0.7;">Find the undercover spy!</small>
+                </div>
             </div>
             <div class="modal-actions-vertical">
                 <button onclick="closeAnimatedModal(document.getElementById('games-library-modal'))" class="glass-btn-secondary">Close</button>
@@ -1022,6 +1027,21 @@
                 <input type="text" id="doodle-guess-input" placeholder="Type your guess..." autocomplete="off" style="flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid var(--glass-border); background: rgba(255,255,255,0.08); color: var(--text-main, #fff); outline: none;">
                 <button type="button" class="glass-btn-primary" onclick="submitDoodleGuess()" style="padding: 10px 16px;">Guess</button>
             </div>
+        </div>
+    </div>
+
+    <!-- Active Spy Game Modal UI -->
+    <div id="spy-game-ui" style="display: none;">
+        <div class="spy-modal-card">
+            <div class="spy-header">
+                <h3 style="margin: 0; font-size: 18px; display: flex; align-items: center; gap: 8px;">🕵️ Spy</h3>
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    <span id="spy-phase-timer" class="spy-phase-badge">Waiting...</span>
+                    <button type="button" id="close-spy-btn" class="glass-btn-secondary" onclick="closeSpyGame()" style="padding: 6px 12px; font-size: 14px; min-height: 32px;" aria-label="Close">✕</button>
+                </div>
+            </div>
+            <div id="spy-role-card" class="spy-role-card" style="display: none;"></div>
+            <div id="spy-stage-content"></div>
         </div>
     </div>
 

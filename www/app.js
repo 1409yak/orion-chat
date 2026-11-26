@@ -635,6 +635,7 @@ function normalizeGameTypeKey(rawType) {
     const t = String(rawType || '').toLowerCase().trim();
     if (t === 'wordle' || t === 'word rush') return 'wordle';
     if (t === 'doodle' || t === 'doodle dash') return 'doodle';
+    if (t === 'spy' || t.includes('spy')) return 'spy';
     return 'flags';
 }
 
@@ -642,6 +643,7 @@ function getGameDisplayTitle(rawType) {
     const key = normalizeGameTypeKey(rawType);
     if (key === 'wordle') return 'Word Rush';
     if (key === 'doodle') return 'Doodle Dash';
+    if (key === 'spy') return 'Spy';
     return 'World Flags';
 }
 
@@ -684,11 +686,18 @@ async function startGame(gameId, chatId = activeGameChatId || currentChatId) {
         }
 
         const freshPlayersList = Object.keys(gData.players || {});
+        const lobbyType = normalizeGameTypeKey(gData.type || gData.gameType);
+        if (lobbyType === 'spy') {
+            if (freshPlayersList.length < 3) {
+                return showNotification("Need at least 3 players to start Spy!", "error");
+            }
+            await window.startSpyGame(chatId, gameId);
+            return;
+        }
         if (freshPlayersList.length < 2) {
             return showNotification("Waiting for at least one more player to join!", "error");
         }
 
-        const lobbyType = normalizeGameTypeKey(gData.type || gData.gameType);
         const now = window.getServerTime();
 
         if (lobbyType === 'doodle') {
@@ -789,6 +798,7 @@ async function setupGameLobby(gameType = 'flags', existingGameId = null) {
         activeLobbyPlayerRef = null;
     }
     cleanupDoodleListeners();
+    if (typeof window.closeSpyGame === 'function') window.closeSpyGame(false);
     currentDoodleTurn = -1;
     currentDoodleRound = -1;
     currentDoodleStatus = null;
@@ -930,7 +940,7 @@ async function setupGameLobby(gameType = 'flags', existingGameId = null) {
                 return;
             }
 
-            if ((data.status === 'playing' || data.status === 'active' || data.status === 'choosing') && !gameStartedLocally) {
+            if ((data.status === 'playing' || data.status === 'active' || data.status === 'choosing' || data.status === 'reveal' || data.status === 'clues' || data.status === 'voting' || data.status === 'spy_guess') && !gameStartedLocally) {
                 gameStartedLocally = true;
                 activeGameId = gameId;
                 activeGameChatId = chatId;
@@ -945,6 +955,9 @@ async function setupGameLobby(gameType = 'flags', existingGameId = null) {
                 } else if (resolvedType === 'doodle' && data.status !== 'finished') {
                     closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
                     startDoodleGame(data, gameId, chatId);
+                } else if (resolvedType === 'spy' && data.status !== 'finished') {
+                    closeAnimatedModal(document.getElementById('flag-game-lobby-modal'));
+                    window.openSpyGame(gameId, chatId);
                 } else {
                     startLocalGameUI(data, gameId, chatId);
                 }
@@ -1006,7 +1019,7 @@ async function setupGameLobby(gameType = 'flags', existingGameId = null) {
                 if (doodleSettings) doodleSettings.style.display = (isHost && lobbyType === 'doodle') ? 'flex' : 'none';
 
                 startBtn.style.display = isHost ? 'block' : 'none';
-                startBtn.disabled = !currentChatData?.isGroup && playerUids.length < 2; // Minimum 2 players
+                startBtn.disabled = lobbyType === 'spy' ? playerUids.length < 3 : (!currentChatData?.isGroup && playerUids.length < 2);
                 startBtn.onclick = () => startGame(gameId, chatId);
             }
         });
@@ -2377,6 +2390,770 @@ window.submitDoodleGuess = async () => {
         }
     } finally {
         isSubmittingDoodleGuess = false;
+    }
+};
+
+// --- SPY (SOCIAL DEDUCTION PARTY GAME) ---
+const SPY_WORDS = [
+    // Places
+    { category: "Places", word: "Hospital" }, { category: "Places", word: "Airport" },
+    { category: "Places", word: "Prison" }, { category: "Places", word: "Cinema" },
+    { category: "Places", word: "Library" }, { category: "Places", word: "Casino" },
+    { category: "Places", word: "Submarine" }, { category: "Places", word: "Beach" },
+    { category: "Places", word: "Museum" }, { category: "Places", word: "School" },
+    { category: "Places", word: "Gym" }, { category: "Places", word: "Restaurant" },
+    { category: "Places", word: "Bank" }, { category: "Places", word: "Supermarket" },
+    { category: "Places", word: "Zoo" }, { category: "Places", word: "Space Station" },
+    { category: "Places", word: "Hotel" }, { category: "Places", word: "Circus" },
+    { category: "Places", word: "Stadium" }, { category: "Places", word: "Graveyard" },
+    { category: "Places", word: "Bakery" }, { category: "Places", word: "Castle" },
+    { category: "Places", word: "Amusement Park" }, { category: "Places", word: "Aquarium" },
+    { category: "Places", word: "Desert" }, { category: "Places", word: "Jungle" },
+    // Food & Drink
+    { category: "Food & Drink", word: "Pizza" }, { category: "Food & Drink", word: "Sushi" },
+    { category: "Food & Drink", word: "Burger" }, { category: "Food & Drink", word: "Coffee" },
+    { category: "Food & Drink", word: "Ice Cream" }, { category: "Food & Drink", word: "Taco" },
+    { category: "Food & Drink", word: "Pasta" }, { category: "Food & Drink", word: "Pancake" },
+    { category: "Food & Drink", word: "Chocolate" }, { category: "Food & Drink", word: "Popcorn" },
+    { category: "Food & Drink", word: "Steak" }, { category: "Food & Drink", word: "Donut" },
+    { category: "Food & Drink", word: "Ramen" }, { category: "Food & Drink", word: "Lemonade" },
+    { category: "Food & Drink", word: "Watermelon" }, { category: "Food & Drink", word: "Sandwich" },
+    { category: "Food & Drink", word: "Cheese" }, { category: "Food & Drink", word: "Bacon" },
+    { category: "Food & Drink", word: "Milkshake" }, { category: "Food & Drink", word: "Avocado" },
+    // Animals
+    { category: "Animals", word: "Shark" }, { category: "Animals", word: "Penguin" },
+    { category: "Animals", word: "Elephant" }, { category: "Animals", word: "Octopus" },
+    { category: "Animals", word: "Eagle" }, { category: "Animals", word: "Kangaroo" },
+    { category: "Animals", word: "Spider" }, { category: "Animals", word: "Dolphin" },
+    { category: "Animals", word: "Tiger" }, { category: "Animals", word: "Snake" },
+    { category: "Animals", word: "Giraffe" }, { category: "Animals", word: "Crocodile" },
+    { category: "Animals", word: "Wolf" }, { category: "Animals", word: "Butterfly" },
+    { category: "Animals", word: "Gorilla" }, { category: "Animals", word: "Flamingo" },
+    { category: "Animals", word: "Owl" }, { category: "Animals", word: "Chameleon" },
+    // Objects
+    { category: "Objects", word: "Smartphone" }, { category: "Objects", word: "Umbrella" },
+    { category: "Objects", word: "Guitar" }, { category: "Objects", word: "Telescope" },
+    { category: "Objects", word: "Compass" }, { category: "Objects", word: "Headphones" },
+    { category: "Objects", word: "Mirror" }, { category: "Objects", word: "Flashlight" },
+    { category: "Objects", word: "Backpack" }, { category: "Objects", word: "Suitcase" },
+    { category: "Objects", word: "Keyboard" }, { category: "Objects", word: "Microwave" },
+    { category: "Objects", word: "Toothbrush" }, { category: "Objects", word: "Sunglasses" },
+    { category: "Objects", word: "Parachute" }, { category: "Objects", word: "Candle" },
+    { category: "Objects", word: "Alarm Clock" }, { category: "Objects", word: "Camera" },
+    // Jobs
+    { category: "Jobs", word: "Astronaut" }, { category: "Jobs", word: "Firefighter" },
+    { category: "Jobs", word: "Chef" }, { category: "Jobs", word: "Detective" },
+    { category: "Jobs", word: "Pilot" }, { category: "Jobs", word: "Doctor" },
+    { category: "Jobs", word: "Lawyer" }, { category: "Jobs", word: "Magician" },
+    { category: "Jobs", word: "Pirate" }, { category: "Jobs", word: "DJ" },
+    { category: "Jobs", word: "Mechanic" }, { category: "Jobs", word: "Teacher" },
+    { category: "Jobs", word: "Lifeguard" }, { category: "Jobs", word: "Architect" },
+    // Sports & Activities
+    { category: "Sports", word: "Football" }, { category: "Sports", word: "Basketball" },
+    { category: "Sports", word: "Boxing" }, { category: "Sports", word: "Chess" },
+    { category: "Sports", word: "Surfing" }, { category: "Sports", word: "Bowling" },
+    { category: "Sports", word: "Skiing" }, { category: "Sports", word: "Tennis" },
+    { category: "Sports", word: "Archery" }, { category: "Sports", word: "Golf" },
+    { category: "Sports", word: "Skateboarding" }, { category: "Sports", word: "Swimming" },
+    // Transport
+    { category: "Transport", word: "Helicopter" }, { category: "Transport", word: "Rocket" },
+    { category: "Transport", word: "Motorcycle" }, { category: "Transport", word: "Train" },
+    { category: "Transport", word: "Cruise Ship" }, { category: "Transport", word: "Hot Air Balloon" },
+    { category: "Transport", word: "Ambulance" }, { category: "Transport", word: "Tractor" }
+];
+
+window.spyGameInterval = null;
+window.spyGameUnsubscribe = null;
+let activeSpyChatId = null;
+let activeSpyGameId = null;
+let activeSpyGameData = null;
+let spyRoleHidden = false;
+let spyTimeoutInFlightKey = null;
+let lastRenderedSpyStateKey = null;
+let isSubmittingSpyAction = false;
+let spyInviteExpiredMarked = false;
+
+function getSpyPlayerName(players, uid) {
+    return String(getPlayerDisplayName(players?.[uid]) || 'Player').substring(0, 15);
+}
+
+function normalizeSpyList(raw) {
+    if (Array.isArray(raw)) return raw;
+    if (raw && typeof raw === 'object') return Object.values(raw);
+    return [];
+}
+
+function shuffleSpyArray(list) {
+    const copy = [...list];
+    for (let i = copy.length - 1; i > 0; i--) {
+        const j = Math.floor(Math.random() * (i + 1));
+        [copy[i], copy[j]] = [copy[j], copy[i]];
+    }
+    return copy;
+}
+
+window.startSpyGame = async function(chatId, gameId) {
+    if (!chatId || !gameId) return;
+    const gameRef = ref(db, `games/${chatId}/${gameId}`);
+    const playersSnap = await get(ref(db, `games/${chatId}/${gameId}/players`));
+    const players = playersSnap.val() || {};
+    const playerUids = Object.keys(players);
+
+    if (playerUids.length < 3) {
+        if (typeof showNotification === 'function') {
+            showNotification("Need at least 3 players to start Spy!", "error");
+        }
+        return;
+    }
+
+    const spyUid = playerUids[Math.floor(Math.random() * playerUids.length)];
+    const picked = SPY_WORDS[Math.floor(Math.random() * SPY_WORDS.length)];
+    const turnOrder = shuffleSpyArray(playerUids);
+
+    await update(gameRef, {
+        status: 'reveal',
+        type: 'spy',
+        gameType: 'Spy',
+        spyUid: spyUid,
+        secretCategory: picked.category,
+        secretWord: picked.word,
+        turnOrder: turnOrder,
+        totalRounds: 2,
+        currentTurnIndex: 0,
+        clues: null,
+        votes: null,
+        accusedUid: null,
+        spyGuess: null,
+        winner: null,
+        endReason: null,
+        phaseExpiresAt: window.getServerTime() + 6000
+    });
+};
+
+window.toggleSpyRoleVisibility = function() {
+    spyRoleHidden = !spyRoleHidden;
+    if (activeSpyGameData) {
+        renderSpyRoleCard(activeSpyGameData);
+    }
+};
+
+function renderSpyRoleCard(gameData) {
+    const roleCard = document.getElementById('spy-role-card');
+    if (!roleCard) return;
+
+    if (!gameData || gameData.status === 'finished' || !auth.currentUser) {
+        roleCard.style.display = 'none';
+        roleCard.innerHTML = '';
+        return;
+    }
+
+    const myUid = auth.currentUser.uid;
+    const isSpy = myUid === gameData.spyUid;
+    roleCard.style.display = 'flex';
+    roleCard.className = `spy-role-card ${spyRoleHidden ? '' : (isSpy ? 'is-spy' : 'is-civilian')}`;
+
+    const toggleLabel = spyRoleHidden ? '👁️ Show' : '👁️ Hide';
+    const bodyHtml = spyRoleHidden
+        ? `<div style="font-size: 13px; opacity: 0.7;">Role hidden — tap Show to peek safely.</div>`
+        : (isSpy
+            ? `
+                <div style="font-size: 15px; font-weight: 800; color: #f87171;">🕵️ YOU ARE THE SPY</div>
+                <div style="font-size: 13px; opacity: 0.9;">Category: <strong>${escapeHTML(gameData.secretCategory || '')}</strong></div>
+                <div style="font-size: 12px; opacity: 0.78;">Blend in and figure out the secret word!</div>
+            `
+            : `
+                <div style="font-size: 15px; font-weight: 800; color: #4ade80;">🛡️ CIVILIAN</div>
+                <div style="font-size: 13px; opacity: 0.9;">Category: <strong>${escapeHTML(gameData.secretCategory || '')}</strong></div>
+                <div style="font-size: 14px; font-weight: 700; color: #ffd700;">Secret Word: ${escapeHTML(gameData.secretWord || '')}</div>
+            `);
+
+    roleCard.innerHTML = `
+        <div class="spy-role-top">
+            <span style="font-size: 11px; text-transform: uppercase; letter-spacing: 0.6px; opacity: 0.7; font-weight: 700;">Your Secret Role</span>
+            <button type="button" id="spy-role-toggle-btn" class="spy-toggle-btn" onclick="toggleSpyRoleVisibility()">${toggleLabel}</button>
+        </div>
+        ${bodyHtml}
+    `;
+
+    if (window.twemoji) twemoji.parse(roleCard);
+}
+
+function renderSpyStage(gameData) {
+    const stage = document.getElementById('spy-stage-content');
+    if (!stage || !gameData || !auth.currentUser) return;
+
+    const myUid = auth.currentUser.uid;
+    const players = gameData.players || {};
+    const turnOrder = normalizeSpyList(gameData.turnOrder);
+    const clues = normalizeSpyList(gameData.clues);
+    const votes = gameData.votes || {};
+    const totalRounds = gameData.totalRounds || 2;
+    const turnIdx = gameData.currentTurnIndex || 0;
+    const status = gameData.status;
+
+    if (status === 'reveal') {
+        const secsLeft = Math.max(0, Math.ceil(((gameData.phaseExpiresAt || 0) - window.getServerTime()) / 1000));
+        const isSpy = myUid === gameData.spyUid;
+        stage.innerHTML = `
+            <div style="background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.12); border-radius: 16px; padding: 22px 16px; text-align: center; display: flex; flex-direction: column; gap: 10px;">
+                <div style="font-size: 36px;">${isSpy ? '🕵️' : '🛡️'}</div>
+                <h4 style="margin: 0; font-size: 18px;">${isSpy ? 'Keep a straight face...' : 'Memorize the secret word!'}</h4>
+                <p style="margin: 0; font-size: 13px; opacity: 0.8;">Clue rounds start in <strong>${secsLeft}s</strong>.</p>
+            </div>
+        `;
+    } else if (status === 'clues') {
+        const orderLen = Math.max(1, turnOrder.length);
+        const currentRound = Math.min(totalRounds, Math.floor(turnIdx / orderLen) + 1);
+        const activeUid = turnOrder[turnIdx % orderLen];
+        const activeName = getSpyPlayerName(players, activeUid);
+        const isMyTurn = myUid === activeUid;
+
+        const clueRows = clues.length > 0
+            ? clues.map(c => {
+                const cName = escapeHTML(String(c.name || getSpyPlayerName(players, c.uid)).substring(0, 15));
+                const cText = escapeHTML(String(c.text || ''));
+                const rBadge = c.round ? `R${c.round}` : '';
+                return `
+                    <div class="spy-clue-item">
+                        <div style="min-width: 0; flex: 1;">
+                            <strong style="color: var(--accent);">${cName}:</strong>
+                            <span style="word-break: break-word;"> ${cText}</span>
+                        </div>
+                        <small style="opacity: 0.55; flex-shrink: 0;">${escapeHTML(rBadge)}</small>
+                    </div>
+                `;
+            }).join('')
+            : '<div style="text-align: center; opacity: 0.6; font-size: 13px; padding: 14px 0;">No clues submitted yet.</div>';
+
+        stage.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; font-size: 13px;">
+                    <span style="font-weight: 700; opacity: 0.85;">Round ${currentRound} of ${totalRounds}</span>
+                    <span style="font-weight: 700; color: ${isMyTurn ? '#4ade80' : '#ffd700'};">
+                        ${isMyTurn ? 'YOUR TURN!' : `Waiting for ${escapeHTML(activeName)}...`}
+                    </span>
+                </div>
+                <div id="spy-clue-board" class="spy-clue-board">${clueRows}</div>
+                <div style="display: flex; gap: 8px; align-items: center;">
+                    <input type="text" id="spy-clue-input" maxlength="30" placeholder="${isMyTurn ? 'Enter a 1-2 word clue...' : `Waiting for ${escapeHTML(activeName)}...`}" ${isMyTurn ? '' : 'disabled'} autocomplete="off" style="flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.16); background: rgba(0,0,0,0.3); color: #fff; outline: none; font-size: 14px;">
+                    <button type="button" id="spy-clue-submit" class="glass-btn-primary" onclick="submitSpyClue()" ${isMyTurn ? '' : 'disabled'} style="width: auto; padding: 10px 16px; min-height: 40px;">Send</button>
+                </div>
+            </div>
+        `;
+
+        const board = document.getElementById('spy-clue-board');
+        if (board) board.scrollTop = board.scrollHeight;
+
+        const clueInput = document.getElementById('spy-clue-input');
+        if (clueInput && isMyTurn) {
+            clueInput.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    window.submitSpyClue();
+                }
+            };
+            clueInput.focus();
+        }
+    } else if (status === 'voting') {
+        const myVote = votes[myUid] || null;
+        const activePlayers = turnOrder.filter(uid => Boolean(players[uid]));
+        const voterCount = activePlayers.filter(uid => Boolean(votes[uid])).length;
+        const totalVoters = activePlayers.length || turnOrder.length;
+
+        const cardsHtml = (activePlayers.length ? activePlayers : turnOrder).map(uid => {
+            const pName = escapeHTML(getSpyPlayerName(players, uid));
+            const isSelf = uid === myUid;
+            const isSelected = myVote === uid;
+            const disabledAttr = (isSelf || Boolean(myVote)) ? 'disabled' : '';
+            const voteTally = Object.values(votes).filter(v => v === uid).length;
+            return `
+                <button type="button" class="spy-vote-card ${isSelected ? 'selected' : ''}" data-target-uid="${escapeHTML(uid)}" ${disabledAttr}>
+                    <span style="font-size: 22px;">${isSelected ? '🎯' : '👤'}</span>
+                    <span>${pName}${isSelf ? ' (You)' : ''}</span>
+                    <small style="opacity: 0.7;">${voteTally} vote${voteTally === 1 ? '' : 's'}</small>
+                </button>
+            `;
+        }).join('');
+
+        stage.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 12px;">
+                <div style="display: flex; align-items: center; justify-content: space-between; font-size: 13px;">
+                    <strong>Who is the Spy?</strong>
+                    <span style="opacity: 0.8;">${voterCount}/${totalVoters} voted</span>
+                </div>
+                ${myVote ? `<div style="padding: 8px 12px; border-radius: 10px; background: rgba(245, 158, 11, 0.16); border: 1px solid rgba(245, 158, 11, 0.4); font-size: 13px; text-align: center;">Vote locked in for <strong>${escapeHTML(getSpyPlayerName(players, myVote))}</strong></div>` : ''}
+                <div class="spy-vote-grid">${cardsHtml}</div>
+            </div>
+        `;
+
+        stage.querySelectorAll('.spy-vote-card[data-target-uid]').forEach(btn => {
+            btn.onclick = () => {
+                const targetUid = btn.dataset.targetUid;
+                if (targetUid) window.submitSpyVote(targetUid);
+            };
+        });
+    } else if (status === 'spy_guess') {
+        const isSpy = myUid === gameData.spyUid;
+        const spyName = escapeHTML(getSpyPlayerName(players, gameData.spyUid));
+        stage.innerHTML = `
+            <div style="background: rgba(239, 68, 68, 0.12); border: 1px solid rgba(239, 68, 68, 0.35); border-radius: 16px; padding: 18px; display: flex; flex-direction: column; gap: 12px; text-align: center;">
+                <div style="font-size: 15px; font-weight: 700; color: #fca5a5;">🚨 ${spyName} was caught! Last chance to guess the secret word...</div>
+                ${isSpy ? `
+                    <div style="display: flex; gap: 8px; align-items: center;">
+                        <input type="text" id="spy-final-guess-input" maxlength="40" placeholder="Enter secret word..." autocomplete="off" style="flex: 1; padding: 10px 12px; border-radius: 10px; border: 1px solid rgba(255,255,255,0.2); background: rgba(0,0,0,0.35); color: #fff; outline: none; font-size: 14px;">
+                        <button type="button" id="spy-final-guess-btn" class="glass-btn-primary" onclick="submitSpyFinalGuess()" style="width: auto; padding: 10px 16px; min-height: 40px;">Guess Word</button>
+                    </div>
+                ` : `
+                    <div style="font-size: 13px; opacity: 0.8;">Waiting for ${spyName} to take their final guess...</div>
+                `}
+            </div>
+        `;
+
+        const guessInput = document.getElementById('spy-final-guess-input');
+        if (guessInput && isSpy) {
+            guessInput.onkeydown = (e) => {
+                if (e.key === 'Enter') {
+                    e.preventDefault();
+                    window.submitSpyFinalGuess();
+                }
+            };
+            guessInput.focus();
+        }
+    } else if (status === 'finished') {
+        const civiliansWon = gameData.winner === 'civilians';
+        const spyName = escapeHTML(getSpyPlayerName(players, gameData.spyUid));
+        const voteRows = Object.entries(votes).length > 0
+            ? Object.entries(votes).map(([vUid, targetUid]) => `
+                <div style="font-size: 12px; opacity: 0.85;">
+                    <strong>${escapeHTML(getSpyPlayerName(players, vUid))}</strong> voted for <strong>${escapeHTML(getSpyPlayerName(players, targetUid))}</strong>
+                </div>
+            `).join('')
+            : '<div style="font-size: 12px; opacity: 0.6;">No votes cast.</div>';
+
+        const clueRows = clues.length > 0
+            ? clues.map(c => `
+                <div style="font-size: 12px; opacity: 0.85;">
+                    <strong>${escapeHTML(String(c.name || getSpyPlayerName(players, c.uid)).substring(0, 15))}:</strong> ${escapeHTML(String(c.text || ''))}
+                </div>
+            `).join('')
+            : '<div style="font-size: 12px; opacity: 0.6;">No clues recorded.</div>';
+
+        stage.innerHTML = `
+            <div style="display: flex; flex-direction: column; gap: 12px; text-align: center;">
+                <div style="padding: 16px; border-radius: 16px; background: ${civiliansWon ? 'rgba(34, 197, 94, 0.14)' : 'rgba(239, 68, 68, 0.14)'}; border: 1px solid ${civiliansWon ? 'rgba(34, 197, 94, 0.4)' : 'rgba(239, 68, 68, 0.4)'};">
+                    <h3 style="margin: 0 0 6px 0; font-size: 22px; color: ${civiliansWon ? '#4ade80' : '#f87171'};">
+                        ${civiliansWon ? '🏆 CIVILIANS WIN!' : '🕵️ SPY WINS!'}
+                    </h3>
+                    <div style="font-size: 13px; opacity: 0.9;">${escapeHTML(gameData.endReason || 'Game Over')}</div>
+                </div>
+
+                <div style="background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.12); border-radius: 12px; padding: 12px; display: flex; flex-direction: column; gap: 4px; font-size: 13px;">
+                    <div>The Spy was: <strong style="color: #f87171;">${spyName}</strong></div>
+                    <div>Category: <strong>${escapeHTML(gameData.secretCategory || '')}</strong> • Secret Word: <strong style="color: #ffd700;">${escapeHTML(gameData.secretWord || '')}</strong></div>
+                    ${gameData.spyGuess ? `<div>Spy's Final Guess: <strong>${escapeHTML(gameData.spyGuess)}</strong></div>` : ''}
+                </div>
+
+                <div style="text-align: left; background: rgba(0,0,0,0.25); border-radius: 12px; padding: 10px 12px; display: flex; flex-direction: column; gap: 4px;">
+                    <strong style="font-size: 12px; opacity: 0.7; text-transform: uppercase;">Vote Breakdown</strong>
+                    ${voteRows}
+                </div>
+
+                <div style="text-align: left; background: rgba(0,0,0,0.25); border-radius: 12px; padding: 10px 12px; max-height: 130px; overflow-y: auto; display: flex; flex-direction: column; gap: 4px;">
+                    <strong style="font-size: 12px; opacity: 0.7; text-transform: uppercase;">Clue History</strong>
+                    ${clueRows}
+                </div>
+
+                <button type="button" class="glass-btn-secondary" onclick="closeSpyGame()" style="width: 100%; margin-top: 4px;">Close</button>
+            </div>
+        `;
+    }
+
+    if (window.twemoji) twemoji.parse(stage);
+}
+
+async function resolveSpyVotes(chatId, gameId) {
+    if (!chatId || !gameId) return;
+    const gameRef = ref(db, `games/${chatId}/${gameId}`);
+    await runTransaction(gameRef, (current) => {
+        if (!current || current.status !== 'voting') return;
+        const votes = current.votes || {};
+        const counts = {};
+        Object.values(votes).forEach(targetUid => {
+            if (targetUid) counts[targetUid] = (counts[targetUid] || 0) + 1;
+        });
+
+        let maxVotes = 0;
+        let topUids = [];
+        Object.entries(counts).forEach(([uid, count]) => {
+            if (count > maxVotes) {
+                maxVotes = count;
+                topUids = [uid];
+            } else if (count === maxVotes) {
+                topUids.push(uid);
+            }
+        });
+
+        if (maxVotes === 0 || topUids.length !== 1) {
+            current.status = 'finished';
+            current.winner = 'spy';
+            current.endReason = 'Vote ended in a tie — the Spy escaped!';
+            return current;
+        }
+
+        const accusedUid = topUids[0];
+        current.accusedUid = accusedUid;
+        if (accusedUid === current.spyUid) {
+            current.status = 'spy_guess';
+            current.phaseExpiresAt = window.getServerTime() + 15000;
+        } else {
+            current.status = 'finished';
+            current.winner = 'spy';
+            current.endReason = 'Civilians voted out an innocent player!';
+        }
+        return current;
+    });
+}
+
+async function handleSpyPhaseTimeout(chatId, gameId, gameData) {
+    if (!chatId || !gameId || !gameData) return;
+    const status = gameData.status;
+    if (status === 'finished') return;
+
+    const turnIdx = gameData.currentTurnIndex || 0;
+    const lockKey = `${status}_${turnIdx}`;
+    if (spyTimeoutInFlightKey === lockKey) return;
+    spyTimeoutInFlightKey = lockKey;
+
+    try {
+        const gameRef = ref(db, `games/${chatId}/${gameId}`);
+        if (status === 'reveal') {
+            await runTransaction(gameRef, (current) => {
+                if (!current || current.status !== 'reveal') return;
+                current.status = 'clues';
+                current.currentTurnIndex = 0;
+                current.phaseExpiresAt = window.getServerTime() + 25000;
+                return current;
+            });
+        } else if (status === 'clues') {
+            await runTransaction(gameRef, (current) => {
+                if (!current || current.status !== 'clues') return;
+                if ((current.currentTurnIndex || 0) !== turnIdx) return;
+
+                const order = normalizeSpyList(current.turnOrder);
+                const orderLen = Math.max(1, order.length);
+                const activeUid = order[turnIdx % orderLen];
+                const clues = normalizeSpyList(current.clues);
+                clues.push({
+                    uid: activeUid,
+                    name: getSpyPlayerName(current.players, activeUid),
+                    round: Math.floor(turnIdx / orderLen) + 1,
+                    text: '(Skipped)'
+                });
+                current.clues = clues;
+
+                const nextTurn = turnIdx + 1;
+                current.currentTurnIndex = nextTurn;
+                if (nextTurn >= orderLen * (current.totalRounds || 2)) {
+                    current.status = 'voting';
+                    current.phaseExpiresAt = window.getServerTime() + 30000;
+                } else {
+                    current.phaseExpiresAt = window.getServerTime() + 25000;
+                }
+                return current;
+            });
+        } else if (status === 'voting') {
+            await resolveSpyVotes(chatId, gameId);
+        } else if (status === 'spy_guess') {
+            await runTransaction(gameRef, (current) => {
+                if (!current || current.status !== 'spy_guess') return;
+                current.status = 'finished';
+                current.winner = 'civilians';
+                current.endReason = 'The Spy ran out of time to guess the word!';
+                return current;
+            });
+        }
+    } catch (err) {
+        console.warn('[Spy] Phase timeout error:', err);
+        spyTimeoutInFlightKey = null;
+    }
+}
+
+function updateSpyTimerDisplay() {
+    const timerEl = document.getElementById('spy-phase-timer');
+    const g = activeSpyGameData;
+    if (!timerEl || !g) return;
+
+    const labels = {
+        reveal: 'Reveal',
+        clues: 'Clues',
+        voting: 'Voting',
+        spy_guess: 'Spy Guess',
+        finished: 'Finished'
+    };
+    const label = labels[g.status] || 'Spy';
+
+    if (g.status === 'finished') {
+        timerEl.innerText = 'Finished';
+        return;
+    }
+
+    const now = window.getServerTime();
+    const secsLeft = Math.max(0, Math.ceil(((g.phaseExpiresAt || now) - now) / 1000));
+    timerEl.innerText = `${label} • ${secsLeft}s`;
+
+    const overdueMs = now - (g.phaseExpiresAt || now);
+    const myUid = auth.currentUser?.uid;
+    const hostUid = g.hostId || g.host;
+    const isHost = myUid && myUid === hostUid;
+    if (myUid && ((isHost && overdueMs >= 0) || (!isHost && overdueMs >= 3000))) {
+        handleSpyPhaseTimeout(activeSpyChatId, activeSpyGameId, g);
+    }
+}
+
+window.openSpyGame = function(gameId = activeGameId, chatId = activeGameChatId || currentChatId) {
+    if (!chatId || !gameId || !auth.currentUser) return;
+
+    if (window.spyGameInterval) {
+        clearInterval(window.spyGameInterval);
+        window.spyGameInterval = null;
+    }
+    if (window.spyGameUnsubscribe) {
+        window.spyGameUnsubscribe();
+        window.spyGameUnsubscribe = null;
+    }
+
+    activeGameId = gameId;
+    activeGameChatId = chatId;
+    activeSpyGameId = gameId;
+    activeSpyChatId = chatId;
+    activeSpyGameData = null;
+    spyRoleHidden = false;
+    spyTimeoutInFlightKey = null;
+    lastRenderedSpyStateKey = null;
+    spyInviteExpiredMarked = false;
+
+    const ui = document.getElementById('spy-game-ui');
+    if (ui) ui.style.display = 'flex';
+
+    const gameRef = ref(db, `games/${chatId}/${gameId}`);
+    window.spyGameUnsubscribe = onValue(gameRef, async (snap) => {
+        const gameData = snap.val();
+        if (!gameData) {
+            window.closeSpyGame();
+            return;
+        }
+
+        activeSpyGameData = gameData;
+        renderSpyRoleCard(gameData);
+
+        if (gameData.status === 'finished') {
+            if (window.spyGameInterval) {
+                clearInterval(window.spyGameInterval);
+                window.spyGameInterval = null;
+            }
+            if (!spyInviteExpiredMarked && gameData.inviteMsgId) {
+                spyInviteExpiredMarked = true;
+                update(ref(db, `messages/${chatId}/${gameData.inviteMsgId}`), { expired: true }).catch(() => {});
+            }
+            schedulePodiumCleanup(gameId, chatId);
+        }
+
+        const clues = normalizeSpyList(gameData.clues);
+        const votes = gameData.votes || {};
+        const myVote = auth.currentUser ? (votes[auth.currentUser.uid] || '') : '';
+        const stateKey = `${gameData.status}|${gameData.currentTurnIndex || 0}|${clues.length}|${Object.keys(votes).length}|${myVote}|${gameData.accusedUid || ''}|${gameData.winner || ''}|${gameData.spyGuess || ''}`;
+
+        if (stateKey !== lastRenderedSpyStateKey) {
+            lastRenderedSpyStateKey = stateKey;
+            spyTimeoutInFlightKey = null;
+            renderSpyStage(gameData);
+        }
+
+        updateSpyTimerDisplay();
+    });
+
+    window.spyGameInterval = setInterval(updateSpyTimerDisplay, 500);
+};
+
+window.closeSpyGame = function(resetLobbyFlag = true) {
+    if (window.spyGameInterval) {
+        clearInterval(window.spyGameInterval);
+        window.spyGameInterval = null;
+    }
+    if (window.spyGameUnsubscribe) {
+        window.spyGameUnsubscribe();
+        window.spyGameUnsubscribe = null;
+    }
+
+    const ui = document.getElementById('spy-game-ui');
+    if (ui) ui.style.display = 'none';
+
+    const roleCard = document.getElementById('spy-role-card');
+    if (roleCard) {
+        roleCard.style.display = 'none';
+        roleCard.innerHTML = '';
+    }
+    const stage = document.getElementById('spy-stage-content');
+    if (stage) stage.innerHTML = '';
+
+    activeSpyChatId = null;
+    activeSpyGameId = null;
+    activeSpyGameData = null;
+    spyTimeoutInFlightKey = null;
+    lastRenderedSpyStateKey = null;
+    if (resetLobbyFlag) {
+        gameStartedLocally = false;
+    }
+};
+
+window.submitSpyClue = async function() {
+    const g = activeSpyGameData;
+    const chatId = activeSpyChatId;
+    const gameId = activeSpyGameId;
+    if (!g || !chatId || !gameId || !auth.currentUser || isSubmittingSpyAction) return;
+    if (g.status !== 'clues') return;
+
+    const myUid = auth.currentUser.uid;
+    const order = normalizeSpyList(g.turnOrder);
+    const turnIdx = g.currentTurnIndex || 0;
+    const orderLen = Math.max(1, order.length);
+    if (order[turnIdx % orderLen] !== myUid) return;
+
+    const input = document.getElementById('spy-clue-input');
+    const rawClue = input ? input.value.trim() : '';
+    if (!rawClue) {
+        if (typeof showNotification === 'function') showNotification("Please enter a clue first.", "info");
+        return;
+    }
+    const clue = rawClue.substring(0, 30);
+
+    if (myUid !== g.spyUid && g.secretWord && clue.toLowerCase().includes(String(g.secretWord).toLowerCase())) {
+        if (typeof showNotification === 'function') {
+            showNotification("You can't put the secret word in your clue!", "error");
+        }
+        return;
+    }
+
+    isSubmittingSpyAction = true;
+    const submitBtn = document.getElementById('spy-clue-submit');
+    if (submitBtn) submitBtn.disabled = true;
+
+    try {
+        const displayUsername = getSpyPlayerName(g.players, myUid);
+        const gameRef = ref(db, `games/${chatId}/${gameId}`);
+        await runTransaction(gameRef, (current) => {
+            if (!current || current.status !== 'clues') return;
+            const curOrder = normalizeSpyList(current.turnOrder);
+            const curLen = Math.max(1, curOrder.length);
+            const curTurnIdx = current.currentTurnIndex || 0;
+            if (curTurnIdx !== turnIdx || curOrder[curTurnIdx % curLen] !== myUid) return;
+
+            const clues = normalizeSpyList(current.clues);
+            clues.push({
+                uid: myUid,
+                name: displayUsername,
+                round: Math.floor(curTurnIdx / curLen) + 1,
+                text: clue
+            });
+            current.clues = clues;
+
+            const nextTurn = curTurnIdx + 1;
+            current.currentTurnIndex = nextTurn;
+            if (nextTurn >= curLen * (current.totalRounds || 2)) {
+                current.status = 'voting';
+                current.phaseExpiresAt = window.getServerTime() + 30000;
+            } else {
+                current.phaseExpiresAt = window.getServerTime() + 25000;
+            }
+            return current;
+        });
+    } catch (err) {
+        console.error('[Spy] submitSpyClue error:', err);
+        if (typeof showNotification === 'function') showNotification("Failed to submit clue.", "error");
+        if (submitBtn) submitBtn.disabled = false;
+    } finally {
+        isSubmittingSpyAction = false;
+    }
+};
+
+window.submitSpyVote = async function(targetUid) {
+    const g = activeSpyGameData;
+    const chatId = activeSpyChatId;
+    const gameId = activeSpyGameId;
+    if (!g || !chatId || !gameId || !auth.currentUser || isSubmittingSpyAction) return;
+    if (g.status !== 'voting') return;
+
+    const myUid = auth.currentUser.uid;
+    if (!targetUid || targetUid === myUid) return;
+
+    isSubmittingSpyAction = true;
+    try {
+        await set(ref(db, `games/${chatId}/${gameId}/votes/${myUid}`), targetUid);
+
+        const freshSnap = await get(ref(db, `games/${chatId}/${gameId}`));
+        const fresh = freshSnap.val();
+        if (!fresh || fresh.status !== 'voting') return;
+
+        const players = fresh.players || {};
+        const order = normalizeSpyList(fresh.turnOrder);
+        const activeVoters = order.filter(uid => Boolean(players[uid]));
+        const requiredVoters = activeVoters.length > 0 ? activeVoters : order;
+        const votes = fresh.votes || {};
+
+        if (requiredVoters.length > 0 && requiredVoters.every(uid => Boolean(votes[uid]))) {
+            await resolveSpyVotes(chatId, gameId);
+        }
+    } catch (err) {
+        console.error('[Spy] submitSpyVote error:', err);
+        if (typeof showNotification === 'function') showNotification("Failed to submit vote.", "error");
+    } finally {
+        isSubmittingSpyAction = false;
+    }
+};
+
+window.submitSpyFinalGuess = async function() {
+    const g = activeSpyGameData;
+    const chatId = activeSpyChatId;
+    const gameId = activeSpyGameId;
+    if (!g || !chatId || !gameId || !auth.currentUser || isSubmittingSpyAction) return;
+    if (g.status !== 'spy_guess' || auth.currentUser.uid !== g.spyUid) return;
+
+    const input = document.getElementById('spy-final-guess-input');
+    const rawGuess = input ? input.value.trim() : '';
+    if (!rawGuess) {
+        if (typeof showNotification === 'function') showNotification("Enter your guess!", "info");
+        return;
+    }
+
+    const normalizeWord = (s) => String(s || '').trim().toLowerCase().replace(/[^a-z0-9]/g, '');
+    const normalizedGuess = normalizeWord(rawGuess);
+
+    isSubmittingSpyAction = true;
+    const guessBtn = document.getElementById('spy-final-guess-btn');
+    if (guessBtn) guessBtn.disabled = true;
+
+    try {
+        const gameRef = ref(db, `games/${chatId}/${gameId}`);
+        await runTransaction(gameRef, (current) => {
+            if (!current || current.status !== 'spy_guess') return;
+            const normalizedSecret = normalizeWord(current.secretWord);
+            current.status = 'finished';
+            current.spyGuess = rawGuess;
+            if (normalizedGuess && normalizedGuess === normalizedSecret) {
+                current.winner = 'spy';
+                current.endReason = 'The Spy was caught, but guessed the secret word!';
+            } else {
+                current.winner = 'civilians';
+                current.endReason = 'The Spy was caught and guessed wrong!';
+            }
+            return current;
+        });
+    } catch (err) {
+        console.error('[Spy] submitSpyFinalGuess error:', err);
+        if (typeof showNotification === 'function') showNotification("Failed to submit guess.", "error");
+        if (guessBtn) guessBtn.disabled = false;
+    } finally {
+        isSubmittingSpyAction = false;
     }
 };
 
@@ -4288,12 +5065,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.40';
+const CURRENT_APP_VERSION = '1.2.41';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.40';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.41';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -4455,7 +5232,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.40';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.41';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6861,7 +7638,7 @@ function attachLobbyCardListener(chatId, messageId, gameId, countBadge, joinBtn,
                 joinBtn.innerText = 'Finished';
                 joinBtn.className = 'glass-btn-secondary';
             }
-        } else if (status === 'playing' || status === 'choosing' || status === 'active' || status === 'reveal') {
+        } else if (status === 'playing' || status === 'choosing' || status === 'active' || status === 'reveal' || status === 'clues' || status === 'voting' || status === 'spy_guess') {
             countBadge.innerText = '\u{1F3AE} In Progress';
             countBadge.dataset.status = 'playing';
             if (inviteText) inviteText.innerText = lobbyHeaderText;
@@ -6952,7 +7729,9 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         const msgGameId = msg.gameId || null;
         const lobbyHeaderText = inviteType === 'wordle'
             ? "\u{1F4DD} WORD RUSH LOBBY"
-            : (inviteType === 'doodle' ? "\u{1F3A8} DOODLE DASH LOBBY" : "\u{1F6A9} WORLD FLAGS LOBBY");
+            : (inviteType === 'doodle'
+                ? "\u{1F3A8} DOODLE DASH LOBBY"
+                : (inviteType === 'spy' ? "\u{1F575}\u{FE0F} SPY LOBBY" : "\u{1F6A9} WORLD FLAGS LOBBY"));
 
         const inviteText = document.createElement('div');
         inviteText.style.fontWeight = '700';
@@ -8634,6 +9413,14 @@ function setupInputAreaListeners() {
         };
     }
 
+    const selectSpyGame = document.getElementById('select-spy-game');
+    if (selectSpyGame) {
+        selectSpyGame.onclick = () => {
+            closeAnimatedModal(document.getElementById('games-library-modal'));
+            setupGameLobby('spy');
+        };
+    }
+
     const cancelGameBtn = document.getElementById('cancel-game-btn');
     if (cancelGameBtn) {
         cancelGameBtn.onclick = async () => {
@@ -9741,7 +10528,8 @@ document.addEventListener('click', (e) => {
             e.target.id !== 'flag-game-screen' &&
             e.target.id !== 'flag-game-lobby-modal' &&
             e.target.id !== 'wordle-game-screen' &&
-            e.target.id !== 'doodle-game-screen') {
+            e.target.id !== 'doodle-game-screen' &&
+            e.target.id !== 'spy-game-ui') {
             closeAnimatedModal(e.target);
         }
     }
