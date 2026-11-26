@@ -1,6 +1,6 @@
 {
-  "notes": "Upgraded Liquid Glass to match every theme and smoothed out the Members panel!",
-  "version": "1.2.47",
-  "checksum": "6c31455f1177f7f234974da166e34a1e3c512ef1be6575c36a5f93ddede94c58",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.47/bundle.zip"
+  "notes": "Liquid Glass is now the default look for everyone! Plus, Premium users can now unlock the massive new Orion 2.0 Redesign [BETA] in Settings.",
+  "version": "1.2.48",
+  "checksum": "3de57aea16ce48e180902bde5ec2782426975561054dc3724ff52d5e2a847bc0",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.48/bundle.zip"
 }
