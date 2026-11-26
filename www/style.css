@@ -5021,7 +5021,12 @@ body.theme-liquid-glass .ota-update-banner {
 }
 
 /* Hide Orion 2.0 Beta-only chrome in Classic modes */
-.o2-sidebar-brand-bar,
+.o2-rail,
+.o2-sidebar-header,
+.o2-popover-menu,
+.o2-friends-view,
+.o2-header-icon-btn,
+.o2-composer-actions,
 .o2-settings-gear-btn,
 .o2-members-toggle-pill,
 .o2-command-overlay {

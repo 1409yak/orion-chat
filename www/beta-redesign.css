@@ -1,41 +1,41 @@
 /* =====================================================================
-   ORION 2.0 REDESIGN [BETA] — OBSIDIAN SPATIAL DESIGN SYSTEM
-   Scoped exclusively under body.orion-beta so Classic UI is untouched.
-   Theme-compatible: dynamically adapts to any active theme's accent.
+   ORION 2.0 [BETA] — MINIMALIST OBSIDIAN ARCHITECTURE
+   Strictly isolated under body.orion-beta.
+   Theme-compatible: dynamically pulls --accent / --accent-color.
    ===================================================================== */
 
 body.orion-beta {
     --o2-accent: var(--accent-color, var(--accent, var(--glass-accent, #7c6aef)));
-    --o2-bg-app: color-mix(in srgb, var(--o2-accent) 4%, #0d0e13);
-    --o2-bg-sidebar: color-mix(in srgb, var(--o2-accent) 5%, #12141c);
-    --o2-bg-stage: color-mix(in srgb, var(--o2-accent) 3%, #161822);
-    --o2-bg-elevated: color-mix(in srgb, var(--o2-accent) 7%, #1c1f2b);
-    --o2-bg-hover: rgba(255, 255, 255, 0.055);
-    --o2-bg-active: color-mix(in srgb, var(--o2-accent) 16%, rgba(255, 255, 255, 0.04));
-    --o2-border: rgba(255, 255, 255, 0.075);
-    --o2-border-strong: rgba(255, 255, 255, 0.13);
-    --o2-accent-border: color-mix(in srgb, var(--o2-accent) 40%, rgba(255, 255, 255, 0.1));
-    --o2-text: #f3f4f8;
-    --o2-text-muted: rgba(235, 238, 248, 0.55);
-    --o2-radius-shell: 18px;
-    --o2-radius-card: 14px;
-    --o2-radius-pill: 999px;
-    --o2-members-offset: 0px;
-
-    background-color: var(--o2-bg-app);
+    --o2-bg-rail: color-mix(in srgb, var(--o2-accent) 3%, #0b0c10);
+    --o2-bg-sidebar: color-mix(in srgb, var(--o2-accent) 3%, #101117);
+    --o2-bg-stage: color-mix(in srgb, var(--o2-accent) 2%, #14151c);
+    --o2-bg-elevated: color-mix(in srgb, var(--o2-accent) 5%, #1b1d26);
+    --o2-bg-hover: rgba(255, 255, 255, 0.045);
+    --o2-bg-active: color-mix(in srgb, var(--o2-accent) 14%, rgba(255, 255, 255, 0.03));
+    --o2-border: rgba(255, 255, 255, 0.065);
+    --o2-border-strong: rgba(255, 255, 255, 0.12);
+    --o2-text: #f2f3f7;
+    --o2-text-secondary: rgba(242, 243, 247, 0.72);
+    --o2-text-muted: rgba(242, 243, 247, 0.42);
+    background: var(--o2-bg-rail) !important;
     color: var(--o2-text);
     font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     -webkit-font-smoothing: antialiased;
 }
 
-body.orion-beta:not([class*="theme-"]) {
-    background: var(--o2-bg-app);
-}
-
 body.orion-beta.theme-retro,
 body.orion-beta.theme-pastel {
-    --o2-text: #181a22;
-    --o2-text-muted: rgba(24, 26, 34, 0.62);
+    --o2-bg-rail: color-mix(in srgb, var(--o2-accent) 5%, #e7eaf2);
+    --o2-bg-sidebar: color-mix(in srgb, var(--o2-accent) 4%, #eff1f7);
+    --o2-bg-stage: color-mix(in srgb, var(--o2-accent) 2%, #f7f8fc);
+    --o2-bg-elevated: color-mix(in srgb, var(--o2-accent) 5%, #ffffff);
+    --o2-bg-hover: rgba(15, 20, 35, 0.05);
+    --o2-bg-active: color-mix(in srgb, var(--o2-accent) 14%, rgba(15, 20, 35, 0.04));
+    --o2-border: rgba(15, 20, 35, 0.09);
+    --o2-border-strong: rgba(15, 20, 35, 0.16);
+    --o2-text: #151822;
+    --o2-text-secondary: rgba(21, 24, 34, 0.75);
+    --o2-text-muted: rgba(21, 24, 34, 0.5);
 }
 
 body.orion-beta .bg-blobs,
@@ -44,61 +44,139 @@ body.orion-beta #lg-cursor-light {
     display: none !important;
 }
 
-/* ---------- Spatial App Frame ---------- */
+/* ---------- 3-Pane Workspace Frame ---------- */
 body.orion-beta #app-container {
-    padding: 10px;
-    gap: 10px;
+    display: flex;
+    padding: 0;
+    gap: 0;
+    width: 100vw;
+    height: 100vh;
 }
 
-body.orion-beta .glass-sidebar,
-body.orion-beta .glass-main {
-    border-radius: var(--o2-radius-shell);
-    border: 1px solid var(--o2-border);
-    box-shadow: 0 18px 48px rgba(0, 0, 0, 0.42);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+/* ---------- Far-Left Vertical Icon Rail (60px) ---------- */
+body.orion-beta #o2-rail {
+    display: flex !important;
+    flex-direction: column;
+    align-items: center;
+    justify-content: space-between;
+    width: 60px;
+    flex-shrink: 0;
+    padding: 12px 0;
+    background: var(--o2-bg-rail);
+    border-right: 1px solid var(--o2-border);
+    z-index: 30;
 }
 
-body.orion-beta .glass-sidebar {
-    width: 300px;
-    background: var(--o2-bg-sidebar);
+body.orion-beta .o2-rail-top,
+body.orion-beta .o2-rail-bottom {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 8px;
 }
 
-body.orion-beta .glass-main {
-    background-color: rgba(13, 14, 19, 0.58);
-    background-image: radial-gradient(600px circle at 50% -120px, color-mix(in srgb, var(--o2-accent) 14%, transparent), transparent 70%);
+body.orion-beta .o2-rail-btn {
+    position: relative;
+    width: 40px;
+    height: 40px;
+    border-radius: 11px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--o2-text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
 }
 
-body.orion-beta:not([class*="theme-"]) .glass-main {
-    background-color: color-mix(in srgb, var(--o2-bg-stage) 94%, rgba(13, 14, 19, 0.58));
-}
-
-body.orion-beta.theme-retro .glass-main,
-body.orion-beta.theme-pastel .glass-main {
-    background-color: rgba(248, 250, 255, 0.78);
-}
-
-body.orion-beta.theme-retro .glass-sidebar,
-body.orion-beta.theme-pastel .glass-sidebar {
-    background: color-mix(in srgb, var(--o2-accent) 8%, #f2f4fa);
+body.orion-beta .o2-rail-btn:hover {
+    background: var(--o2-bg-hover);
     color: var(--o2-text);
 }
 
-/* ---------- Refined Left Sidebar ---------- */
-body.orion-beta .o2-sidebar-brand-bar {
+body.orion-beta .o2-rail-btn.active {
+    background: var(--o2-bg-active);
+    border-color: color-mix(in srgb, var(--o2-accent) 28%, transparent);
+    color: var(--o2-text);
+}
+
+body.orion-beta .o2-rail-btn.active::before {
+    content: "";
+    position: absolute;
+    left: -10px;
+    top: 9px;
+    bottom: 9px;
+    width: 3px;
+    border-radius: 999px;
+    background: var(--o2-accent);
+}
+
+body.orion-beta .o2-rail-badge {
+    position: absolute;
+    top: 4px;
+    right: 4px;
+    min-width: 15px;
+    height: 15px;
+    padding: 0 4px;
+    border-radius: 999px;
+    background: var(--o2-accent);
+    color: #fff;
+    font-size: 9.5px;
+    font-weight: 800;
+    line-height: 15px;
+    text-align: center;
+    box-shadow: 0 0 0 2px var(--o2-bg-rail);
+}
+
+/* ---------- Clean Minimalist Left Sidebar (264px) ---------- */
+body.orion-beta .glass-sidebar {
+    width: 264px;
+    flex-shrink: 0;
     display: flex;
+    flex-direction: column;
+    border-radius: 0;
+    border: none;
+    border-right: 1px solid var(--o2-border);
+    background: var(--o2-bg-sidebar);
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    color: var(--o2-text);
+}
+
+/* Hide legacy sidebar sections cleanly in Beta only */
+body.orion-beta .sidebar-action,
+body.orion-beta #friends-header,
+body.orion-beta #friends-list,
+body.orion-beta #chats-header {
+    display: none !important;
+}
+
+body.orion-beta #conversations-collapsible-container {
+    display: flex !important;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+body.orion-beta #o2-sidebar-header {
+    display: flex !important;
     align-items: center;
     justify-content: space-between;
-    gap: 8px;
-    padding: 14px 14px 8px;
+    height: 56px;
+    min-height: 56px;
+    padding: 0 14px;
+    border-bottom: 1px solid var(--o2-border);
     order: 1;
     flex-shrink: 0;
+    position: relative;
 }
 
 body.orion-beta .o2-brand-title {
     display: inline-flex;
     align-items: center;
-    gap: 7px;
+    gap: 8px;
     font-size: 16px;
     font-weight: 700;
     letter-spacing: -0.02em;
@@ -108,170 +186,195 @@ body.orion-beta .o2-brand-title {
 body.orion-beta .o2-beta-tag {
     display: inline-flex;
     align-items: center;
-    padding: 2px 7px;
-    border-radius: var(--o2-radius-pill);
+    padding: 1px 6px;
+    border-radius: 999px;
     font-size: 9.5px;
-    font-weight: 800;
-    letter-spacing: 0.7px;
-    background: color-mix(in srgb, var(--o2-accent) 22%, rgba(255, 255, 255, 0.08));
-    border: 1px solid var(--o2-accent-border);
-    color: var(--o2-text);
-}
-
-body.orion-beta .o2-quick-search-pill {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    padding: 5px 9px;
-    border-radius: var(--o2-radius-pill);
-    background: var(--o2-bg-hover);
-    border: 1px solid var(--o2-border);
-    color: var(--o2-text-muted);
-    font-family: inherit;
-    font-size: 11.5px;
-    font-weight: 600;
-    cursor: pointer;
-    transition: background 0.16s ease, border-color 0.16s ease, color 0.16s ease;
-}
-
-body.orion-beta .o2-quick-search-pill:hover {
-    background: var(--o2-bg-elevated);
-    border-color: var(--o2-border-strong);
-    color: var(--o2-text);
-}
-
-body.orion-beta .o2-quick-search-pill kbd {
-    font-family: inherit;
-    font-size: 10px;
     font-weight: 700;
-    padding: 1px 5px;
-    border-radius: 5px;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid var(--o2-border);
-    color: var(--o2-text-muted);
+    letter-spacing: 0.6px;
+    border: 1px solid var(--o2-border-strong);
+    color: var(--o2-text-secondary);
+    background: transparent;
 }
 
-body.orion-beta .sidebar-action {
-    order: 2;
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    padding: 4px 12px 10px;
+body.orion-beta .o2-sidebar-header-actions {
+    position: relative;
 }
 
-body.orion-beta .sidebar-action .glass-btn-primary,
-body.orion-beta .sidebar-action .glass-btn-secondary {
-    margin: 0 !important;
-    padding: 8px 10px;
-    font-size: 12px;
-    border-radius: 11px;
+body.orion-beta .o2-icon-btn {
+    width: 30px;
+    height: 30px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--o2-text-secondary);
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    gap: 5px;
-    white-space: nowrap;
+    cursor: pointer;
+    transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+
+body.orion-beta .o2-icon-btn:hover {
+    background: var(--o2-bg-hover);
+    border-color: var(--o2-border);
+    color: var(--o2-text);
+}
+
+body.orion-beta .o2-popover-menu {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    width: 190px;
+    padding: 6px;
+    border-radius: 12px;
+    background: var(--o2-bg-elevated);
+    border: 1px solid var(--o2-border-strong);
+    box-shadow: 0 14px 34px rgba(0, 0, 0, 0.48);
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    z-index: 200;
+}
+
+body.orion-beta .o2-popover-menu button {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    width: 100%;
+    padding: 8px 10px;
+    border: none;
+    border-radius: 8px;
+    background: transparent;
+    color: var(--o2-text);
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 500;
+    text-align: left;
+    cursor: pointer;
+    transition: background 0.12s ease;
+}
+
+body.orion-beta .o2-popover-menu button:hover {
+    background: var(--o2-bg-hover);
 }
 
 body.orion-beta .sidebar-search {
-    order: 3;
-    padding: 0 12px 10px;
+    order: 2;
+    padding: 10px 12px 6px;
 }
 
 body.orion-beta .sidebar-search input {
-    background: rgba(0, 0, 0, 0.24);
+    width: 100%;
+    background: rgba(255, 255, 255, 0.035);
     border: 1px solid var(--o2-border);
-    border-radius: 11px;
-    padding: 8px 12px;
+    border-radius: 9px;
+    padding: 7px 11px;
     font-size: 13px;
     color: var(--o2-text);
     box-shadow: none;
 }
 
 body.orion-beta .sidebar-search input:focus {
-    border-color: var(--o2-accent-border);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--o2-accent) 16%, transparent);
+    border-color: color-mix(in srgb, var(--o2-accent) 50%, var(--o2-border-strong));
+    outline: none;
+    box-shadow: none;
 }
 
 body.orion-beta .sidebar-scroll {
-    order: 4;
+    order: 3;
     flex: 1;
     min-height: 0;
+    display: flex;
+    flex-direction: column;
 }
 
-body.orion-beta .section-header {
-    font-size: 10px;
-    letter-spacing: 1.4px;
-    padding: 12px 14px 6px;
-    color: var(--o2-text-muted);
-}
-
-/* Segmented Tabs (DMs | Groups | Channels) */
+/* Minimalist Underline Tabs (DMs | Groups | Channels) */
 body.orion-beta .glider-container {
-    padding: 0 10px 10px;
+    padding: 2px 10px 6px;
 }
 
 body.orion-beta .glider-track {
-    background: rgba(0, 0, 0, 0.26);
-    border: 1px solid var(--o2-border);
-    border-radius: 12px;
-    padding: 3px;
+    background: transparent;
+    border: none;
+    border-bottom: 1px solid var(--o2-border);
+    border-radius: 0;
+    padding: 0;
+    gap: 8px;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+    box-shadow: none;
 }
 
 body.orion-beta .glider-thumb {
-    top: 3px;
-    left: 3px;
-    width: calc(33.333% - 4.667px);
-    height: calc(100% - 6px);
-    background: var(--o2-bg-elevated);
-    border: 1px solid var(--o2-border-strong);
-    border-radius: 9px;
-    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.28);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
+    display: none !important;
 }
 
 body.orion-beta .glider-tab {
-    font-size: 10.5px;
-    font-weight: 700;
-    letter-spacing: 0.4px;
-    padding: 7px 0;
+    position: relative;
+    padding: 9px 4px;
+    font-size: 12px;
+    font-weight: 600;
+    text-transform: none;
+    letter-spacing: 0;
+    color: var(--o2-text-muted);
+    opacity: 1;
+    transition: color 0.15s ease;
+}
+
+body.orion-beta .glider-tab:hover {
+    color: var(--o2-text-secondary);
+}
+
+body.orion-beta .glider-tab.active {
     color: var(--o2-text);
 }
 
-/* Sidebar Conversation Rows */
+body.orion-beta .glider-tab.active::after {
+    content: "";
+    position: absolute;
+    left: 6px;
+    right: 6px;
+    bottom: -1px;
+    height: 2px;
+    border-radius: 999px;
+    background: var(--o2-accent);
+}
+
+/* Calm Sidebar Conversation Rows */
 body.orion-beta .sidebar-group-wrap {
     margin: 6px 8px;
-    background: rgba(255, 255, 255, 0.02);
-    border: 1px solid var(--o2-border);
-    border-radius: var(--o2-radius-card);
+    background: transparent;
+    border: none;
+    border-radius: 10px;
+}
+
+body.orion-beta .sidebar-group-wrap:hover {
+    background: transparent;
 }
 
 body.orion-beta .group-header {
-    padding: 10px 12px;
+    padding: 8px 10px;
     background: transparent;
     color: var(--o2-text-muted);
-    letter-spacing: 1px;
+    font-size: 10.5px;
+    letter-spacing: 0.9px;
 }
 
 body.orion-beta .chat-link,
 body.orion-beta .chat-link.dm-link {
-    position: relative;
     margin: 2px 8px;
-    padding: 9px 10px 9px 13px;
-    border-radius: 12px;
+    padding: 9px 10px;
+    border-radius: 10px;
+    border: none;
     background: transparent;
-    border: 1px solid transparent;
     box-shadow: none;
     gap: 10px;
-    transition: background 0.14s ease, border-color 0.14s ease;
+    transition: background 0.13s ease;
 }
 
 body.orion-beta .chat-link:hover,
 body.orion-beta .chat-link.dm-link:hover {
     background: var(--o2-bg-hover);
-    border-color: transparent;
     transform: none;
     box-shadow: none;
 }
@@ -280,37 +383,24 @@ body.orion-beta .chat-link.active,
 body.orion-beta .chat-link.dm-link.active,
 body.orion-beta .chat-link.sub-channel.active {
     background: var(--o2-bg-active);
-    border-color: transparent;
+    border: none;
     box-shadow: none;
-    border-radius: 12px;
-}
-
-body.orion-beta .chat-link.active::before,
-body.orion-beta .chat-link.dm-link.active::before,
-body.orion-beta .chat-link.sub-channel.active::before {
-    content: "";
-    position: absolute;
-    left: 2px;
-    top: 7px;
-    bottom: 7px;
-    width: 3px;
-    border-radius: var(--o2-radius-pill);
-    background: var(--o2-accent);
+    border-radius: 10px;
 }
 
 body.orion-beta .chat-link.sub-channel {
-    padding: 8px 10px 8px 30px !important;
     margin: 2px 6px;
+    padding: 8px 10px 8px 28px !important;
 }
 
-body.orion-beta .chat-link.dm-link .avatar-sm.chat-type-icon,
-body.orion-beta .chat-link .avatar-sm.chat-type-icon {
-    width: 38px !important;
-    height: 38px !important;
-    min-width: 38px !important;
-    border-radius: 12px;
-    overflow: hidden;
+body.orion-beta .chat-link .avatar-sm.chat-type-icon,
+body.orion-beta .chat-link.dm-link .avatar-sm.chat-type-icon {
+    width: 36px !important;
+    height: 36px !important;
+    min-width: 36px !important;
+    border-radius: 10px;
     margin-right: 0 !important;
+    overflow: hidden;
     flex-shrink: 0;
 }
 
@@ -326,72 +416,397 @@ body.orion-beta .chat-info small {
     font-size: 12px;
 }
 
-/* Grounded Bottom User Dock */
+body.orion-beta .chat-item-time {
+    color: var(--o2-text-muted);
+    font-size: 10.5px;
+}
+
+/* Bottom-Left User Profile Dock */
 body.orion-beta .sidebar-top-bar {
-    order: 5;
+    margin-top: auto;
+    order: 99;
     flex-shrink: 0;
-    padding: 10px;
     border-top: 1px solid var(--o2-border);
-    background: rgba(0, 0, 0, 0.16);
+    padding: 12px 14px;
+    background: transparent;
 }
 
 body.orion-beta .sidebar-top-bar .user-profile-btn {
     margin: 0;
-    padding: 8px 10px;
-    border-radius: 12px;
-    background: var(--o2-bg-hover);
-    border: 1px solid var(--o2-border);
+    padding: 4px 6px;
+    border: none;
+    background: transparent;
+    border-radius: 10px;
     box-shadow: none;
     gap: 8px;
 }
 
 body.orion-beta .sidebar-top-bar .user-profile-btn:hover {
-    background: var(--o2-bg-elevated);
-    border-color: var(--o2-border-strong);
+    background: var(--o2-bg-hover);
     transform: none;
 }
 
-body.orion-beta .sidebar-top-bar .user-profile-btn .chevron {
+body.orion-beta .sidebar-top-bar .avatar-sm {
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    overflow: hidden;
+    flex-shrink: 0;
+}
+
+body.orion-beta #current-user-name {
+    max-width: 120px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13.5px;
+    font-weight: 600;
+}
+
+body.orion-beta .sidebar-top-bar .chevron {
     display: none;
 }
 
 body.orion-beta .o2-settings-gear-btn {
-    display: inline-flex;
+    display: inline-flex !important;
     align-items: center;
     justify-content: center;
     width: 30px;
     height: 30px;
-    border-radius: 9px;
-    border: 1px solid var(--o2-border);
-    background: rgba(255, 255, 255, 0.05);
-    color: var(--o2-text);
-    font-size: 14px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--o2-text-secondary);
     cursor: pointer;
     flex-shrink: 0;
-    transition: background 0.15s ease, border-color 0.15s ease, transform 0.15s ease;
+    transition: background 0.14s ease, color 0.14s ease;
 }
 
 body.orion-beta .o2-settings-gear-btn:hover {
-    background: var(--o2-bg-active);
-    border-color: var(--o2-accent-border);
-    transform: rotate(20deg);
+    background: var(--o2-bg-hover);
+    color: var(--o2-text);
 }
 
-/* ---------- Calm Chat Header & Flush Ribbons ---------- */
-body.orion-beta .chat-header-glass {
-    height: 60px;
-    min-height: 60px;
-    padding: 0 18px;
-    background: transparent;
-    border-bottom: 1px solid var(--o2-border);
+/* ---------- Main Stage (Chat & Dedicated Friends Hub) ---------- */
+body.orion-beta .glass-main {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    border-radius: 0;
+    border: none;
     box-shadow: none;
+    background: var(--o2-bg-stage);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
 }
 
-body.orion-beta #chat-title-text {
+/* Support custom chat wallpapers under a calm matte readability overlay */
+body.orion-beta[class*="theme-"] .glass-main {
+    background: rgba(16, 17, 23, 0.78);
+}
+
+body.orion-beta.theme-retro .glass-main,
+body.orion-beta.theme-pastel .glass-main {
+    background: rgba(247, 248, 252, 0.84);
+}
+
+/* Dedicated Friends Hub View */
+body.orion-beta.o2-view-friends #o2-friends-view {
+    display: flex !important;
+    flex-direction: column;
+    flex: 1;
+    min-height: 0;
+}
+
+body.orion-beta.o2-view-friends #chat-header,
+body.orion-beta.o2-view-friends #pinned-message-banner,
+body.orion-beta.o2-view-friends #active-lobby-banner,
+body.orion-beta.o2-view-friends .chat-body-wrapper,
+body.orion-beta.o2-view-friends #edit-preview-bar,
+body.orion-beta.o2-view-friends #reply-preview-bar,
+body.orion-beta.o2-view-friends #jump-to-bottom-btn,
+body.orion-beta.o2-view-friends #typing-indicator,
+body.orion-beta.o2-view-friends .glass-input-area {
+    display: none !important;
+}
+
+body.orion-beta .o2-friends-topbar {
+    height: 56px;
+    min-height: 56px;
+    padding: 0 20px;
+    border-bottom: 1px solid var(--o2-border);
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+body.orion-beta .o2-friends-title-group {
+    display: flex;
+    align-items: center;
+    gap: 9px;
+    color: var(--o2-text);
+}
+
+body.orion-beta .o2-friends-title-group h3 {
+    margin: 0;
     font-size: 15.5px;
     font-weight: 700;
+}
+
+body.orion-beta .o2-friends-filters {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-wrap: wrap;
+}
+
+body.orion-beta .o2-filter-pill {
+    padding: 5px 11px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--o2-text-muted);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
+}
+
+body.orion-beta .o2-filter-pill:hover {
+    background: var(--o2-bg-hover);
+    color: var(--o2-text);
+}
+
+body.orion-beta .o2-filter-pill.active {
+    background: var(--o2-bg-elevated);
+    border-color: var(--o2-border-strong);
+    color: var(--o2-text);
+}
+
+body.orion-beta .o2-filter-pill.o2-filter-accent.active,
+body.orion-beta .o2-filter-pill.o2-filter-accent:hover {
+    background: var(--o2-bg-active);
+    border-color: color-mix(in srgb, var(--o2-accent) 35%, transparent);
+    color: var(--o2-text);
+}
+
+body.orion-beta .o2-add-friend-panel {
+    padding: 16px 20px;
+    border-bottom: 1px solid var(--o2-border);
+    background: var(--o2-bg-elevated);
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+body.orion-beta .o2-add-friend-copy {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+body.orion-beta .o2-add-friend-copy strong {
+    font-size: 13.5px;
+    color: var(--o2-text);
+}
+
+body.orion-beta .o2-add-friend-copy span {
+    font-size: 12px;
+    color: var(--o2-text-muted);
+}
+
+body.orion-beta .o2-add-friend-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    max-width: 560px;
+}
+
+body.orion-beta #o2-inline-friend-code {
+    flex: 1;
+    min-width: 0;
+    padding: 9px 12px;
+    border-radius: 10px;
+    background: var(--o2-bg-stage);
+    border: 1px solid var(--o2-border-strong);
+    color: var(--o2-text);
+    font-family: inherit;
+    font-size: 13.5px;
+    outline: none;
+}
+
+body.orion-beta #o2-inline-friend-code:focus {
+    border-color: color-mix(in srgb, var(--o2-accent) 55%, var(--o2-border-strong));
+}
+
+body.orion-beta .o2-send-req-btn {
+    padding: 9px 14px;
+    border-radius: 10px;
+    border: none;
+    background: var(--o2-accent);
+    color: #fff;
+    font-family: inherit;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
+    white-space: nowrap;
+}
+
+body.orion-beta .o2-qr-btn {
+    padding: 9px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--o2-border-strong);
+    background: var(--o2-bg-hover);
+    color: var(--o2-text-secondary);
+    font-family: inherit;
+    font-size: 12.5px;
+    font-weight: 600;
+    cursor: pointer;
+}
+
+body.orion-beta .o2-friends-list {
+    flex: 1;
+    overflow-y: auto;
+    padding: 6px 12px 24px;
+}
+
+body.orion-beta .o2-friend-row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--o2-border);
+    border-radius: 10px;
+    transition: background 0.12s ease;
+}
+
+body.orion-beta .o2-friend-row:hover {
+    background: var(--o2-bg-hover);
+}
+
+body.orion-beta .o2-friend-main {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-width: 0;
+}
+
+body.orion-beta .o2-friend-avatar {
+    position: relative;
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    background: var(--o2-bg-elevated);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    overflow: visible;
+}
+
+body.orion-beta .o2-friend-avatar img {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    object-fit: cover;
+}
+
+body.orion-beta .o2-friend-dot {
+    position: absolute;
+    right: -1px;
+    bottom: -1px;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+    background: #6b7280;
+    border: 2px solid var(--o2-bg-stage);
+}
+
+body.orion-beta .o2-friend-dot.online {
+    background: #22c55e;
+}
+
+body.orion-beta .o2-friend-meta {
+    display: flex;
+    flex-direction: column;
+    min-width: 0;
+}
+
+body.orion-beta .o2-friend-meta strong {
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--o2-text);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+body.orion-beta .o2-friend-meta span {
+    font-size: 12px;
+    color: var(--o2-text-muted);
+}
+
+body.orion-beta .o2-friend-actions {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    flex-shrink: 0;
+}
+
+body.orion-beta .o2-friend-act-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+    border: 1px solid var(--o2-border);
+    background: var(--o2-bg-elevated);
+    color: var(--o2-text-secondary);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease, border-color 0.12s ease;
+}
+
+body.orion-beta .o2-friend-act-btn:hover {
+    background: var(--o2-bg-active);
+    border-color: var(--o2-border-strong);
+    color: var(--o2-text);
+}
+
+body.orion-beta .o2-friend-act-btn.danger:hover {
+    background: rgba(239, 68, 68, 0.14);
+    border-color: rgba(239, 68, 68, 0.35);
+    color: #f87171;
+}
+
+body.orion-beta .o2-friends-empty {
+    padding: 48px 20px;
+    text-align: center;
+    color: var(--o2-text-muted);
+    font-size: 13.5px;
+}
+
+/* ---------- Calm Minimalist Chat Header (56px) ---------- */
+body.orion-beta .chat-header-glass {
+    height: 56px;
+    min-height: 56px;
+    padding: 0 20px;
+    background: var(--o2-bg-stage);
+    border-bottom: 1px solid var(--o2-border);
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    gap: 10px;
+}
+
+body.orion-beta #chat-title-text {
+    font-size: 15px;
+    font-weight: 650;
     letter-spacing: -0.01em;
 }
 
@@ -401,60 +816,355 @@ body.orion-beta #chat-description-text {
     font-size: 12px;
 }
 
+body.orion-beta .o2-header-icon-btn[data-has-pins="1"],
 body.orion-beta .o2-members-toggle-pill[data-eligible="1"] {
     display: inline-flex !important;
     align-items: center;
     gap: 6px;
-    padding: 6px 11px;
-    border-radius: var(--o2-radius-pill);
-    background: var(--o2-bg-active);
-    border: 1px solid var(--o2-accent-border);
-    color: var(--o2-text);
+    height: 32px;
+    padding: 0 9px;
+    border-radius: 8px;
+    border: 1px solid transparent;
+    background: transparent;
+    color: var(--o2-text-secondary);
     font-family: inherit;
     font-size: 12px;
-    font-weight: 700;
+    font-weight: 600;
     cursor: pointer;
     flex-shrink: 0;
-    transition: background 0.15s ease, border-color 0.15s ease, opacity 0.15s ease;
+    transition: background 0.14s ease, color 0.14s ease, border-color 0.14s ease;
 }
 
-body.orion-beta.orion-beta-members-collapsed .o2-members-toggle-pill[data-eligible="1"] {
+body.orion-beta .o2-header-icon-btn:hover,
+body.orion-beta .o2-members-toggle-pill:hover {
     background: var(--o2-bg-hover);
     border-color: var(--o2-border);
-    color: var(--o2-text-muted);
+    color: var(--o2-text);
 }
 
-body.orion-beta .o2-members-toggle-pill:hover {
+body.orion-beta:not(.orion-beta-members-collapsed) .o2-members-toggle-pill[data-eligible="1"] {
     background: var(--o2-bg-active);
-    border-color: var(--o2-accent-border);
+    border-color: color-mix(in srgb, var(--o2-accent) 28%, transparent);
     color: var(--o2-text);
+}
+
+body.orion-beta.o2-pins-hidden #pinned-message-banner {
+    display: none !important;
 }
 
 body.orion-beta .pinned-message-banner,
 body.orion-beta #active-lobby-banner {
-    background: rgba(255, 255, 255, 0.03);
+    padding: 7px 20px;
     border-bottom: 1px solid var(--o2-border);
-    padding: 6px 18px;
-    font-size: 12.5px;
+    background: var(--o2-bg-elevated);
     box-shadow: none;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
+    font-size: 12.5px;
 }
 
 body.orion-beta #active-lobby-join-btn {
-    border-radius: var(--o2-radius-pill);
-    padding: 4px 12px;
-    font-size: 11.5px;
-    font-weight: 700;
+    border-radius: 8px;
+    padding: 4px 11px;
+    font-size: 12px;
+    font-weight: 600;
     background: var(--o2-accent);
     color: #fff;
     border: none;
 }
 
-/* ---------- Collapsible Right-Hand Members Drawer ---------- */
+/* ---------- Full-Width Left-Aligned Message Stream ---------- */
+body.orion-beta #messages-container {
+    padding: 14px 0 24px;
+    gap: 0;
+}
+
+body.orion-beta .msg-wrapper:not(.system-msg),
+body.orion-beta .message-wrapper:not(.system-msg) {
+    position: relative;
+    display: flex;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: baseline;
+    align-self: stretch;
+    max-width: 100%;
+    width: 100%;
+    padding: 7px 24px 7px 74px;
+    margin: 6px 0 0 !important;
+    border-radius: 0;
+    box-sizing: border-box;
+    transition: background 0.1s ease;
+}
+
+body.orion-beta .msg-wrapper:not(.system-msg):hover,
+body.orion-beta .message-wrapper:not(.system-msg):hover {
+    background: var(--o2-bg-hover);
+}
+
+body.orion-beta .msg-wrapper.msg-grouped,
+body.orion-beta .message-wrapper.msg-grouped {
+    margin-top: 0 !important;
+    padding-top: 2px;
+    padding-bottom: 2px;
+}
+
+body.orion-beta .msg-wrapper .msg-header {
+    order: 1;
+    display: inline-flex;
+    flex-direction: row !important;
+    align-items: center;
+    gap: 6px;
+    margin: 0 8px 0 0;
+}
+
+body.orion-beta .msg-wrapper .msg-avatar-img,
+body.orion-beta .msg-wrapper .msg-avatar-fallback {
+    position: absolute;
+    left: 24px;
+    top: 8px;
+    width: 36px;
+    height: 36px;
+    border-radius: 10px;
+    object-fit: cover;
+    margin: 0;
+}
+
+body.orion-beta .msg-wrapper .msg-author {
+    flex-direction: row !important;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--o2-text);
+    opacity: 1;
+    margin: 0;
+}
+
+body.orion-beta .msg-wrapper.sent .msg-author {
+    color: var(--o2-accent);
+}
+
+body.orion-beta .msg-wrapper.sent .msg-author .custom-user-badge {
+    margin-left: 6px;
+    margin-right: 0;
+}
+
+body.orion-beta .msg-wrapper:not(.system-msg) .msg-timestamp {
+    order: 2;
+    font-size: 11px;
+    color: var(--o2-text-muted);
+    opacity: 1;
+    margin: 0;
+    align-self: baseline;
+}
+
+body.orion-beta .msg-wrapper.msg-grouped .msg-timestamp {
+    display: none;
+}
+
+/* Strip legacy speech bubbles completely */
+body.orion-beta .msg-wrapper:not(.system-msg) .msg-bubble,
+body.orion-beta .sent .msg-bubble,
+body.orion-beta .rcv .msg-bubble {
+    order: 3;
+    flex-basis: 100%;
+    width: 100%;
+    background: transparent !important;
+    background-image: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    backdrop-filter: none !important;
+    -webkit-backdrop-filter: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    margin-top: 2px;
+    color: var(--o2-text);
+    font-size: 14.5px;
+    line-height: 1.5;
+    max-width: 72ch;
+}
+
+body.orion-beta .msg-text-body {
+    max-width: 72ch;
+    color: var(--o2-text);
+}
+
+/* Subtle reply quotes */
+body.orion-beta .reply-quote {
+    border-left: 2px solid var(--o2-accent);
+    padding: 3px 10px;
+    margin: 2px 0 5px;
+    background: rgba(255, 255, 255, 0.03);
+    border-radius: 4px;
+    max-width: 64ch;
+}
+
+/* Shared photos & media */
+body.orion-beta .chat-embedded-image,
+body.orion-beta .image-embed-wrapper img {
+    border-radius: 12px;
+    max-width: 420px;
+    border: 1px solid var(--o2-border);
+}
+
+/* Bounded Game Lobby Cards */
+body.orion-beta .msg-bubble.game-invite-bubble {
+    max-width: 340px !important;
+    background: var(--o2-bg-elevated) !important;
+    border: 1px solid var(--o2-border-strong) !important;
+    border-left: 3px solid var(--o2-accent) !important;
+    border-radius: 12px !important;
+    padding: 14px !important;
+    margin-top: 6px;
+}
+
+body.orion-beta .msg-bubble.game-invite-bubble button {
+    width: 100%;
+    border-radius: 9px;
+    padding: 8px 12px;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+/* Hover Quick Actions in top-right corner */
+body.orion-beta .msg-quick-actions,
+body.orion-beta .msg-wrapper.sent .msg-quick-actions {
+    left: auto !important;
+    right: 20px !important;
+    top: -14px;
+    background: var(--o2-bg-elevated);
+    border: 1px solid var(--o2-border-strong);
+    border-radius: 9px;
+    box-shadow: 0 8px 22px rgba(0, 0, 0, 0.42);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+/* ---------- Minimalist Docked Composer with Inline Actions ---------- */
+body.orion-beta #edit-preview-bar,
+body.orion-beta #reply-preview-bar {
+    position: relative !important;
+    left: auto !important;
+    right: auto !important;
+    bottom: auto !important;
+    margin: 0 20px;
+    width: calc(100% - 40px);
+    max-width: none;
+    background: var(--o2-bg-elevated);
+    border: 1px solid var(--o2-border-strong);
+    border-bottom: 1px solid var(--o2-border);
+    border-left: 3px solid var(--o2-accent);
+    border-radius: 14px 14px 0 0;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    padding: 8px 14px;
+    box-sizing: border-box;
+}
+
+body.orion-beta #reply-info-title {
+    color: var(--o2-accent) !important;
+}
+
+body.orion-beta .glass-input-area {
+    background: transparent;
+    border-top: none;
+    padding: 0;
+    margin: 0 20px 16px;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+body.orion-beta .input-wrapper {
+    width: 100%;
+    max-width: none;
+    margin: 0;
+    padding: 6px 10px 6px 14px;
+    gap: 6px;
+    background: var(--o2-bg-elevated);
+    border: 1px solid var(--o2-border-strong);
+    border-radius: 14px;
+    box-shadow: none;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    transition: border-color 0.16s ease;
+}
+
+body.orion-beta .input-wrapper:focus-within {
+    border-color: color-mix(in srgb, var(--o2-accent) 55%, var(--o2-border-strong));
+    box-shadow: none;
+}
+
+body.orion-beta .glass-main.o2-has-docked-preview .input-wrapper {
+    border-top-left-radius: 0;
+    border-top-right-radius: 0;
+    border-top: none;
+}
+
+/* Hide legacy clutter inside input-wrapper under Beta; show crisp inline SVG triggers */
+body.orion-beta #emoji-btn,
+body.orion-beta #plus-btn {
+    display: none !important;
+}
+
+body.orion-beta #o2-composer-actions {
+    display: inline-flex !important;
+    align-items: center;
+    gap: 2px;
+    flex-shrink: 0;
+}
+
+body.orion-beta .o2-composer-ico-btn {
+    width: 32px;
+    height: 32px;
+    border-radius: 8px;
+    border: none;
+    background: transparent;
+    color: var(--o2-text-muted);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: background 0.12s ease, color 0.12s ease;
+}
+
+body.orion-beta .o2-composer-ico-btn:hover {
+    background: var(--o2-bg-hover);
+    color: var(--o2-text);
+}
+
+body.orion-beta #message-input {
+    color: var(--o2-text);
+    font-size: 14.5px;
+    padding: 8px 4px;
+}
+
+body.orion-beta #message-input::placeholder {
+    color: var(--o2-text-muted);
+    opacity: 1;
+}
+
+body.orion-beta #send-btn {
+    display: inline-flex !important;
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    background: var(--o2-accent);
+    color: #fff;
+    flex-shrink: 0;
+}
+
+body.orion-beta #jump-to-bottom-btn {
+    background: var(--o2-bg-elevated);
+    border: 1px solid var(--o2-border-strong);
+    color: var(--o2-text);
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.35);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+}
+
+/* ---------- Collapsible Hairline Members Drawer (236px) ---------- */
 body.orion-beta #chat-members-sidebar,
 body.orion-beta .glass-members-sidebar {
-    width: 248px;
+    width: 236px;
     margin: 0;
     border-radius: 0;
     background: var(--o2-bg-sidebar);
@@ -463,7 +1173,7 @@ body.orion-beta .glass-members-sidebar {
     box-shadow: none;
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
-    transition: width 0.22s var(--ease-snappy), opacity 0.18s ease;
+    transition: width 0.2s var(--ease-snappy), opacity 0.16s ease;
 }
 
 body.orion-beta.orion-beta-members-collapsed #chat-members-sidebar,
@@ -476,213 +1186,38 @@ body.orion-beta.orion-beta-members-collapsed .glass-members-sidebar {
     overflow: hidden;
 }
 
+body.orion-beta #chat-members-sidebar .section-header {
+    padding: 14px 16px 6px;
+    font-size: 10.5px;
+    letter-spacing: 1px;
+    color: var(--o2-text-muted);
+}
+
 body.orion-beta .member-item {
-    margin: 2px 8px;
-    padding: 8px 10px;
-    border-radius: 10px;
+    margin: 1px 8px;
+    padding: 7px 10px;
+    border-radius: 9px;
+    border-bottom: none;
 }
 
 body.orion-beta .member-item:hover {
     background: var(--o2-bg-hover);
 }
 
-body.orion-beta #chat-members-sidebar #open-subchannel-modal-btn {
-    background: var(--o2-bg-hover);
-    border: 1px solid var(--o2-border);
-    border-radius: 10px;
-    color: var(--o2-text);
-    box-shadow: none;
-}
-
-body.orion-beta #chat-members-sidebar #open-subchannel-modal-btn:hover {
-    background: var(--o2-bg-active);
-    border-color: var(--o2-accent-border);
-}
-
-/* ---------- Modern Message Aesthetics ---------- */
-body.orion-beta #messages-container {
-    padding: 16px 24px 86px;
-}
-
-body.orion-beta .msg-bubble {
-    font-size: 14.5px;
-    line-height: 1.48;
-    padding: 10px 15px;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-}
-
-body.orion-beta .rcv .msg-bubble {
-    background: var(--o2-bg-elevated);
-    background-image: none;
-    border: 1px solid var(--o2-border);
-    border-radius: 16px 16px 16px 5px;
-    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.16);
-    color: var(--o2-text);
-}
-
-body.orion-beta .sent .msg-bubble {
-    background: linear-gradient(135deg, color-mix(in srgb, var(--o2-accent) 85%, #fff 10%), color-mix(in srgb, var(--o2-accent) 78%, #000 22%));
-    border: 1px solid color-mix(in srgb, var(--o2-accent) 45%, rgba(255, 255, 255, 0.2));
-    border-radius: 16px 16px 5px 16px;
-    box-shadow: 0 4px 16px color-mix(in srgb, var(--o2-accent) 26%, transparent);
-    color: #ffffff;
-}
-
-body.orion-beta .msg-wrapper.msg-grouped .msg-bubble,
-body.orion-beta .message-wrapper.msg-grouped .msg-bubble {
-    border-radius: 14px;
-}
-
-body.orion-beta .msg-author {
-    font-size: 11.5px;
-    color: var(--o2-text-muted);
-    opacity: 1;
-}
-
-body.orion-beta .msg-timestamp {
-    color: var(--o2-text-muted);
-    opacity: 0.78;
-}
-
-/* Embedded Game Lobby Cards */
-body.orion-beta .msg-bubble.game-invite-bubble {
-    background: var(--o2-bg-elevated) !important;
-    border: 1px solid var(--o2-border-strong) !important;
-    border-left: 3px solid var(--o2-accent) !important;
-    border-radius: var(--o2-radius-card) !important;
-    padding: 14px !important;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.26) !important;
-    color: var(--o2-text) !important;
-    min-width: 220px;
-}
-
-body.orion-beta .msg-bubble.game-invite-bubble .lobby-player-count {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    background: rgba(255, 255, 255, 0.055);
-    border: 1px solid var(--o2-border);
-    color: var(--o2-text-muted);
-    font-size: 11.5px;
-}
-
-body.orion-beta .msg-bubble.game-invite-bubble .lobby-player-count::before {
-    content: "";
-    width: 7px;
-    height: 7px;
+body.orion-beta .member-avatar-img,
+body.orion-beta #chat-members-sidebar .avatar-sm {
+    width: 30px;
+    height: 30px;
     border-radius: 50%;
-    background: #22c55e;
-    box-shadow: 0 0 8px rgba(34, 197, 94, 0.7);
-    animation: o2Pulse 1.8s ease-in-out infinite;
 }
 
-body.orion-beta .msg-bubble.game-invite-bubble button {
-    width: 100%;
-    border-radius: 10px;
-    padding: 9px 14px;
-    font-size: 13px;
-    font-weight: 700;
+body.orion-beta #chat-members-sidebar #open-subchannel-modal-btn {
+    display: none !important;
 }
 
-@keyframes o2Pulse {
-    0%, 100% { opacity: 1; transform: scale(1); }
-    50% { opacity: 0.5; transform: scale(0.82); }
-}
-
-/* Hover Quick Actions */
-body.orion-beta .msg-quick-actions {
-    background: var(--o2-bg-elevated);
-    border: 1px solid var(--o2-border-strong);
-    border-radius: 10px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-}
-
-/* ---------- Unified Floating Composer Dock ---------- */
-body.orion-beta .glass-input-area {
-    background: transparent;
-    border-top: none;
-    padding: 4px 16px 0;
-    padding-right: calc(16px + var(--o2-members-offset, 0px));
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-}
-
-body.orion-beta .input-wrapper {
-    max-width: 820px;
-    width: 100%;
-    margin: 0 auto 14px;
-    background: var(--o2-bg-elevated);
-    border: 1px solid var(--o2-border-strong);
-    border-radius: 18px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.32);
-    padding: 6px 10px;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    transition: border-color 0.18s ease, box-shadow 0.18s ease;
-}
-
-body.orion-beta .input-wrapper:focus-within {
-    border-color: var(--o2-accent-border);
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--o2-accent) 16%, transparent), 0 12px 32px rgba(0, 0, 0, 0.36);
-}
-
-body.orion-beta #message-input {
-    color: var(--o2-text);
-    font-size: 14.5px;
-}
-
-body.orion-beta #message-input::placeholder {
-    color: var(--o2-text-muted);
-    opacity: 1;
-}
-
-body.orion-beta .send-icon-btn {
-    background: var(--o2-accent);
-    border-radius: 12px;
-    width: 36px;
-    height: 36px;
-}
-
-/* Docked Reply / Edit Preview Strip */
-body.orion-beta #reply-preview-bar,
-body.orion-beta #edit-preview-bar {
-    max-width: 820px;
-    margin: 0 auto;
-    background: var(--o2-bg-elevated);
-    border: 1px solid var(--o2-border-strong);
-    border-left: 3px solid var(--o2-accent);
-    border-radius: 14px 14px 10px 10px;
-    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.32);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    padding: 9px 14px;
-    animation: o2DockPop 0.18s var(--ease-snappy);
-}
-
-body.orion-beta #reply-info-title {
-    color: var(--o2-accent) !important;
-}
-
-@keyframes o2DockPop {
-    from { opacity: 0; transform: translateY(6px); }
-    to { opacity: 1; transform: translateY(0); }
-}
-
-body.orion-beta #jump-to-bottom-btn {
-    background: var(--o2-bg-elevated);
-    border: 1px solid var(--o2-accent-border);
-    color: var(--o2-text);
-    box-shadow: 0 10px 26px rgba(0, 0, 0, 0.4);
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-}
-
-/* ---------- Cohesive Modals, Pickers & Admin Panel ---------- */
+/* ---------- Modals, Pickers & Command Palette ---------- */
 body.orion-beta .modal {
-    background: rgba(7, 8, 12, 0.72);
+    background: rgba(7, 8, 12, 0.74);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
 }
@@ -695,8 +1230,8 @@ body.orion-beta .spy-modal-card,
 body.orion-beta #pc-camera-modal > div {
     background: var(--o2-bg-sidebar);
     border: 1px solid var(--o2-border-strong);
-    border-radius: var(--o2-radius-shell);
-    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.55);
+    border-radius: 16px;
+    box-shadow: 0 24px 64px rgba(0, 0, 0, 0.58);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
     color: var(--o2-text);
@@ -708,7 +1243,7 @@ body.orion-beta .emoji-picker-panel,
 body.orion-beta #mention-dropdown {
     background: var(--o2-bg-elevated);
     border: 1px solid var(--o2-border-strong);
-    border-radius: var(--o2-radius-card);
+    border-radius: 13px;
     box-shadow: 0 14px 36px rgba(0, 0, 0, 0.48);
     backdrop-filter: none;
     -webkit-backdrop-filter: none;
@@ -718,7 +1253,7 @@ body.orion-beta .setting-card,
 body.orion-beta .setting-row {
     background: var(--o2-bg-elevated);
     border: 1px solid var(--o2-border);
-    border-radius: var(--o2-radius-card);
+    border-radius: 12px;
 }
 
 body.orion-beta .premium-sidebar {
@@ -733,62 +1268,49 @@ body.orion-beta .premium-nav-item.active {
 
 body.orion-beta .glass-btn-primary {
     background: var(--o2-accent);
-    border: 1px solid color-mix(in srgb, var(--o2-accent) 60%, rgba(255, 255, 255, 0.16));
-    border-radius: 11px;
+    border: none;
+    border-radius: 10px;
     color: #fff;
 }
 
 body.orion-beta .glass-btn-secondary {
     background: var(--o2-bg-hover);
     border: 1px solid var(--o2-border);
-    border-radius: 11px;
+    border-radius: 10px;
     color: var(--o2-text);
 }
 
-body.orion-beta .glass-btn-secondary:hover {
-    background: var(--o2-bg-elevated);
-    border-color: var(--o2-border-strong);
-}
-
-/* ---------- Ctrl+K / Cmd+K Quick Switcher ---------- */
+/* Ctrl+K Command Palette */
 body.orion-beta .o2-command-overlay {
     position: fixed;
     inset: 0;
     z-index: 3500;
-    background: rgba(7, 8, 12, 0.72);
+    background: rgba(7, 8, 12, 0.74);
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
     display: flex;
     align-items: flex-start;
     justify-content: center;
-    padding-top: min(14vh, 110px);
-    padding-left: 14px;
-    padding-right: 14px;
+    padding: min(14vh, 110px) 14px 20px;
 }
 
 body.orion-beta .o2-command-dialog {
     width: 100%;
-    max-width: 560px;
+    max-width: 540px;
     background: var(--o2-bg-sidebar);
     border: 1px solid var(--o2-border-strong);
-    border-radius: var(--o2-radius-shell);
+    border-radius: 16px;
     box-shadow: 0 24px 64px rgba(0, 0, 0, 0.62);
     overflow: hidden;
-    animation: o2DockPop 0.16s var(--ease-snappy);
 }
 
 body.orion-beta .o2-command-input-wrap {
     display: flex;
     align-items: center;
     gap: 10px;
-    padding: 14px 16px;
+    padding: 13px 16px;
     border-bottom: 1px solid var(--o2-border);
     background: var(--o2-bg-elevated);
-}
-
-body.orion-beta .o2-command-search-ico {
-    font-size: 15px;
-    opacity: 0.7;
 }
 
 body.orion-beta #beta-cmd-input {
@@ -799,10 +1321,6 @@ body.orion-beta #beta-cmd-input {
     color: var(--o2-text);
     font-family: inherit;
     font-size: 14.5px;
-}
-
-body.orion-beta #beta-cmd-input::placeholder {
-    color: var(--o2-text-muted);
 }
 
 body.orion-beta .o2-command-esc {
@@ -828,7 +1346,7 @@ body.orion-beta .o2-command-results {
 body.orion-beta .o2-command-section {
     font-size: 10px;
     font-weight: 700;
-    letter-spacing: 1px;
+    letter-spacing: 0.9px;
     text-transform: uppercase;
     color: var(--o2-text-muted);
     padding: 8px 10px 4px;
@@ -840,18 +1358,17 @@ body.orion-beta .o2-command-item {
     justify-content: space-between;
     gap: 10px;
     padding: 9px 12px;
-    border-radius: 10px;
+    border-radius: 9px;
     cursor: pointer;
     border: 1px solid transparent;
     color: var(--o2-text);
     font-size: 13.5px;
-    transition: background 0.12s ease, border-color 0.12s ease;
 }
 
 body.orion-beta .o2-command-item:hover,
 body.orion-beta .o2-command-item.active {
     background: var(--o2-bg-active);
-    border-color: var(--o2-accent-border);
+    border-color: color-mix(in srgb, var(--o2-accent) 32%, transparent);
 }
 
 body.orion-beta .o2-command-item-left {
@@ -872,8 +1389,8 @@ body.orion-beta .o2-command-item-meta {
     font-size: 11px;
     font-weight: 600;
     padding: 2px 7px;
-    border-radius: var(--o2-radius-pill);
-    background: rgba(255, 255, 255, 0.06);
+    border-radius: 999px;
+    background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--o2-border);
     color: var(--o2-text-muted);
     flex-shrink: 0;
@@ -897,87 +1414,126 @@ body.orion-beta .o2-command-footer {
     color: var(--o2-text-muted);
 }
 
-body.orion-beta .o2-command-footer kbd {
-    font-family: inherit;
-    font-size: 10px;
-    padding: 1px 5px;
-    margin-right: 3px;
-    border-radius: 4px;
-    background: rgba(255, 255, 255, 0.07);
-    border: 1px solid var(--o2-border);
-}
-
 /* ---------- Mobile Responsiveness ---------- */
 @media (max-width: 768px) {
     body.orion-beta #app-container {
-        padding: 0 !important;
+        padding: 0 0 56px 0 !important;
         gap: 0 !important;
+    }
+
+    body.orion-beta #o2-rail {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        width: 100%;
+        height: 56px;
+        flex-direction: row;
+        justify-content: space-around;
+        padding: 0 8px;
+        border-right: none;
+        border-top: 1px solid var(--o2-border);
+        z-index: 90;
+    }
+
+    body.orion-beta .o2-rail-top,
+    body.orion-beta .o2-rail-bottom {
+        flex-direction: row;
+        gap: 6px;
+    }
+
+    body.orion-beta .o2-rail-btn.active::before {
+        left: 10px;
+        right: 10px;
+        top: -8px;
+        bottom: auto;
+        width: auto;
+        height: 3px;
     }
 
     body.orion-beta .glass-main,
     body.orion-beta .chat-container {
+        height: calc(100dvh - 56px) !important;
         border-radius: 0 !important;
         border: none !important;
-        box-shadow: none !important;
     }
 
     body.orion-beta .glass-sidebar {
-        border-radius: 0 18px 18px 0 !important;
-        border-right: 1px solid var(--o2-border-strong) !important;
         background: var(--o2-bg-sidebar) !important;
-        box-shadow: 8px 0 32px rgba(0, 0, 0, 0.55) !important;
+        border-right: 1px solid var(--o2-border-strong) !important;
+        border-radius: 0 !important;
+        z-index: 120 !important;
     }
 
-    body.orion-beta .o2-quick-search-pill kbd {
-        display: none;
+    body.orion-beta #o2-sidebar-header {
+        padding-right: 50px;
     }
 
     body.orion-beta .close-sidebar-btn {
         position: absolute;
         top: 12px;
-        right: 12px;
+        right: 10px;
         margin-right: 0;
         z-index: 5;
     }
 
-    body.orion-beta .o2-sidebar-brand-bar {
-        padding-right: 52px;
-    }
-
     body.orion-beta .chat-header-glass {
-        height: 56px;
-        min-height: 56px;
         padding: 0 12px !important;
-        background: var(--o2-bg-sidebar) !important;
+        background: var(--o2-bg-stage) !important;
         border-bottom: 1px solid var(--o2-border) !important;
     }
 
     body.orion-beta #messages-container {
-        padding: 12px 14px 82px !important;
+        padding: 10px 0 18px !important;
+    }
+
+    body.orion-beta .msg-wrapper:not(.system-msg),
+    body.orion-beta .message-wrapper:not(.system-msg) {
+        padding: 6px 14px 6px 56px;
+    }
+
+    body.orion-beta .msg-wrapper.msg-grouped,
+    body.orion-beta .message-wrapper.msg-grouped {
+        padding-top: 2px;
+        padding-bottom: 2px;
+    }
+
+    body.orion-beta .msg-wrapper .msg-avatar-img,
+    body.orion-beta .msg-wrapper .msg-avatar-fallback {
+        left: 14px;
+        width: 32px;
+        height: 32px;
+    }
+
+    body.orion-beta #edit-preview-bar,
+    body.orion-beta #reply-preview-bar {
+        margin: 0 10px;
+        width: calc(100% - 20px);
+    }
+
+    body.orion-beta .glass-input-area,
+    body.orion-beta .chat-input-bar {
+        margin: 0 10px 10px !important;
+        padding: 0 !important;
+        background: transparent !important;
+        border-top: none !important;
+    }
+
+    body.orion-beta .o2-composer-actions {
+        gap: 0;
+    }
+
+    body.orion-beta .o2-composer-ico-btn {
+        width: 28px;
+        height: 28px;
     }
 
     body.orion-beta #chat-members-sidebar.glass-members-sidebar {
         width: 78% !important;
         max-width: 320px !important;
         opacity: 1 !important;
-        border-radius: 18px 0 0 18px !important;
-        border-left: 1px solid var(--o2-border-strong) !important;
-        background: var(--o2-bg-sidebar) !important;
         pointer-events: auto !important;
-    }
-
-    body.orion-beta .glass-input-area,
-    body.orion-beta .chat-input-bar {
-        padding: 4px 10px 0 !important;
-        background: transparent !important;
-        border-top: none !important;
-        backdrop-filter: none !important;
-        -webkit-backdrop-filter: none !important;
-    }
-
-    body.orion-beta .input-wrapper {
-        width: 100%;
-        margin: 0 auto max(10px, env(safe-area-inset-bottom, 10px));
-        border-radius: 16px;
+        background: var(--o2-bg-sidebar) !important;
+        border-left: 1px solid var(--o2-border-strong) !important;
     }
 }

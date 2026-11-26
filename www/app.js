@@ -4089,24 +4089,34 @@ window.positionReplyPreview = function() {
     ['reply-preview-bar', 'edit-preview-bar'].forEach(id => {
         const box = document.getElementById(id);
         if (!box) return;
-        box.style.left = leftEdge;
-        box.style.right = `${rightOffset}px`;
-        if (bottomOffset > 50) {
-            box.style.bottom = `${bottomOffset}px`;
+        if (isBeta) {
+            box.style.left = '';
+            box.style.right = '';
+            box.style.bottom = '';
+        } else {
+            box.style.left = leftEdge;
+            box.style.right = `${rightOffset}px`;
+            if (bottomOffset > 50) {
+                box.style.bottom = `${bottomOffset}px`;
+            }
         }
         if (window.getComputedStyle(box).display !== 'none') {
             activePreviewHeight = Math.max(activePreviewHeight, Math.ceil(box.getBoundingClientRect().height));
         }
     });
 
+    if (chatContainer) {
+        chatContainer.classList.toggle('o2-has-docked-preview', isBeta && activePreviewHeight > 0);
+    }
+
     const jumpBtn = document.getElementById('jump-to-bottom-btn');
     const typingEl = document.getElementById('typing-indicator');
     const baseBottom = bottomOffset > 50 ? bottomOffset : 78;
-    const previewStackHeight = activePreviewHeight > 0 ? activePreviewHeight + 8 : 0;
+    const previewStackHeight = activePreviewHeight > 0 ? activePreviewHeight + (isBeta ? 16 : 8) : 0;
     let typingStackHeight = 0;
 
     if (typingEl) {
-        typingEl.style.left = '16px';
+        typingEl.style.left = isBeta ? '20px' : '16px';
         typingEl.style.right = `${rightOffset}px`;
         typingEl.style.bottom = `${baseBottom + previewStackHeight}px`;
         if (window.getComputedStyle(typingEl).display !== 'none') {
@@ -4119,7 +4129,7 @@ window.positionReplyPreview = function() {
         jumpBtn.style.right = `${rightOffset}px`;
         const jumpBottom = (previewStackHeight || typingStackHeight)
             ? baseBottom + previewStackHeight + typingStackHeight
-            : Math.max(78, bottomOffset - 6);
+            : Math.max(78, bottomOffset + (isBeta ? 12 : -6));
         jumpBtn.style.bottom = `${jumpBottom}px`;
     }
 };
@@ -4394,6 +4404,11 @@ function updatePinnedMessageBanner(chatData, expectedChatId = currentChatId) {
     let pins = Array.isArray(chatData?.pinnedMessages) ? [...chatData.pinnedMessages] : [];
     if (chatData?.pinnedMessageId && pins.length === 0) {
         pins = [chatData.pinnedMessageId]; // Legacy
+    }
+
+    const pinsToggleBtn = document.getElementById('o2-pins-toggle-btn');
+    if (pinsToggleBtn) {
+        pinsToggleBtn.dataset.hasPins = (pins.length > 0 && expectedChatId) ? '1' : '0';
     }
 
     if (pins.length > 0 && expectedChatId) {
@@ -5259,12 +5274,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.48';
+const CURRENT_APP_VERSION = '1.2.49';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.48';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.49';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -5426,7 +5441,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.48';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.49';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6327,6 +6342,10 @@ function fetchMyProfile(uid) {
         document.getElementById('my-type-info').title = "Basic - free\nPremium - 1€";
 
         document.getElementById('open-admin-panel-btn').style.display = isAdmin ? 'block' : 'none';
+        const o2RailAdminBtn = document.getElementById('o2-rail-admin');
+        if (o2RailAdminBtn) {
+            o2RailAdminBtn.style.display = (data.role === 'admin' || isAdmin) ? 'inline-flex' : 'none';
+        }
         
         const openPremiumBtn = document.getElementById('open-premium-panel-btn');
         if (openPremiumBtn) {
@@ -6715,16 +6734,29 @@ function initApp(myUid) {
     onValue(ref(db, `friend_requests/${myUid}`), (snapshot) => {
         const list = document.getElementById('modal-requests-list');
         const badge = document.getElementById('friend-requests-badge');
+        const railBadge = document.getElementById('o2-rail-friends-badge');
+        const o2ReqBtn = document.getElementById('o2-friends-requests-btn');
+        const o2ReqCount = document.getElementById('o2-friends-requests-count');
         list.innerHTML = '';
         const requests = snapshot.val(); // Re-fetch after potential updates
         if (!requests) {
             badge.style.display = 'none';
+            if (railBadge) railBadge.style.display = 'none';
+            if (o2ReqBtn) o2ReqBtn.style.display = 'none';
             closeAnimatedModal(document.getElementById('friend-requests-modal'));
             return;
         }
         const count = Object.keys(requests).length;
         badge.innerText = count;
         badge.style.display = (count > 0 && notificationPrefs.unreadBadges) ? 'inline-block' : 'none';
+        if (railBadge) {
+            railBadge.textContent = String(count);
+            railBadge.style.display = count > 0 ? 'inline-block' : 'none';
+        }
+        if (o2ReqBtn && o2ReqCount) {
+            o2ReqCount.textContent = String(count);
+            o2ReqBtn.style.display = count > 0 ? 'inline-flex' : 'none';
+        }
 
         Object.entries(requests).forEach(([senderUid, data]) => {
             const div = document.createElement('div');
@@ -6835,10 +6867,14 @@ function initApp(myUid) {
         // Clear existing friend status listeners to avoid leaks
         activeFriendsListListeners.forEach(offFunc => offFunc());
         activeFriendsListListeners.clear();
+        if (window.o2FriendsStore) window.o2FriendsStore.clear();
 
         const data = snapshot.val();
 
-        if (!data) return;
+        if (!data) {
+            if (typeof window.renderO2FriendsView === 'function') window.renderO2FriendsView();
+            return;
+        }
 
         for (const friendUid of Object.keys(data)) {
 
@@ -6853,6 +6889,14 @@ function initApp(myUid) {
             const friendRef = ref(db, `users/${friendUid}`);
             const friendOff = onValue(friendRef, (uSnap) => {
                 const user = uSnap.val();
+                if (window.o2FriendsStore) {
+                    if (user) {
+                        window.o2FriendsStore.set(friendUid, user);
+                    } else {
+                        window.o2FriendsStore.delete(friendUid);
+                    }
+                    if (typeof window.renderO2FriendsView === 'function') window.renderO2FriendsView();
+                }
                 const friendItemDiv = document.getElementById(`friend-item-${friendUid}`);
                 if (!friendItemDiv) return;
 
@@ -6964,40 +7008,45 @@ async function declineFriendRequest(myUid, senderUid) {
 /* ---------------- FRIEND CODES ---------------- */
 // The old generation and timer functions have been removed as IDs are now permanent.
 
-document.getElementById('submit-code-btn').onclick = async () => {
-    const code = document.getElementById('friend-code-input').value.trim().toUpperCase();
-    
+async function sendFriendRequestByCode(rawCode) {
+    const code = String(rawCode || '').trim().toUpperCase();
     if (!code) {
         showNotification("Please enter a User ID", "info");
-        return;
+        return false;
     }
 
     try {
-        // Query users by their friendId
         const q = query(ref(db, 'users'), orderByChild('friendId'), equalTo(code));
         const snap = await get(q);
-        
+
         if (!snap.exists()) {
             showNotification("User ID not found", "error");
-            return;
+            return false;
         }
 
-        // snap.val() returns an object with UID as key
         const usersObj = snap.val();
         const targetUid = Object.keys(usersObj)[0];
 
         if (targetUid === auth.currentUser.uid) {
             showNotification("You can't add yourself!", "info");
-            return;
+            return false;
         }
 
-        addFriend(auth.currentUser.uid, targetUid);
-        document.getElementById('friend-code-input').value = '';
-        closeAnimatedModal(document.getElementById('add-friend-modal'));
-
+        await addFriend(auth.currentUser.uid, targetUid);
+        return true;
     } catch (err) {
         console.error(err);
         showNotification(err.message, "error");
+        return false;
+    }
+}
+
+document.getElementById('submit-code-btn').onclick = async () => {
+    const input = document.getElementById('friend-code-input');
+    const ok = await sendFriendRequestByCode(input ? input.value : '');
+    if (ok) {
+        if (input) input.value = '';
+        closeAnimatedModal(document.getElementById('add-friend-modal'));
     }
 };
 
@@ -7325,6 +7374,9 @@ async function openChat(chatId, title) {
     if (initialLobbyJoinBtn) initialLobbyJoinBtn.onclick = null;
 
     document.body.classList.add('chat-open');
+    document.body.classList.remove('o2-view-friends');
+    document.body.classList.remove('o2-pins-hidden');
+    if (typeof window.setO2RailActive === 'function') window.setO2RailActive('chats');
     // Close members panel if open when switching chats
     document.body.classList.remove('members-open');
 
@@ -14035,15 +14087,121 @@ new MutationObserver((mutations) => {
 
 
 // ---- ORION 2.0 REDESIGN [BETA] & CTRL+K QUICK SWITCHER ----
+window.o2FriendsStore = window.o2FriendsStore || new Map();
+
 (function initOrionBetaRedesign() {
     let paletteItems = [];
     let paletteActiveIdx = 0;
+    let o2FriendsFilter = 'online';
 
     function closeBetaCommandPalette() {
         const overlay = document.getElementById('beta-command-palette');
         if (!overlay) return;
         overlay.style.display = 'none';
         overlay.setAttribute('aria-hidden', 'true');
+    }
+
+    function setO2RailActive(key) {
+        document.querySelectorAll('#o2-rail .o2-rail-btn').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.rail === key);
+        });
+    }
+    window.setO2RailActive = setO2RailActive;
+
+    function setO2FriendsTab(tab) {
+        o2FriendsFilter = tab;
+        document.querySelectorAll('[data-o2-friends-tab]').forEach(btn => {
+            btn.classList.toggle('active', btn.dataset.o2FriendsTab === tab);
+        });
+        const addPanel = document.getElementById('o2-add-friend-panel');
+        if (addPanel) {
+            addPanel.style.display = tab === 'add' ? 'flex' : 'none';
+        }
+        renderO2FriendsView();
+    }
+
+    function renderO2FriendsView() {
+        const listEl = document.getElementById('o2-friends-list');
+        if (!listEl) return;
+        listEl.innerHTML = '';
+
+        const entries = Array.from(window.o2FriendsStore.entries()).map(([uid, u]) => ({
+            uid,
+            user: u,
+            name: (getDisplayName(u) || 'User').substring(0, 15),
+            online: u?.status === 'online'
+        })).sort((a, b) => {
+            if (a.online !== b.online) return a.online ? -1 : 1;
+            return a.name.localeCompare(b.name);
+        });
+
+        const filtered = o2FriendsFilter === 'online'
+            ? entries.filter(e => e.online)
+            : entries;
+
+        if (filtered.length === 0) {
+            const msg = o2FriendsFilter === 'online'
+                ? 'No friends are online right now.'
+                : 'No friends yet — use Add Friend above to connect.';
+            listEl.innerHTML = `<div class="o2-friends-empty">${msg}</div>`;
+            return;
+        }
+
+        const myUid = auth.currentUser?.uid;
+        filtered.forEach(({ uid, user, name, online }) => {
+            const row = document.createElement('div');
+            row.className = 'o2-friend-row';
+            const avatarInner = user.profilePic
+                ? `<img src="${user.profilePic}" alt="${escapeHTML(name)}">`
+                : `<span>\u{1F464}</span>`;
+
+            row.innerHTML = `
+                <div class="o2-friend-main">
+                    <div class="o2-friend-avatar">
+                        ${avatarInner}
+                        <span class="o2-friend-dot ${online ? 'online' : ''}"></span>
+                    </div>
+                    <div class="o2-friend-meta">
+                        <strong>${escapeHTML(name)}</strong>
+                        <span>${online ? 'Online' : 'Offline'}</span>
+                    </div>
+                </div>
+                <div class="o2-friend-actions">
+                    <button type="button" class="o2-friend-act-btn o2-fr-msg" title="Message" aria-label="Message ${escapeHTML(name)}">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                    </button>
+                    <button type="button" class="o2-friend-act-btn o2-fr-prof" title="Profile" aria-label="View profile">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"></path><circle cx="12" cy="7" r="4"></circle></svg>
+                    </button>
+                    <button type="button" class="o2-friend-act-btn danger o2-fr-rem" title="Remove friend" aria-label="Remove friend">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="18" y1="11" x2="23" y2="11"></line></svg>
+                    </button>
+                </div>
+            `;
+
+            row.querySelector('.o2-fr-msg').onclick = () => {
+                if (!myUid) return;
+                document.body.classList.remove('o2-view-friends');
+                setO2RailActive('chats');
+                startChat(myUid, uid, name);
+            };
+            row.querySelector('.o2-fr-prof').onclick = () => showUserProfile(uid);
+            row.querySelector('.o2-fr-rem').onclick = () => {
+                if (myUid) removeFriend(myUid, uid);
+            };
+
+            listEl.appendChild(row);
+        });
+        if (window.twemoji) twemoji.parse(listEl);
+    }
+    window.renderO2FriendsView = renderO2FriendsView;
+
+    function openO2FriendsView(initialTab = 'online') {
+        if (!document.body.classList.contains('orion-beta')) return;
+        document.body.classList.add('o2-view-friends');
+        setO2RailActive('friends');
+        setO2FriendsTab(initialTab);
+        if (typeof closeSidebarDrawer === 'function') closeSidebarDrawer();
     }
 
     function applyBetaRedesignState(enabled) {
@@ -14053,8 +14211,16 @@ new MutationObserver((mutations) => {
         if (active) {
             const collapsed = localStorage.getItem('orion_beta_members_collapsed') === '1';
             document.body.classList.toggle('orion-beta-members-collapsed', collapsed);
+            setO2RailActive(document.body.classList.contains('o2-view-friends') ? 'friends' : 'chats');
+            renderO2FriendsView();
         } else {
             document.body.classList.remove('orion-beta-members-collapsed');
+            document.body.classList.remove('o2-view-friends');
+            document.body.classList.remove('o2-pins-hidden');
+            const chatContainer = document.getElementById('chat-container');
+            if (chatContainer) chatContainer.classList.remove('o2-has-docked-preview');
+            const createPop = document.getElementById('o2-sidebar-create-popover');
+            if (createPop) createPop.style.display = 'none';
             closeBetaCommandPalette();
         }
         applyUiPrefs();
@@ -14066,6 +14232,163 @@ new MutationObserver((mutations) => {
         }
     }
     window.applyBetaRedesignState = applyBetaRedesignState;
+
+    // Rail navigation handlers
+    const railChats = document.getElementById('o2-rail-chats');
+    if (railChats) {
+        railChats.onclick = () => {
+            const wasFriends = document.body.classList.contains('o2-view-friends');
+            document.body.classList.remove('o2-view-friends');
+            setO2RailActive('chats');
+            if (!wasFriends && window.innerWidth <= 768 && typeof toggleSidebarDrawer === 'function') {
+                toggleSidebarDrawer();
+            }
+        };
+    }
+    const railFriends = document.getElementById('o2-rail-friends');
+    if (railFriends) {
+        railFriends.onclick = () => openO2FriendsView(o2FriendsFilter);
+    }
+    const railGames = document.getElementById('o2-rail-games');
+    if (railGames) {
+        railGames.onclick = () => {
+            if (!currentChatId || currentChatId === 'channel_orion_updates') {
+                showNotification("Select a chat first to launch a game.", "info");
+                return;
+            }
+            const gamesModal = document.getElementById('games-library-modal');
+            if (gamesModal) gamesModal.style.display = 'flex';
+        };
+    }
+    const railSearch = document.getElementById('o2-rail-search');
+    if (railSearch) {
+        railSearch.onclick = (e) => {
+            e.stopPropagation();
+            if (typeof closeSidebarDrawer === 'function') closeSidebarDrawer();
+            openBetaCommandPalette();
+        };
+    }
+    const railAdmin = document.getElementById('o2-rail-admin');
+    if (railAdmin) {
+        railAdmin.onclick = () => {
+            if (typeof closeSidebarDrawer === 'function') closeSidebarDrawer();
+            if (typeof openAdminPanelModal === 'function') openAdminPanelModal();
+        };
+    }
+
+    // Sidebar + popover handlers
+    const plusBtn = document.getElementById('o2-sidebar-plus-btn');
+    const createPopover = document.getElementById('o2-sidebar-create-popover');
+    if (plusBtn && createPopover) {
+        plusBtn.onclick = (e) => {
+            e.stopPropagation();
+            const isOpen = createPopover.style.display === 'flex';
+            createPopover.style.display = isOpen ? 'none' : 'flex';
+        };
+        document.addEventListener('click', (e) => {
+            if (!e.target.closest('#o2-sidebar-create-popover') && !e.target.closest('#o2-sidebar-plus-btn')) {
+                createPopover.style.display = 'none';
+            }
+        });
+    }
+    const popNewGroup = document.getElementById('o2-pop-new-group');
+    if (popNewGroup) {
+        popNewGroup.onclick = () => {
+            if (createPopover) createPopover.style.display = 'none';
+            document.getElementById('open-creation-modal')?.click();
+        };
+    }
+    const popAddFriend = document.getElementById('o2-pop-add-friend');
+    if (popAddFriend) {
+        popAddFriend.onclick = () => {
+            if (createPopover) createPopover.style.display = 'none';
+            openO2FriendsView('add');
+            requestAnimationFrame(() => document.getElementById('o2-inline-friend-code')?.focus());
+        };
+    }
+
+    // Friends view filters & inline add friend
+    document.querySelectorAll('[data-o2-friends-tab]').forEach(btn => {
+        btn.onclick = () => {
+            setO2FriendsTab(btn.dataset.o2FriendsTab);
+            if (btn.dataset.o2FriendsTab === 'add') {
+                requestAnimationFrame(() => document.getElementById('o2-inline-friend-code')?.focus());
+            }
+        };
+    });
+    const o2RequestsBtn = document.getElementById('o2-friends-requests-btn');
+    if (o2RequestsBtn) {
+        o2RequestsBtn.onclick = () => openAnimatedModal(document.getElementById('friend-requests-modal'));
+    }
+    const inlineAddBtn = document.getElementById('o2-inline-add-friend-btn');
+    const inlineCodeInput = document.getElementById('o2-inline-friend-code');
+    if (inlineAddBtn && inlineCodeInput) {
+        const submitInline = async () => {
+            const ok = await sendFriendRequestByCode(inlineCodeInput.value);
+            if (ok) inlineCodeInput.value = '';
+        };
+        inlineAddBtn.onclick = submitInline;
+        inlineCodeInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                submitInline();
+            }
+        });
+    }
+    const inlineQrBtn = document.getElementById('o2-inline-qr-btn');
+    if (inlineQrBtn) {
+        inlineQrBtn.onclick = () => openAnimatedModal(document.getElementById('add-friend-modal'));
+    }
+
+    // Header Pinned Messages toggle
+    const pinsToggleBtn = document.getElementById('o2-pins-toggle-btn');
+    if (pinsToggleBtn) {
+        pinsToggleBtn.onclick = (e) => {
+            e.stopPropagation();
+            document.body.classList.toggle('o2-pins-hidden');
+        };
+    }
+
+    // Inline Composer Action Buttons
+    document.getElementById('o2-action-files')?.addEventListener('click', () => {
+        document.getElementById('file-upload-input')?.click();
+    });
+    document.getElementById('o2-action-camera')?.addEventListener('click', () => {
+        if (typeof triggerCameraCapture === 'function') triggerCameraCapture();
+    });
+    document.getElementById('o2-action-stickers')?.addEventListener('click', () => {
+        if (typeof openStickerPicker === 'function') openStickerPicker();
+    });
+    document.getElementById('o2-action-emoji')?.addEventListener('click', async (e) => {
+        e.stopPropagation();
+        const picker = document.getElementById('emoji-picker');
+        if (!picker) return;
+        activeReactionMessageId = null;
+        if (picker.style.display === 'none' || !picker.style.display) {
+            const pm = document.getElementById('plus-menu');
+            if (pm) { pm.style.display = 'none'; pm.classList.add('hidden'); }
+            await renderEmojiPicker();
+            picker.style.display = 'flex';
+        } else {
+            picker.style.display = 'none';
+        }
+    });
+    document.getElementById('o2-action-poll')?.addEventListener('click', () => {
+        const pollModal = document.getElementById('poll-modal');
+        if (pollModal) {
+            pollModal.style.display = 'flex';
+            const pollQ = document.getElementById('poll-question');
+            if (pollQ) pollQ.value = '';
+            const pollOpts = document.getElementById('poll-options-container');
+            if (pollOpts) {
+                pollOpts.innerHTML = '<label>Options</label><input type="text" class="poll-option-input" placeholder="Option 1"><input type="text" class="poll-option-input" placeholder="Option 2">';
+            }
+        }
+    });
+    document.getElementById('o2-action-games')?.addEventListener('click', () => {
+        const gamesModal = document.getElementById('games-library-modal');
+        if (gamesModal) gamesModal.style.display = 'flex';
+    });
 
     function syncBetaRedesignCard() {
         const unlockedEl = document.getElementById('beta-access-unlocked');
@@ -14187,7 +14510,10 @@ new MutationObserver((mutations) => {
                 actions.push({ section: 'Actions', title: 'Toggle Members Panel', meta: 'View', icon: '👥', run: () => toggleBetaMembersDrawer() });
             }
         }
-        actions.push({ section: 'Actions', title: 'Open Settings', meta: 'Preferences', icon: '⚙️', run: () => openPremiumPanelModal('account') });
+        actions.push(
+            { section: 'Actions', title: 'Open Friends Hub', meta: 'Social', icon: '👥', run: () => openO2FriendsView('online') },
+            { section: 'Actions', title: 'Open Settings', meta: 'Preferences', icon: '⚙️', run: () => openPremiumPanelModal('account') }
+        );
 
         actions.forEach(act => {
             if (!q || `${act.title} ${act.meta}`.toLowerCase().includes(q)) items.push(act);

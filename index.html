@@ -67,16 +67,49 @@
 
     <div id="app-container" style="display: none;">
         <div id="sidebar-backdrop" class="sidebar-backdrop"></div>
+        <nav id="o2-rail" class="o2-rail" aria-label="Primary navigation" style="display: none;">
+            <div class="o2-rail-top">
+                <button type="button" id="o2-rail-chats" class="o2-rail-btn active" data-rail="chats" title="Chats" aria-label="Chats">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                </button>
+                <button type="button" id="o2-rail-friends" class="o2-rail-btn" data-rail="friends" title="Friends" aria-label="Friends">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                    <span id="o2-rail-friends-badge" class="o2-rail-badge" style="display: none;">0</span>
+                </button>
+                <button type="button" id="o2-rail-games" class="o2-rail-btn" data-rail="games" title="Games" aria-label="Games">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="4"></rect><line x1="6" y1="12" x2="10" y2="12"></line><line x1="8" y1="10" x2="8" y2="14"></line><circle cx="15" cy="11" r="1"></circle><circle cx="18" cy="13" r="1"></circle></svg>
+                </button>
+                <button type="button" id="o2-rail-search" class="o2-rail-btn" data-rail="search" title="Quick Switcher (Ctrl+K)" aria-label="Quick Switcher">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+                </button>
+            </div>
+            <div class="o2-rail-bottom">
+                <button type="button" id="o2-rail-admin" class="o2-rail-btn" data-rail="admin" title="Admin Panel" aria-label="Admin Panel" style="display: none;">
+                    <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path></svg>
+                </button>
+            </div>
+        </nav>
         <div class="glass-sidebar" id="glass-sidebar">
-            <div class="o2-sidebar-brand-bar">
+            <div id="o2-sidebar-header" class="o2-sidebar-header" style="display: none;">
                 <div class="o2-brand-title">
                     <span>Orion</span>
                     <span class="o2-beta-tag">BETA</span>
                 </div>
-                <button type="button" id="beta-quick-search-btn" class="o2-quick-search-pill" title="Quick Switcher (Ctrl+K)">
-                    <span>🔍 Quick</span>
-                    <kbd>Ctrl+K</kbd>
-                </button>
+                <div class="o2-sidebar-header-actions">
+                    <button type="button" id="o2-sidebar-plus-btn" class="o2-icon-btn" title="Create or Add" aria-label="New chat or add friend">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    </button>
+                    <div id="o2-sidebar-create-popover" class="o2-popover-menu" style="display: none;">
+                        <button type="button" id="o2-pop-new-group">
+                            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="17" y1="11" x2="23" y2="11"></line></svg>
+                            <span>New Group / Channel</span>
+                        </button>
+                        <button type="button" id="o2-pop-add-friend">
+                            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="8.5" cy="7" r="4"></circle><line x1="20" y1="8" x2="20" y2="14"></line><line x1="23" y1="11" x2="17" y2="11"></line></svg>
+                            <span>Add Friend</span>
+                        </button>
+                    </div>
+                </div>
             </div>
             <div class="sidebar-top-bar">
                 <div class="user-profile-btn" id="open-profile-modal">
@@ -93,7 +126,9 @@
                             </div>
                         </div>
                     </div>
-                    <button type="button" id="beta-sidebar-settings-btn" class="o2-settings-gear-btn" title="Settings" aria-label="Open Settings">⚙️</button>
+                    <button type="button" id="beta-sidebar-settings-btn" class="o2-settings-gear-btn" title="Settings" aria-label="Open Settings" style="display: none;">
+                        <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z"></path></svg>
+                    </button>
                     <div class="chevron">›</div>
                 </div>
                 <button id="close-sidebar-btn" class="close-sidebar-btn" aria-label="Close sidebar drawer">✕</button>
@@ -133,6 +168,33 @@
         </div>
 
         <div class="glass-main chat-container" id="chat-container">
+            <section id="o2-friends-view" class="o2-friends-view" style="display: none;" aria-label="Friends">
+                <div class="o2-friends-topbar">
+                    <div class="o2-friends-title-group">
+                        <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
+                        <h3>Friends</h3>
+                    </div>
+                    <div class="o2-friends-filters" role="tablist" aria-label="Filter friends">
+                        <button type="button" class="o2-filter-pill active" data-o2-friends-tab="online">Online</button>
+                        <button type="button" class="o2-filter-pill" data-o2-friends-tab="all">All</button>
+                        <button type="button" class="o2-filter-pill o2-filter-accent" data-o2-friends-tab="add">Add Friend</button>
+                        <button type="button" id="o2-friends-requests-btn" class="o2-filter-pill" style="display: none;">Requests <span id="o2-friends-requests-count">0</span></button>
+                    </div>
+                </div>
+                <div id="o2-add-friend-panel" class="o2-add-friend-panel" style="display: none;">
+                    <div class="o2-add-friend-copy">
+                        <strong>Add Friend</strong>
+                        <span>Enter a friend's Orion User ID to send a request directly.</span>
+                    </div>
+                    <div class="o2-add-friend-row">
+                        <input type="text" id="o2-inline-friend-code" placeholder="Enter User ID (e.g. A1B2C3D4)" maxlength="10" autocomplete="off">
+                        <button type="button" id="o2-inline-add-friend-btn" class="o2-send-req-btn">Send Request</button>
+                        <button type="button" id="o2-inline-qr-btn" class="o2-qr-btn" title="My QR & Scanner">QR</button>
+                    </div>
+                </div>
+                <div id="o2-friends-list" class="o2-friends-list"></div>
+            </section>
+
             <div id="chat-header" class="chat-header-glass chat-header">
                 <button id="hamburger-btn" class="hamburger-btn" aria-label="Open sidebar menu" title="Open menu">
                     <span class="hamburger-bar"></span>
@@ -153,8 +215,11 @@
                         <p id="chat-description-text"></p>
                     </div>
                 </div>
+                <button type="button" id="o2-pins-toggle-btn" class="o2-header-icon-btn" title="Pinned messages" aria-label="Toggle pinned messages" style="display: none;">
+                    <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="17" x2="12" y2="22"></line><path d="M5 17h14v-1.76a2 2 0 0 0-1.11-1.79l-1.78-.9A2 2 0 0 1 15 10.76V6h1a2 2 0 0 0 0-4H8a2 2 0 0 0 0 4h1v4.76a2 2 0 0 1-1.11 1.79l-1.78.9A2 2 0 0 0 5 15.24Z"></path></svg>
+                </button>
                 <button type="button" id="beta-members-toggle-btn" class="o2-members-toggle-pill" aria-label="Toggle members drawer" data-eligible="0" style="display: none;">
-                    <span>👥</span>
+                    <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path><circle cx="9" cy="7" r="4"></circle><path d="M23 21v-2a4 4 0 0 0-3-3.87"></path><path d="M16 3.13a4 4 0 0 1 0 7.75"></path></svg>
                     <span id="beta-members-count">0</span>
                 </button>
                 <button id="chat-header-menu-btn" class="chat-header-menu-btn" aria-label="Chat options" title="Chat details" style="display: none;">⋮</button>
@@ -226,6 +291,27 @@
                     <button id="emoji-btn" class="emoji-trigger-btn" title="Add Emoji">😊</button>
                     <input type="text" id="message-input" placeholder="Type a message..." autocomplete="off">
                     
+                    <div id="o2-composer-actions" class="o2-composer-actions" style="display: none;">
+                        <button type="button" id="o2-action-files" class="o2-composer-ico-btn" title="Files" aria-label="Attach files">
+                            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
+                        </button>
+                        <button type="button" id="o2-action-camera" class="o2-composer-ico-btn" title="Camera" aria-label="Take photo">
+                            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"></path><circle cx="12" cy="13" r="4"></circle></svg>
+                        </button>
+                        <button type="button" id="o2-action-stickers" class="o2-composer-ico-btn" title="Stickers" aria-label="Open stickers">
+                            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 3H5a2 2 0 0 0-2 2v14c0 1.1.9 2 2 2h14a2 2 0 0 0 2-2V8.5L15.5 3Z"></path><path d="M15 3v6h6"></path></svg>
+                        </button>
+                        <button type="button" id="o2-action-emoji" class="o2-composer-ico-btn" title="Emoji" aria-label="Pick emoji">
+                            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M8 14s1.5 2 4 2 4-2 4-2"></path><line x1="9" y1="9" x2="9.01" y2="9"></line><line x1="15" y1="9" x2="15.01" y2="9"></line></svg>
+                        </button>
+                        <button type="button" id="o2-action-poll" class="o2-composer-ico-btn" title="Poll" aria-label="Create poll">
+                            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="20" x2="18" y2="10"></line><line x1="12" y1="20" x2="12" y2="4"></line><line x1="6" y1="20" x2="6" y2="14"></line></svg>
+                        </button>
+                        <button type="button" id="o2-action-games" class="o2-composer-ico-btn" title="Games" aria-label="Launch games">
+                            <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="6" width="20" height="12" rx="4"></rect><line x1="6" y1="12" x2="10" y2="12"></line><line x1="8" y1="10" x2="8" y2="14"></line><circle cx="15" cy="11" r="1"></circle><circle cx="18" cy="13" r="1"></circle></svg>
+                        </button>
+                    </div>
+
                     <!-- Re-integrated paperclip using the stable #plus-btn ID -->
                     <button id="plus-btn" class="emoji-trigger-btn" title="Attachments" style="display: inline-flex; align-items: center; justify-content: center;">
                         <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M21.44 11.05l-9.19 9.19a6 6 0 0 1-8.49-8.49l9.19-9.19a4 4 0 0 1 5.66 5.66l-9.2 9.19a2 2 0 0 1-2.83-2.83l8.49-8.48"></path></svg>
@@ -611,7 +697,7 @@
                         <div class="setting-card" style="margin-top: 14px;">
                             <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 6px;">
                                 <h5 style="margin: 0;">App Info</h5>
-                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.2.48</span></span>
+                                <span style="font-size: 11px; padding: 2px 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.08); border: 1px solid var(--glass-border); color: var(--accent);"><span id="account-tab-app-version">1.2.49</span></span>
                             </div>
                             <small style="display: block; margin-bottom: 12px;">Keep Orion Chat up to date with new features and stability fixes.</small>
                             <button type="button" id="account-check-update-btn" class="glass-btn-secondary" style="font-size: 13px; padding: 8px 16px;">Check for Updates</button>

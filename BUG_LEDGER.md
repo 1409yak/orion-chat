@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Orion 2.0 Beta Architectural Overhaul (v1.2.49):* Rebuilt the Premium Beta UI (`body.orion-beta`) into a clean, minimalist, modern architecture while keeping Standard Liquid Glass untouched. Added a 60px far-left icon rail, moved Friends out of the sidebar into a dedicated full-stage Friends hub (`#o2-friends-view`), kept the bottom-left Profile + Settings dock, converted the Beta chat feed to a spacious left-aligned full-width stream with a docked inline-action composer, and streamlined the collapsible hairline Members drawer using theme-compatible obsidian tokens.
+
 - *Liquid Glass Default & Orion 2.0 Beta Redesign (v1.2.48):* Enabled Liquid Glass by default for all users. Built a massive theme-compatible 'Orion 2.0 [BETA]' redesign (`beta-redesign.css` + `body.orion-beta`) gated exclusively to Premium & Admin users (with live downgrade enforcement and a Settings unlock teaser for Free accounts). Added the Obsidian Spatial design system, collapsible Members drawer, unified composer dock, embedded game lobby cards, and a `Ctrl+K` Quick Switcher.
 
 - *Theme-Fitting Liquid Glass & Soft Members Panel (v1.2.47):* Replaced neutral gray glass and hardcoded purple active-chat highlights with theme-adaptive `color-mix()` Liquid Glass tokens (`--glass-accent`, `saturate(165%)`, directional specular top-rim shadows). Converted the sharp-cornered Members panel into a rounded floating glass card with soft borders and harmonized incoming/outgoing bubble edges.
