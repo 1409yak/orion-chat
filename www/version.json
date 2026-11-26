@@ -1,6 +1,6 @@
 {
-  "version": "1.2.40",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.40/bundle.zip",
-  "checksum": "e4312f718d554716ceaebd6e8e5a7076427e23022fc2dc6a7c67f1d03b44bd7b",
-  "notes": "UI fix: Improved reply box positioning."
+  "version": "1.2.41",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.41/bundle.zip",
+  "checksum": "ac6219ebea667d18b376c8e2ddb3fb7bb59635359442a6c5610e8468b78a7d4c",
+  "notes": "New game added: Spy! Drop clues, spot the undercover spy, or steal the win by guessing the secret word."
 }
