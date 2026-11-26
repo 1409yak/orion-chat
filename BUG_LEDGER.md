@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Theme-Fitting Liquid Glass & Soft Members Panel (v1.2.47):* Replaced neutral gray glass and hardcoded purple active-chat highlights with theme-adaptive `color-mix()` Liquid Glass tokens (`--glass-accent`, `saturate(165%)`, directional specular top-rim shadows). Converted the sharp-cornered Members panel into a rounded floating glass card with soft borders and harmonized incoming/outgoing bubble edges.
+
 - *Instant Tab Switching, Open Stickers, Mod Audit & Hover Actions (v1.2.46):* Added `window.chatMessageCache` (LRU 20 chats) with `window._chatSwitchToken` race guards, atomic `DocumentFragment` `replaceChildren` swaps, scroll position persistence/restoration before listener attach, and stabilized header avatar/title updates. Replaced sticker approval requests with free community stickers and live `stickerStats` (`usageCount` transactions + `owners` saved counts) with Popular/Newest sorting across pickers. Audited global/group moderator permissions across UI and `database.rules.json` (delete non-admin messages, pin, mute non-global-admins, kick non-admins, delete stickers). Removed `#edit-group-btn` in favor of a clickable group title header, upgraded `.msg-quick-actions` into an SVG action pill (with touch tap-to-toggle dismissal), and removed legacy triangle menus and bottom context sheets.
 
 - *Final UI Polish (Patch 4):* Added shimmering chat skeleton loaders and empty-chat states, automatic Today/Yesterday/Date message dividers synced on add/delete/prepend, real-time multi-user typing indicators (`typing/${chatId}/${uid}`) with `onDisconnect` cleanup and Firebase rules, and subtle anti-spam Web Audio incoming message chimes with a Settings toggle.

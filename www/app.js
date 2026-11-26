@@ -4033,7 +4033,9 @@ window.positionReplyPreview = function() {
         const panelStyle = window.getComputedStyle(membersPanel);
         const rect = membersPanel.getBoundingClientRect();
         if (panelStyle.position !== 'fixed' && panelStyle.display !== 'none' && rect.width > 0) {
-            rightOffset = Math.ceil(rect.width) + 12;
+            const marginLeft = parseFloat(panelStyle.marginLeft) || 0;
+            const marginRight = parseFloat(panelStyle.marginRight) || 0;
+            rightOffset = Math.max(Math.ceil(rect.width) + 20, Math.ceil(rect.width + marginLeft + marginRight) + 12);
         }
     }
 
@@ -5213,12 +5215,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.46';
+const CURRENT_APP_VERSION = '1.2.47';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.46';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.47';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -5380,7 +5382,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.46';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.47';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
