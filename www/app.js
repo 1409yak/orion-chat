@@ -471,6 +471,9 @@ function applyNotificationSettingsUI() {
     const soundEl = document.getElementById('toggle-inapp-sounds');
     if (soundEl) soundEl.checked = !!notificationPrefs.inAppSounds;
 
+    const msgSoundEl = document.getElementById('toggle-message-sounds');
+    if (msgSoundEl) msgSoundEl.checked = localStorage.getItem('orion_sounds_enabled') !== 'false';
+
     const badgeEl = document.getElementById('toggle-unread-badges');
     if (badgeEl) badgeEl.checked = !!notificationPrefs.unreadBadges;
 
@@ -547,6 +550,39 @@ function playThemeNotification() {
     }
 }
 window.playThemeNotification = playThemeNotification;
+
+// Lightweight zero-asset Web Audio message chime
+window.playOrionSound = function(type = 'incoming') {
+    if (localStorage.getItem('orion_sounds_enabled') === 'false') return;
+    const now = Date.now();
+    if (now - (window._lastSoundAt || 0) < 350) return; // Anti-spam cooldown
+    window._lastSoundAt = now;
+
+    try {
+        const AudioCtx = window.AudioContext || window.webkitAudioContext;
+        if (!AudioCtx) return;
+        if (!window._orionAudioCtx) window._orionAudioCtx = new AudioCtx();
+        const ctx = window._orionAudioCtx;
+        if (ctx.state === 'suspended') ctx.resume().catch(() => {});
+
+        const osc = ctx.createOscillator();
+        const gain = ctx.createGain();
+        osc.type = 'sine';
+
+        const t = ctx.currentTime;
+        if (type === 'incoming') {
+            osc.frequency.setValueAtTime(520, t);
+            osc.frequency.exponentialRampToValueAtTime(740, t + 0.06);
+            gain.gain.setValueAtTime(0.001, t);
+            gain.gain.linearRampToValueAtTime(0.06, t + 0.012);
+            gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.13);
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(t);
+            osc.stop(t + 0.14);
+        }
+    } catch (e) {}
+};
 
 const recentIncomingNotifyMap = new Map();
 
@@ -3825,6 +3861,88 @@ window.updateMessageGrouping = function(el) {
     el.classList.toggle('msg-grouped', canGroup);
 };
 
+window.getDateKey = function(ts) {
+    const d = new Date(Number(ts || Date.now()));
+    return `${d.getFullYear()}-${d.getMonth() + 1}-${d.getDate()}`;
+};
+
+window.formatDateDividerLabel = function(ts) {
+    const d = new Date(Number(ts || Date.now()));
+    const today = new Date();
+    const yesterday = new Date();
+    yesterday.setDate(today.getDate() - 1);
+
+    if (d.toDateString() === today.toDateString()) return 'Today';
+    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+};
+
+window.syncDateDividers = function(container) {
+    if (!container) return;
+    container.querySelectorAll('.chat-date-divider').forEach(el => el.remove());
+    let lastDayKey = null;
+    const msgEls = container.querySelectorAll('[data-msg-id]');
+    msgEls.forEach(msgEl => {
+        const ts = Number(msgEl.dataset.timestamp || 0);
+        if (!ts) return;
+        const dayKey = window.getDateKey(ts);
+        if (dayKey !== lastDayKey) {
+            const divider = document.createElement('div');
+            divider.className = 'chat-date-divider';
+            divider.dataset.dateKey = dayKey;
+            divider.textContent = window.formatDateDividerLabel(ts);
+            container.insertBefore(divider, msgEl);
+            lastDayKey = dayKey;
+        }
+    });
+};
+
+function renderChatSkeleton(container) {
+    if (!container) return;
+    clearChatSkeleton(container);
+    const wrap = document.createElement('div');
+    wrap.className = 'chat-skeleton-wrap';
+    const rows = [
+        { own: false, w1: '78%', w2: '52%' },
+        { own: true,  w1: '65%', w2: '40%' },
+        { own: false, w1: '86%', w2: '60%' },
+        { own: false, w1: '55%', w2: '35%' },
+        { own: true,  w1: '72%', w2: '48%' }
+    ];
+    rows.forEach(r => {
+        const row = document.createElement('div');
+        row.className = `chat-skeleton-row${r.own ? ' own' : ''}`;
+        row.innerHTML = `
+            <div class="skeleton-avatar"></div>
+            <div class="skeleton-bubble">
+                <div class="skeleton-line" style="width:${r.w1};"></div>
+                <div class="skeleton-line" style="width:${r.w2};"></div>
+            </div>
+        `;
+        wrap.appendChild(row);
+    });
+    container.appendChild(wrap);
+}
+
+function clearChatSkeleton(container) {
+    if (!container) return;
+    container.querySelectorAll('.chat-skeleton-wrap').forEach(el => el.remove());
+}
+
+function showChatEmptyState(container) {
+    if (!container) return;
+    if (container.querySelector('.chat-empty-state')) return;
+    const empty = document.createElement('div');
+    empty.className = 'chat-empty-state';
+    empty.textContent = 'No messages yet — start the conversation!';
+    container.appendChild(empty);
+}
+
+function clearChatEmptyState(container) {
+    if (!container) return;
+    container.querySelectorAll('.chat-empty-state').forEach(el => el.remove());
+}
+
 window.isUserNearBottom = () => {
     const feed = document.getElementById('messages-container');
     if (!feed) return true;
@@ -3899,12 +4017,25 @@ window.positionReplyPreview = function() {
     });
 
     const jumpBtn = document.getElementById('jump-to-bottom-btn');
+    const typingEl = document.getElementById('typing-indicator');
+    const baseBottom = bottomOffset > 50 ? bottomOffset : 78;
+    const previewStackHeight = activePreviewHeight > 0 ? activePreviewHeight + 8 : 0;
+    let typingStackHeight = 0;
+
+    if (typingEl) {
+        typingEl.style.left = '16px';
+        typingEl.style.right = `${rightOffset}px`;
+        typingEl.style.bottom = `${baseBottom + previewStackHeight}px`;
+        if (window.getComputedStyle(typingEl).display !== 'none') {
+            typingStackHeight = Math.ceil(typingEl.getBoundingClientRect().height) + 8;
+        }
+    }
+
     if (jumpBtn) {
         jumpBtn.style.left = '12px';
         jumpBtn.style.right = `${rightOffset}px`;
-        const baseBottom = bottomOffset > 50 ? bottomOffset : 78;
-        const jumpBottom = activePreviewHeight > 0
-            ? baseBottom + activePreviewHeight + 8
+        const jumpBottom = (previewStackHeight || typingStackHeight)
+            ? baseBottom + previewStackHeight + typingStackHeight
             : Math.max(78, bottomOffset - 6);
         jumpBtn.style.bottom = `${jumpBottom}px`;
     }
@@ -5215,12 +5346,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.44';
+const CURRENT_APP_VERSION = '1.2.45';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.44';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.45';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -5382,7 +5513,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.44';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.45';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -6126,6 +6257,7 @@ document.getElementById('login-btn').onclick = async () => {
 
 document.getElementById('logout-btn').onclick = async () => {
     try {
+        if (typeof updateTypingStatus === 'function') updateTypingStatus(false);
         window.clearChatCleanups();
         ++currentChatOpenToken;
         closeAnimatedModal(document.getElementById('profile-modal'));
@@ -7217,6 +7349,7 @@ function startChat(me, them, name) {
 }/* ---------------- OPEN CHAT ---------------- */
 
 async function openChat(chatId, title) {
+    if (typeof updateTypingStatus === 'function') updateTypingStatus(false);
     window.clearChatCleanups();
     const openToken = ++currentChatOpenToken;
     dismissKeyboard();
@@ -7444,34 +7577,85 @@ async function openChat(chatId, title) {
 
     updateInputButtons();
 
-    activeTypingOff = onValue(ref(db, `typing/${chatId}`), async (snap) => {
-        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
-        if (!typingIndicator) return; // Ensure indicator exists
-        const typers = snap.val() || {};
-        const names = [];
-        for (const uid in typers) {
-            if (uid !== auth.currentUser.uid) {
-                const uSnap = await get(ref(db, `users/${uid}`));
-                names.push(uSnap.val()?.displayName || "User");
+    if (typingIndicator) {
+        typingIndicator.innerHTML = '';
+        typingIndicator.style.display = 'none';
+        typingIndicator.classList.remove('typing-hiding');
+    }
+
+    let typingStaleTimer = null;
+    const renderTypingBar = (typersMap) => {
+        if (!typingIndicator || currentChatId !== chatId || openToken !== currentChatOpenToken) return;
+        if (typingStaleTimer) {
+            clearTimeout(typingStaleTimer);
+            typingStaleTimer = null;
+        }
+        const nowServer = typeof window.getServerTime === 'function' ? window.getServerTime() : Date.now();
+        const myUid = auth.currentUser?.uid;
+        const activeNames = [];
+        let soonestExpiryMs = null;
+
+        Object.entries(typersMap || {}).forEach(([uid, entry]) => {
+            if (!uid || uid === myUid || !entry) return;
+            const ts = typeof entry === 'object' ? Number(entry.ts || 0) : nowServer;
+            const age = nowServer - ts;
+            if (age > 8000) return;
+            const remaining = 8000 - Math.max(0, age);
+            if (soonestExpiryMs === null || remaining < soonestExpiryMs) {
+                soonestExpiryMs = remaining;
             }
+            const rawName = (typeof entry === 'object' && entry.name)
+                ? entry.name
+                : (currentChatMemberNames.get(uid) || 'Someone');
+            activeNames.push(String(rawName).substring(0, 15));
+        });
+
+        if (activeNames.length > 0) {
+            let labelHtml = '';
+            if (activeNames.length === 1) {
+                labelHtml = `${escapeHTML(activeNames[0])} is typing...`;
+            } else if (activeNames.length === 2) {
+                labelHtml = `${escapeHTML(activeNames[0])} and ${escapeHTML(activeNames[1])} are typing...`;
+            } else {
+                labelHtml = `Several people are typing...`;
+            }
+            typingIndicator.innerHTML = `<span>${labelHtml}</span><div class="typing-dots"><span></span><span></span><span></span></div>`;
+            typingIndicator.classList.remove('typing-hiding');
+            typingIndicator.style.display = 'inline-flex';
+            if (typeof window.positionReplyPreview === 'function') window.positionReplyPreview();
+
+            if (soonestExpiryMs !== null) {
+                typingStaleTimer = setTimeout(() => {
+                    renderTypingBar(typersMap);
+                }, Math.max(250, soonestExpiryMs + 50));
+            }
+        } else {
+            typingIndicator.style.display = 'none';
+            typingIndicator.classList.remove('typing-hiding');
+            typingIndicator.innerHTML = '';
+            if (typeof window.positionReplyPreview === 'function') window.positionReplyPreview();
         }
+    };
+
+    activeTypingOff = onValue(ref(db, `typing/${chatId}`), (snap) => {
         if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
-        if (names.length > 0) {
-            const verb = names.length > 1 ? "are" : "is";
-            typingIndicator.innerHTML = `${escapeHTML(names.join(', '))} ${verb} typing<div class="typing-dots"><span></span><span></span><span></span></div>`;
-            typingIndicator.classList.remove('typing-hiding'); // Remove if it was fading out
-            typingIndicator.style.display = 'flex';
-        } else if (typingIndicator.style.display === 'flex' && !typingIndicator.classList.contains('typing-hiding')) {
-            typingIndicator.classList.add('typing-hiding');
-            typingIndicator.addEventListener('animationend', () => {
-                if (typingIndicator.classList.contains('typing-hiding')) {
-                    typingIndicator.style.display = 'none';
-                    typingIndicator.classList.remove('typing-hiding');
-                }
-            }, { once: true });
-        }
+        renderTypingBar(snap.val() || {});
     });
     window.registerChatCleanup(activeTypingOff);
+    window.registerChatCleanup(() => {
+        if (typingStaleTimer) {
+            clearTimeout(typingStaleTimer);
+            typingStaleTimer = null;
+        }
+        if (typingIndicator) {
+            typingIndicator.style.display = 'none';
+            typingIndicator.innerHTML = '';
+        }
+        const myUid = auth.currentUser?.uid;
+        if (myUid) {
+            remove(ref(db, `typing/${chatId}/${myUid}`)).catch(() => {});
+        }
+    });
 
     const mRef = ref(db, `messages/${chatId}`);
     const membersRef = ref(db, `members/${chatId}`);
@@ -7565,6 +7749,9 @@ async function openChat(chatId, title) {
     loadOlderBtn.style.display = 'none';
     cont.appendChild(loadOlderBtn);
 
+    // Immediately show shimmering 5-row skeleton loader before Firebase responds
+    renderChatSkeleton(cont);
+
     let currentOldestMessageKey = null;
     let isLoadingOlderMessages = false;
     let hasMoreOlderMessages = false;
@@ -7632,6 +7819,7 @@ async function openChat(chatId, title) {
                     afterPrepended = afterPrepended.nextElementSibling;
                 }
                 if (afterPrepended) window.updateMessageGrouping(afterPrepended);
+                window.syncDateDividers(cont);
             }
 
             // Preserve scroll position smoothly
@@ -7664,6 +7852,9 @@ async function openChat(chatId, title) {
         const msgId = snap.key;
         const msgData = snap.val();
         if (!msgId || !msgData) return;
+
+        clearChatSkeleton(cont);
+        clearChatEmptyState(cont);
 
         if (!currentOldestMessageKey || msgId < currentOldestMessageKey) {
             currentOldestMessageKey = msgId;
@@ -7704,7 +7895,22 @@ async function openChat(chatId, title) {
         if (msgEl.nextElementSibling && msgEl.nextElementSibling.dataset?.msgId) {
             window.updateMessageGrouping(msgEl.nextElementSibling);
         }
+
+        let prevMsgEl = msgEl.previousElementSibling;
+        while (prevMsgEl && (!prevMsgEl.dataset || !prevMsgEl.dataset.msgId)) {
+            prevMsgEl = prevMsgEl.previousElementSibling;
+        }
+        const prevDayKey = prevMsgEl ? window.getDateKey(prevMsgEl.dataset.timestamp) : null;
+        const currDayKey = window.getDateKey(msgData.timestamp);
+        if (prevDayKey !== currDayKey || !cont.querySelector('.chat-date-divider')) {
+            window.syncDateDividers(cont);
+        }
+
         lastSenderId = senderUid;
+
+        if (initialLoadDone && senderUid !== auth.currentUser?.uid) {
+            window.playOrionSound('incoming');
+        }
 
         if (shouldAutoScroll) {
             userPinnedToBottom = true;
@@ -7743,6 +7949,10 @@ async function openChat(chatId, title) {
             }
             existingEl.remove();
             if (nextEl) window.updateMessageGrouping(nextEl);
+            window.syncDateDividers(cont);
+            if (!cont.querySelector('[data-msg-id]')) {
+                showChatEmptyState(cont);
+            }
         }
     });
     window.registerChatCleanup(removedOff);
@@ -7757,11 +7967,18 @@ async function openChat(chatId, title) {
     try {
         const initialSnap = await get(msgQuery);
         if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
+        clearChatSkeleton(cont);
         if (initialSnap.size >= 60) {
             hasMoreOlderMessages = true;
             loadOlderBtn.style.display = 'inline-flex';
         }
+        if (initialSnap.size === 0 && !cont.querySelector('[data-msg-id]')) {
+            showChatEmptyState(cont);
+        } else {
+            window.syncDateDividers(cont);
+        }
     } catch (err) {
+        clearChatSkeleton(cont);
         console.warn('[Chat] Initial batch sync check error:', err);
     }
 
@@ -9090,16 +9307,51 @@ function checkMuteStatus() {
 }
 
 let isCurrentlyTyping = false;
+let lastTypingWriteAt = 0;
 function updateTypingStatus(isTyping) {
     if (!currentChatId || !auth.currentUser) return;
-    if (isTyping === isCurrentlyTyping) return; // Prevent redundant network calls
+    if (currentChatId === 'channel_orion_updates') return;
 
-    isCurrentlyTyping = isTyping;
-    const typingRef = ref(db, `typing/${currentChatId}/${auth.currentUser.uid}`);
+    const myUid = auth.currentUser.uid;
+    const typingRef = ref(db, `typing/${currentChatId}/${myUid}`);
+
     if (isTyping) {
-        set(typingRef, true).catch(() => { isCurrentlyTyping = false; });
+        const myData = currentChatMemberData?.[myUid];
+        if ((myData && myData.mutedUntil && myData.mutedUntil > Date.now()) ||
+            (window.currentGroupMuteData && window.currentGroupMuteData.mutedUntil > Date.now())) {
+            return;
+        }
+        const now = Date.now();
+        if (isCurrentlyTyping && (now - lastTypingWriteAt) < 2500) {
+            return;
+        }
+        isCurrentlyTyping = true;
+        lastTypingWriteAt = now;
+
+        const currentUsername = window.currentUserData?.username ||
+            document.getElementById('current-user-name')?.innerText ||
+            auth.currentUser?.displayName ||
+            'Someone';
+        const payload = {
+            name: String(currentUsername).substring(0, 15),
+            ts: typeof window.getServerTime === 'function' ? window.getServerTime() : now
+        };
+        try {
+            onDisconnect(typingRef).remove().catch(() => {});
+        } catch (_) {}
+        set(typingRef, payload).catch(() => {
+            isCurrentlyTyping = false;
+            lastTypingWriteAt = 0;
+        });
     } else {
-        remove(typingRef).catch(() => { isCurrentlyTyping = true; });
+        if (!isCurrentlyTyping && lastTypingWriteAt === 0) return;
+        isCurrentlyTyping = false;
+        lastTypingWriteAt = 0;
+        if (typingTimeout) {
+            clearTimeout(typingTimeout);
+            typingTimeout = null;
+        }
+        remove(typingRef).catch(() => {});
     }
 }
 
@@ -9776,12 +10028,17 @@ async function sendMessage() {
     let optimisticEl = null;
 
     if (feed) {
+        clearChatEmptyState(feed);
         const lastMsgEl = Array.from(feed.children).reverse().find(el => el.dataset?.msgId);
+        const prevDayKey = lastMsgEl ? window.getDateKey(lastMsgEl.dataset.timestamp) : null;
         const isConsecutive = Boolean(lastMsgEl && lastMsgEl.dataset.senderId === myUid);
         optimisticEl = buildMessageElement(msgId, optimisticPayload, isConsecutive);
         optimisticEl.classList.add('msg-pending');
         insertMessageIntoDOM(optimisticEl, localTimestamp);
         window.updateMessageGrouping(optimisticEl);
+        if (prevDayKey !== window.getDateKey(localTimestamp) || !feed.querySelector('.chat-date-divider')) {
+            window.syncDateDividers(feed);
+        }
     }
 
     // 2. Immediately clear input, reply bar, pickers, and scroll to bottom
@@ -10337,20 +10594,16 @@ messageInput.oninput = (e) => {
         closeMentionDropdown();
     }
 
-    // Original typing status logic
-    if (val.length > 0) {
-        if (!typingTimeout) {
-            updateTypingStatus(true);
-        }
+    // Real-time typing status (2.5s write throttle, 4s idle removal)
+    if (val.trim().length > 0) {
+        updateTypingStatus(true);
         clearTimeout(typingTimeout);
         typingTimeout = setTimeout(() => {
             updateTypingStatus(false);
             typingTimeout = null;
-        }, 3000);
+        }, 4000);
     } else {
         updateTypingStatus(false);
-        clearTimeout(typingTimeout);
-        typingTimeout = null;
     }
     updateInputButtons();
 };
@@ -11576,6 +11829,17 @@ document.addEventListener('click', (e) => {
             saveNotificationSettings({ inAppSounds: toggleSoundsInput.checked });
             if (toggleSoundsInput.checked) {
                 playThemeNotification();
+            }
+        };
+    }
+
+    const toggleMessageSoundsInput = document.getElementById('toggle-message-sounds');
+    if (toggleMessageSoundsInput) {
+        toggleMessageSoundsInput.checked = localStorage.getItem('orion_sounds_enabled') !== 'false';
+        toggleMessageSoundsInput.onchange = () => {
+            localStorage.setItem('orion_sounds_enabled', toggleMessageSoundsInput.checked ? 'true' : 'false');
+            if (toggleMessageSoundsInput.checked && typeof window.playOrionSound === 'function') {
+                window.playOrionSound('incoming');
             }
         };
     }
@@ -12905,12 +13169,20 @@ document.addEventListener('click', (e) => {
 /* ---------------- BACK BUTTON ---------------- */
 
 function exitChat() {
+    if (typeof updateTypingStatus === 'function') updateTypingStatus(false);
     window.clearChatCleanups();
     ++currentChatOpenToken;
     unreadBelowCount = 0;
     userPinnedToBottom = true;
     window.currentGroupMuteData = null;
     updateJumpToBottomButton(true);
+    const cont = document.getElementById('messages-container');
+    if (cont) cont.innerHTML = '';
+    const typingEl = document.getElementById('typing-indicator');
+    if (typingEl) {
+        typingEl.style.display = 'none';
+        typingEl.innerHTML = '';
+    }
     dismissKeyboard();
     document.body.classList.remove('chat-open');
     if (window.innerWidth <= 768) {
