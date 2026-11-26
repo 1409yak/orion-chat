@@ -1,6 +1,6 @@
 {
-  "version": "1.2.36",
-  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.36/bundle.zip",
-  "checksum": "03611dc621c374980d6813b206c4d06373f77cd77eead852977de75fa6c1f8dd",
-  "notes": "Doodle Dash now moves to the next turn right away when everyone guesses the word!"
+  "version": "1.2.37",
+  "url": "https://orion-fcm-worker.gaim.workers.dev/download-ota/v1.2.37/bundle.zip",
+  "checksum": "ccba4dbed4c6fa38cdb0308394d63aef392f775c6aa7549a25ff412304f1aff2",
+  "notes": "Bug fixes and performance improvements."
 }
