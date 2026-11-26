@@ -144,6 +144,9 @@ window.clearChatCleanups = function() {
 
 let currentChatId = null;
 let currentChatOpenToken = 0;
+let unreadBelowCount = 0;
+let userPinnedToBottom = true;
+const stickerMetadataCache = new Map();
 let currentChatData = null;
 let currentChatCreatorId = null; // Store globally for profile viewing context
 let selectedGroupMembers = [];
@@ -3777,7 +3780,9 @@ function linkifyAndEmbed(rawText) {
 // New helper function to insert messages into the DOM in chronological order
 function insertMessageIntoDOM(messageElement, messageTimestamp) {
     const cont = document.getElementById('messages-container');
+    if (!cont) return;
     let inserted = false;
+    const targetTs = Number(messageTimestamp) || 0;
     const existingMessages = cont.children;
 
     for (let i = 0; i < existingMessages.length; i++) {
@@ -3785,9 +3790,9 @@ function insertMessageIntoDOM(messageElement, messageTimestamp) {
         // Only compare against actual message wrappers that have a timestamp
         if (!existingMessageElement.id.startsWith('msg-') || !existingMessageElement.dataset.timestamp) continue;
 
-        const existingMessageTimestamp = parseInt(existingMessageElement.dataset.timestamp);
+        const existingMessageTimestamp = Number(existingMessageElement.dataset.timestamp) || 0;
 
-        if (messageTimestamp < existingMessageTimestamp) {
+        if (targetTs < existingMessageTimestamp) {
             cont.insertBefore(messageElement, existingMessageElement);
             inserted = true;
             break;
@@ -3797,6 +3802,49 @@ function insertMessageIntoDOM(messageElement, messageTimestamp) {
     if (!inserted) {
         cont.appendChild(messageElement);
     }
+}
+
+window.isUserNearBottom = () => {
+    const feed = document.getElementById('messages-container');
+    if (!feed) return true;
+    return (feed.scrollHeight - feed.scrollTop - feed.clientHeight) < 120;
+};
+
+function updateJumpToBottomButton(forceHide = false) {
+    const btn = document.getElementById('jump-to-bottom-btn');
+    const feed = document.getElementById('messages-container');
+    if (!btn || !feed || forceHide || !currentChatId) {
+        if (btn) btn.style.display = 'none';
+        return;
+    }
+    const distFromBottom = feed.scrollHeight - feed.scrollTop - feed.clientHeight;
+    if (distFromBottom < 120) {
+        unreadBelowCount = 0;
+        btn.style.display = 'none';
+        return;
+    }
+    if (distFromBottom > 280 || unreadBelowCount > 0) {
+        btn.textContent = unreadBelowCount > 0
+            ? `↓ ${unreadBelowCount} new message${unreadBelowCount === 1 ? '' : 's'}`
+            : '↓ Jump to latest';
+        btn.style.display = 'inline-flex';
+        if (typeof window.positionReplyPreview === 'function') window.positionReplyPreview();
+    } else {
+        btn.style.display = 'none';
+    }
+}
+
+const jumpToBottomBtnEl = document.getElementById('jump-to-bottom-btn');
+if (jumpToBottomBtnEl) {
+    jumpToBottomBtnEl.onclick = () => {
+        const feed = document.getElementById('messages-container');
+        if (feed) {
+            feed.scrollTo({ top: feed.scrollHeight, behavior: 'smooth' });
+        }
+        unreadBelowCount = 0;
+        userPinnedToBottom = true;
+        jumpToBottomBtnEl.style.display = 'none';
+    };
 }
 
 // --- Message Action Functions ---
@@ -3814,6 +3862,7 @@ window.positionReplyPreview = function() {
     }
 
     const bottomOffset = inputArea ? Math.ceil(inputArea.getBoundingClientRect().height) + 10 : 88;
+    let activePreviewHeight = 0;
 
     ['reply-preview-bar', 'edit-preview-bar'].forEach(id => {
         const box = document.getElementById(id);
@@ -3823,7 +3872,21 @@ window.positionReplyPreview = function() {
         if (bottomOffset > 50) {
             box.style.bottom = `${bottomOffset}px`;
         }
+        if (window.getComputedStyle(box).display !== 'none') {
+            activePreviewHeight = Math.max(activePreviewHeight, Math.ceil(box.getBoundingClientRect().height));
+        }
     });
+
+    const jumpBtn = document.getElementById('jump-to-bottom-btn');
+    if (jumpBtn) {
+        jumpBtn.style.left = '12px';
+        jumpBtn.style.right = `${rightOffset}px`;
+        const baseBottom = bottomOffset > 50 ? bottomOffset : 78;
+        const jumpBottom = activePreviewHeight > 0
+            ? baseBottom + activePreviewHeight + 8
+            : Math.max(78, bottomOffset - 6);
+        jumpBtn.style.bottom = `${jumpBottom}px`;
+    }
 };
 
 window.addEventListener('resize', window.positionReplyPreview);
@@ -3871,11 +3934,13 @@ document.getElementById('cancel-reply-btn').onclick = exitReplyMode;
 function exitEditMode() {
     currentEditingMessage = null;
     document.getElementById('edit-preview-bar').style.display = 'none';
+    if (typeof window.positionReplyPreview === 'function') window.positionReplyPreview();
 }
 
 function exitReplyMode() {
     currentReplyMessage = null;
     document.getElementById('reply-preview-bar').style.display = 'none';
+    if (typeof window.positionReplyPreview === 'function') window.positionReplyPreview();
 }
 
 async function deleteMessage(messageId) {
@@ -5129,12 +5194,12 @@ async function setupCapacitorPushNotifications(uid) {
 
 /* ---------------- SELF-HOSTED OVER-THE-AIR (OTA) UPDATES ---------------- */
 
-const CURRENT_APP_VERSION = '1.2.42';
+const CURRENT_APP_VERSION = '1.2.43';
 const CURRENT_VERSION = CURRENT_APP_VERSION;
 
 async function updateSettingsVersionDisplay() {
     const allVersionEls = document.querySelectorAll('#settings-app-version, .app-version-label, #app-current-version, #account-tab-app-version');
-    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.42';
+    let finalVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.43';
 
     try {
         if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
@@ -5296,7 +5361,7 @@ async function checkForUpdates(isManual = false) {
 
         activeOtaManifest = manifest;
 
-        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.42';
+        let currentVersion = typeof CURRENT_APP_VERSION !== 'undefined' ? CURRENT_APP_VERSION : '1.2.43';
         try {
             if (window.Capacitor?.isPluginAvailable('CapacitorUpdater')) {
                 const current = await window.Capacitor.Plugins.CapacitorUpdater.current();
@@ -7465,23 +7530,31 @@ async function openChat(chatId, title) {
 
     const cont = document.getElementById('messages-container');
     cont.innerHTML = ''; // Clear once when opening the chat
+    let initialLoadDone = false;
+    unreadBelowCount = 0;
+    userPinnedToBottom = true;
+    updateJumpToBottomButton(true);
 
-    // Top sentinel element for reverse pagination (fetching older messages when scrolled up)
-    const topSentinel = document.createElement('div');
-    topSentinel.id = 'chat-top-sentinel';
-    topSentinel.style.cssText = 'height: 1px; width: 100%; flex-shrink: 0; pointer-events: none;';
-    cont.appendChild(topSentinel);
+    // Subtle "Load older messages" button at the top of the feed (shown when initial batch has 60 messages)
+    const loadOlderBtn = document.createElement('button');
+    loadOlderBtn.type = 'button';
+    loadOlderBtn.id = 'load-older-messages-btn';
+    loadOlderBtn.className = 'load-older-messages-btn';
+    loadOlderBtn.textContent = 'Load older messages';
+    loadOlderBtn.style.display = 'none';
+    cont.appendChild(loadOlderBtn);
 
     let currentOldestMessageKey = null;
-    let currentNewestMessageKey = null;
     let isLoadingOlderMessages = false;
-    let hasMoreOlderMessages = true;
+    let hasMoreOlderMessages = false;
     let lastSenderId = null;
 
-    // Helper: load previous 15 messages via endBefore() cursor
+    // Fetch previous 60 messages on demand via endBefore() cursor
     async function loadOlderMessages() {
-        if (isLoadingOlderMessages || !hasMoreOlderMessages || !currentOldestMessageKey || currentChatId !== chatId) return;
+        if (isLoadingOlderMessages || !hasMoreOlderMessages || !currentOldestMessageKey || currentChatId !== chatId || openToken !== currentChatOpenToken) return;
         isLoadingOlderMessages = true;
+        loadOlderBtn.disabled = true;
+        loadOlderBtn.textContent = 'Loading older messages...';
 
         const prevOldestKey = currentOldestMessageKey;
         const oldScrollHeight = cont.scrollHeight;
@@ -7492,14 +7565,14 @@ async function openChat(chatId, title) {
                 ref(db, `messages/${chatId}`),
                 orderByKey(),
                 endBefore(prevOldestKey),
-                limitToLast(15)
+                limitToLast(60)
             );
             const olderSnap = await get(olderQuery);
-            if (currentChatId !== chatId) return;
+            if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
 
             if (!olderSnap.exists() || olderSnap.size === 0) {
                 hasMoreOlderMessages = false;
-                isLoadingOlderMessages = false;
+                loadOlderBtn.style.display = 'none';
                 return;
             }
 
@@ -7508,8 +7581,9 @@ async function openChat(chatId, title) {
                 olderMessages.push({ key: child.key, val: child.val() });
             });
 
-            if (olderMessages.length < 15) {
+            if (olderMessages.length < 60) {
                 hasMoreOlderMessages = false;
+                loadOlderBtn.style.display = 'none';
             }
 
             currentOldestMessageKey = olderMessages[0].key;
@@ -7517,195 +7591,144 @@ async function openChat(chatId, title) {
             let prevSender = null;
             for (const item of olderMessages) {
                 const msg = item.val;
-                const isConsecutive = prevSender && prevSender === msg.sender_id;
-                prevSender = msg.sender_id;
-                renderMessage(msg, isConsecutive, item.key);
+                if (cont.querySelector(`[data-msg-id="${item.key}"]`)) {
+                    prevSender = msg.sender_id || msg.sender;
+                    continue;
+                }
+                const senderUid = msg.sender_id || msg.sender;
+                const isConsecutive = Boolean(prevSender && prevSender === senderUid);
+                prevSender = senderUid;
+                const el = buildMessageElement(item.key, msg, isConsecutive);
+                insertMessageIntoDOM(el, msg.timestamp);
             }
 
-            // Maintain exact scroll position without violent jumping
+            // Preserve scroll position smoothly
             const newScrollHeight = cont.scrollHeight;
             cont.scrollTop = oldScrollTop + (newScrollHeight - oldScrollHeight);
         } catch (err) {
             console.error("Error loading older messages:", err);
         } finally {
             isLoadingOlderMessages = false;
+            loadOlderBtn.disabled = false;
+            loadOlderBtn.textContent = 'Load older messages';
         }
     }
 
-    // Scroll listener for top reverse pagination
+    loadOlderBtn.onclick = loadOlderMessages;
+
+    // Smart auto-scroll & Jump to latest pill listener
     const onChatScroll = () => {
-        if (cont.scrollTop <= 60 && !isLoadingOlderMessages && hasMoreOlderMessages) {
-            loadOlderMessages();
-        }
+        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
+        userPinnedToBottom = window.isUserNearBottom();
+        updateJumpToBottomButton();
     };
     cont.addEventListener('scroll', onChatScroll, { passive: true });
+    window.registerChatCleanup(() => cont.removeEventListener('scroll', onChatScroll));
 
-    // IntersectionObserver attached to top sentinel
-    let topObserver = null;
-    if ('IntersectionObserver' in window) {
-        topObserver = new IntersectionObserver((entries) => {
-            if (entries[0].isIntersecting && !isLoadingOlderMessages && hasMoreOlderMessages) {
-                loadOlderMessages();
-            }
-        }, { root: cont, threshold: 0.1 });
-        topObserver.observe(topSentinel);
-    }
+    const msgQuery = query(ref(db, `messages/${chatId}`), orderByKey(), limitToLast(60));
 
-    // Stale-While-Revalidate Local Storage Cache Pattern
-    const clearChatContainer = () => {
-        cleanupLobbyCardListeners();
-        const children = Array.from(cont.children);
-        for (const child of children) {
-            if (child !== topSentinel) {
-                child.remove();
-            }
+    const addedOff = onChildAdded(msgQuery, (snap) => {
+        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
+        const msgId = snap.key;
+        const msgData = snap.val();
+        if (!msgId || !msgData) return;
+
+        if (!currentOldestMessageKey || msgId < currentOldestMessageKey) {
+            currentOldestMessageKey = msgId;
         }
-        lastSenderId = null;
-    };
 
-    const renderMessageList = (messagesList) => {
-        if (!messagesList || messagesList.length === 0) {
-            hasMoreOlderMessages = false;
+        const senderUid = msgData.sender_id || msgData.sender;
+        const existingEl = cont.querySelector(`[data-msg-id="${msgId}"]`);
+
+        if (existingEl) {
+            // Reconcile optimistic message in place without duplicating or flashing
+            existingEl.classList.remove('msg-pending', 'msg-failed');
+            existingEl.querySelectorAll('.msg-failed-indicator').forEach(ind => ind.remove());
+            if (msgData.timestamp) {
+                existingEl.dataset.timestamp = msgData.timestamp;
+            }
+            const tsEl = existingEl.querySelector('.msg-timestamp');
+            if (tsEl) {
+                tsEl.innerHTML = buildMessageTimestampHtml(msgData);
+                if (window.twemoji) twemoji.parse(tsEl);
+            }
+            lastSenderId = senderUid;
             return;
         }
-        if (messagesList.length < 15) {
-            hasMoreOlderMessages = false;
-        }
-        currentOldestMessageKey = messagesList[0].key;
-        currentNewestMessageKey = messagesList[messagesList.length - 1].key;
-        lastSenderId = null;
 
-        for (const item of messagesList) {
-            const msg = item.val;
-            if (chatId !== 'channel_orion_updates' && msg.sender_id !== auth.currentUser.uid && !viewedMessagesInSession.has(item.key)) {
-                viewedMessagesInSession.add(item.key);
-                update(ref(db, `messages/${chatId}/${item.key}`), { 
-                    [`viewedBy/${auth.currentUser.uid}`]: true
-                }).catch(() => {});
-            }
-            const isConsecutive = msg.sender_id === lastSenderId;
-            renderMessage(msg, isConsecutive, item.key);
-            lastSenderId = msg.sender_id;
-        }
-        cont.scrollTop = cont.scrollHeight;
-        updateInputButtons();
-    };
+        const shouldAutoScroll = !initialLoadDone || window.isUserNearBottom() || senderUid === auth.currentUser?.uid;
 
-    const fetchRecentMessagesFromDB = async (roomId) => {
-        const initialQuery = query(ref(db, `messages/${roomId}`), orderByKey(), limitToLast(15));
-        const initialSnap = await get(initialQuery);
-        if (currentChatId !== roomId) return [];
-
-        const freshMessages = [];
-        initialSnap.forEach(child => {
-            freshMessages.push({ key: child.key, val: child.val() });
-        });
-        return freshMessages;
-    };
-
-    const loadChatMessages = async (roomId) => {
-        const cacheKey = `orion_cache_${roomId}`;
-        const cachedData = localStorage.getItem(cacheKey);
-
-        // 1. Instantly render from local cache if it exists
-        if (cachedData) {
-            try {
-                const parsedCache = JSON.parse(cachedData);
-                renderMessageList(parsedCache);
-            } catch (err) {
-                console.error('[CACHE] Corrupt cache parsing failed:', err);
-            }
-        }
-
-        // 2. Silently fetch the latest 15 messages from the server/Firebase
-        try {
-            const freshMessages = await fetchRecentMessagesFromDB(roomId);
-            if (currentChatId !== roomId) return;
-
-            // 3. Check for changes
-            const freshDataString = JSON.stringify(freshMessages);
-            if (cachedData !== freshDataString) {
-                // Update cache and refresh UI only if data changed
-                try {
-                    localStorage.setItem(cacheKey, freshDataString);
-                } catch (e) {
-                    console.warn('[CACHE] localStorage quota exceeded or write failed:', e);
-                }
-
-                clearChatContainer();
-                renderMessageList(freshMessages);
-            }
-        } catch (error) {
-            console.error('[CACHE] Background sync failed:', error);
-        }
-    };
-
-    await loadChatMessages(chatId);
-    if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
-
-    // Real-time listener for newly appended messages
-    const newMsgsQuery = currentNewestMessageKey
-        ? query(ref(db, `messages/${chatId}`), orderByKey(), startAfter(currentNewestMessageKey))
-        : ref(db, `messages/${chatId}`);
-
-    const addedOff = onChildAdded(newMsgsQuery, (data) => {
-        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
-        // Guard against duplicate if initial batch already rendered it
-        if (document.getElementById(`msg-${data.key}`)) return;
-
-        if (!currentOldestMessageKey) {
-            currentOldestMessageKey = data.key;
-        }
-        currentNewestMessageKey = data.key;
-
-        const messageData = data.val();
-        if (chatId !== 'channel_orion_updates' && currentChatId && messageData.sender_id !== auth.currentUser.uid && !viewedMessagesInSession.has(data.key)) {
-            viewedMessagesInSession.add(data.key);
-            update(ref(db, `messages/${currentChatId}/${data.key}`), { 
+        if (chatId !== 'channel_orion_updates' && senderUid !== auth.currentUser?.uid && !viewedMessagesInSession.has(msgId)) {
+            viewedMessagesInSession.add(msgId);
+            update(ref(db, `messages/${chatId}/${msgId}`), {
                 [`viewedBy/${auth.currentUser.uid}`]: true
             }).catch(() => {});
         }
 
-        const isConsecutive = messageData.sender_id === lastSenderId;
-        renderMessage(messageData, isConsecutive, data.key);
-        lastSenderId = messageData.sender_id;
+        const isConsecutive = Boolean(lastSenderId && senderUid === lastSenderId);
+        const msgEl = buildMessageElement(msgId, msgData, isConsecutive);
+        insertMessageIntoDOM(msgEl, msgData.timestamp);
+        lastSenderId = senderUid;
 
-        // Auto-scroll to bottom if user is close to bottom or sent by current user
-        const isNearBottom = cont.scrollHeight - cont.scrollTop - cont.clientHeight < 160;
-        if (isNearBottom || messageData.sender_id === auth.currentUser.uid) {
+        if (shouldAutoScroll) {
+            userPinnedToBottom = true;
+            unreadBelowCount = 0;
             cont.scrollTop = cont.scrollHeight;
+            updateJumpToBottomButton(true);
+        } else {
+            unreadBelowCount++;
+            updateJumpToBottomButton();
         }
         updateInputButtons();
     });
+    window.registerChatCleanup(addedOff);
 
-    const changedOff = onChildChanged(ref(db, `messages/${chatId}`), (data) => {
+    const changedOff = onChildChanged(msgQuery, (snap) => {
         if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
-        const wrap = document.getElementById(`msg-${data.key}`);
-        if (wrap) {
-            const wasConsecutive = wrap.classList.contains('consecutive');
-            renderMessage(data.val(), wasConsecutive, data.key);
+        const existingEl = cont.querySelector(`[data-msg-id="${snap.key}"]`);
+        if (existingEl) {
+            patchMessageElementInPlace(existingEl, snap.key, snap.val());
         }
     });
+    window.registerChatCleanup(changedOff);
 
-    const removedOff = onChildRemoved(ref(db, `messages/${chatId}`), (data) => {
+    const removedOff = onChildRemoved(msgQuery, (snap) => {
         if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
-        const unsub = activeLobbyCardUnsubs.get(data.key);
+        const unsub = activeLobbyCardUnsubs.get(snap.key);
         if (typeof unsub === 'function') {
             unsub();
-            activeLobbyCardUnsubs.delete(data.key);
+            activeLobbyCardUnsubs.delete(snap.key);
         }
-        const wrap = document.getElementById(`msg-${data.key}`);
-        if (wrap) wrap.remove();
+        const existingEl = cont.querySelector(`[data-msg-id="${snap.key}"]`);
+        if (existingEl) existingEl.remove();
     });
+    window.registerChatCleanup(removedOff);
 
     activeMessagesOff = () => {
         addedOff();
         changedOff();
         removedOff();
         cont.removeEventListener('scroll', onChatScroll);
-        if (topObserver) topObserver.disconnect();
     };
-    window.registerChatCleanup(activeMessagesOff);
+
+    try {
+        const initialSnap = await get(msgQuery);
+        if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
+        if (initialSnap.size >= 60) {
+            hasMoreOlderMessages = true;
+            loadOlderBtn.style.display = 'inline-flex';
+        }
+    } catch (err) {
+        console.warn('[Chat] Initial batch sync check error:', err);
+    }
+
+    if (currentChatId !== chatId || openToken !== currentChatOpenToken) return;
+    initialLoadDone = true;
+    userPinnedToBottom = true;
+    unreadBelowCount = 0;
+    cont.scrollTop = cont.scrollHeight;
+    updateJumpToBottomButton(true);
+    updateInputButtons();
 }
 
 // --- Join Card Renderer ---
@@ -7873,39 +7896,168 @@ function attachLobbyCardListener(chatId, messageId, gameId, countBadge, joinBtn,
     window.registerChatCleanup(unsub);
 }
 
-function renderMessage(msg, isConsecutive = false, messageId) {
+function buildMessageTimestampHtml(msg) {
+    const timeStr = formatSmartTimestamp(msg.timestamp);
+    let viewCounterHtml = "";
+    const isDM = !(currentChatData?.isGroup || currentChatData?.isChannel || currentChatId === 'channel_orion_updates');
+    const viewCount = msg.viewedBy ? Object.keys(msg.viewedBy).length : (msg.views || 0);
+
+    if (viewCount > 0) {
+        if (isDM) {
+            viewCounterHtml = `<span class="msg-views" title="Seen">\u{1F441}\u{FE0F}</span>`;
+        } else {
+            viewCounterHtml = `<span class="msg-views" title="${viewCount} views">\u{1F441}\u{FE0F} ${viewCount}</span>`;
+        }
+    }
+    return `${msg.edited_at ? "Edited \u{2022} " : ""}${viewCounterHtml} ${timeStr}`;
+}
+
+function buildReactionsContainer(messageId, reactionsMap) {
+    if (!reactionsMap || typeof reactionsMap !== 'object') return null;
+    const entries = Object.entries(reactionsMap).filter(([, users]) => users && Object.keys(users).length > 0);
+    if (entries.length === 0) return null;
+
+    const reactionsCont = document.createElement('div');
+    reactionsCont.className = 'msg-reactions-container';
+
+    for (const [rawEmoji, users] of entries) {
+        const emoji = sanitizeMojibakeEmoji(rawEmoji);
+        const uids = Object.keys(users);
+
+        const tag = document.createElement('div');
+        tag.className = 'reaction-tag';
+        tag.title = uids.map(uid => uid === auth.currentUser?.uid ? "You" : (currentChatMemberNames.get(uid) || "...")).join(", ");
+
+        Promise.all(uids.map(async (uid) => {
+            if (uid === auth.currentUser?.uid) return "You";
+            if (currentChatMemberNames.has(uid)) return currentChatMemberNames.get(uid);
+            try {
+                const uSnap = await get(ref(db, `users/${uid}`));
+                const uData = uSnap.val();
+                const name = uData?.displayName || (uData?.email ? uData.email.split('@')[0] : "User");
+                currentChatMemberNames.set(uid, name);
+                return name;
+            } catch (_) {
+                return "User";
+            }
+        })).then(resolvedNames => {
+            tag.title = resolvedNames.join(", ");
+        });
+
+        tag.innerHTML = `<span>${emoji}</span> <small>${uids.length}</small>`;
+        tag.onclick = (e) => {
+            e.stopPropagation();
+            toggleReaction(messageId, rawEmoji);
+        };
+        reactionsCont.appendChild(tag);
+    }
+
+    return reactionsCont;
+}
+
+function syncReactionsContainerInPlace(container, messageId, reactionsMap) {
+    if (!container) return;
+    const existing = container.querySelector('.msg-reactions-container');
+    const nextCont = buildReactionsContainer(messageId, reactionsMap);
+    if (existing && nextCont) {
+        existing.replaceWith(nextCont);
+        if (window.twemoji) twemoji.parse(nextCont);
+    } else if (existing && !nextCont) {
+        existing.remove();
+    } else if (!existing && nextCont) {
+        container.insertBefore(nextCont, container.firstChild);
+        if (window.twemoji) twemoji.parse(nextCont);
+    }
+}
+
+function buildReactionsBar(messageId) {
+    const reactionsBar = document.createElement('div');
+    reactionsBar.className = 'msg-reactions-bar';
+    const defaultReactions = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F602}", "\u{1F62E}", "\u{1F622}"];
+
+    defaultReactions.forEach(emoji => {
+        const span = document.createElement('span');
+        span.className = 'reaction-emoji';
+        span.innerText = emoji;
+        span.onclick = (e) => {
+            e.stopPropagation();
+            toggleReaction(messageId, emoji);
+        };
+        reactionsBar.appendChild(span);
+    });
+
+    const expandBtn = document.createElement('button');
+    expandBtn.className = 'expand-reactions-btn';
+    expandBtn.innerHTML = '&#x203A;';
+    expandBtn.title = "More reactions";
+    expandBtn.onclick = async (e) => {
+        e.stopPropagation();
+        const picker = document.getElementById('emoji-picker');
+        const isSameMessage = activeReactionMessageId === messageId;
+
+        activeReactionMessageId = isSameMessage && picker.style.display === 'grid' ? null : messageId;
+
+        if (picker.style.display === 'none' || !isSameMessage) {
+            const pm = document.getElementById('plus-menu');
+            if (pm) { pm.style.display = 'none'; pm.classList.add('hidden'); }
+            await renderEmojiPicker();
+            picker.style.display = 'grid';
+            picker.scrollTop = 0;
+        } else {
+            picker.style.display = 'none';
+        }
+    };
+    reactionsBar.appendChild(expandBtn);
+    return reactionsBar;
+}
+
+function buildFormattedMessageHtml(msg, formattedOverride = null) {
+    const formatted = formattedOverride || linkifyAndEmbed(msg.text);
+    let htmlContent = formatted.html;
+
+    if (msg.imageUrl && !formatted.imageUrls.includes(msg.imageUrl)) {
+        formatted.imageUrls.push(msg.imageUrl);
+    }
+    if ((msg.imageUrl || msg.videoUrl) && (msg.text === msg.imageUrl || msg.text === msg.videoUrl || !msg.text)) {
+        htmlContent = "";
+    }
+
+    if (currentChatMemberNames) {
+        currentChatMemberNames.forEach((name) => {
+            const escapedName = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const mentionRegex = new RegExp(`@${escapedName}\\b`, 'g');
+            htmlContent = htmlContent.replace(mentionRegex, `<span class="mention-pill">@${name}</span>`);
+        });
+    }
+    htmlContent = htmlContent.replace(/@everyone\b/gi, `<span class="mention-pill">@everyone</span>`);
+    return { htmlContent, formatted };
+}
+
+function buildMessageElement(messageId, msg, isConsecutive = false) {
     const cont = document.getElementById('messages-container');
-    let wrap = document.getElementById(`msg-${messageId}`);
-    const isNew = !wrap;
+    const wrap = document.createElement('div');
+    wrap.id = `msg-${messageId}`;
+    wrap.dataset.msgId = messageId;
+    const senderUid = msg.sender_id || msg.sender || '';
+    wrap.dataset.senderId = senderUid;
+    wrap.dataset.timestamp = msg.timestamp || Date.now();
+    wrap.dataset.textValue = msg.text || '';
+    wrap.dataset.mediaKey = `${msg.imageUrl || ''}|${msg.videoUrl || ''}`;
 
-    if (isNew) {
-        wrap = document.createElement('div');
-        wrap.id = `msg-${messageId}`;
-        wrap.dataset.senderId = msg.sender_id || msg.sender; // Store sender_id on the message wrapper
-        wrap.dataset.timestamp = msg.timestamp;
-    } else {
-        wrap.innerHTML = ''; // Clear for update (reactions/edits)
-    }
-
-    const senderUid = msg.sender_id || msg.sender;
-    const isMe = senderUid === auth.currentUser.uid;
+    const isMe = senderUid === auth.currentUser?.uid;
     const isSystem = senderUid === 'system';
-    const myName = document.getElementById('current-user-name').innerText;
-    const myMentionRegex = new RegExp(`@${myName}\\b`, 'i');
+    const myName = document.getElementById('current-user-name')?.innerText || '';
+    const escapedMyName = myName.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    const myMentionRegex = myName ? new RegExp(`@${escapedMyName}\\b`, 'i') : null;
     const everyoneMentionRegex = /@everyone\b/i;
+    const isUserMentioned = !isMe && msg.text && ((myMentionRegex && myMentionRegex.test(msg.text)) || everyoneMentionRegex.test(msg.text));
 
-    const isUserMentioned = !isMe && msg.text && (myMentionRegex.test(msg.text) || everyoneMentionRegex.test(msg.text));
-
-    // Check for sticker messages
-    if (msg.stickerId) {
-        renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserMentioned);
-        return; // Exit early as it's a sticker, not text
+    if (msg.poll) {
+        return populatePollMessageElement(wrap, msg, isConsecutive, messageId, isMe, isUserMentioned);
     }
 
-    // Check for poll messages
-    if (msg.poll) {
-        renderPollMessage(msg, isConsecutive, messageId, isMe, isUserMentioned);
-        return;
+    if (msg.stickerId) {
+        return populateStickerMessageElement(wrap, msg, isConsecutive, messageId, isMe, isUserMentioned);
     }
 
     if (isSystem) {
@@ -7926,7 +8078,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         senderName: msg.sender_name || (isMe ? (auth.currentUser?.displayName || 'You') : 'User')
     };
 
-    // Handle Game Invite Link
+    // Game Invite Link
     if (msg.gameInvite || msg.isGameInvite) {
         bubble.classList.add('game-invite-bubble');
         const inviteType = normalizeGameTypeKey(msg.gameType || msg.type);
@@ -7938,6 +8090,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
                 : (inviteType === 'spy' ? "\u{1F575}\u{FE0F} SPY LOBBY" : "\u{1F6A9} WORLD FLAGS LOBBY"));
 
         const inviteText = document.createElement('div');
+        inviteText.className = 'lobby-invite-title';
         inviteText.style.fontWeight = '700';
         inviteText.innerText = msg.expired ? "\u{1F6A9} GAME CLOSED" : lobbyHeaderText;
         bubble.appendChild(inviteText);
@@ -7972,56 +8125,17 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         }
     }
 
-    // Reactions Bar
-    const reactionsBar = document.createElement('div');
-    reactionsBar.className = 'msg-reactions-bar';
-    const defaultReactions = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F602}", "\u{1F62E}", "\u{1F622}"];
-    
-    defaultReactions.forEach(emoji => {
-        const span = document.createElement('span');
-        span.className = 'reaction-emoji';
-        span.innerText = emoji;
-        span.onclick = (e) => {
-            e.stopPropagation();
-            toggleReaction(messageId, emoji);
-        };
-        reactionsBar.appendChild(span);
-    });
+    wrap.appendChild(buildReactionsBar(messageId));
 
-    const expandBtn = document.createElement('button');
-    expandBtn.className = 'expand-reactions-btn';
-    expandBtn.innerHTML = '&#x203A;'; // ›
-    expandBtn.title = "More reactions";
-    expandBtn.onclick = async (e) => {
-        e.stopPropagation();
-        const picker = document.getElementById('emoji-picker');
-        const isSameMessage = activeReactionMessageId === messageId;
-        
-        activeReactionMessageId = isSameMessage && picker.style.display === 'grid' ? null : messageId;
-
-        if (picker.style.display === 'none' || !isSameMessage) {
-            const pm = document.getElementById('plus-menu');
-            if (pm) { pm.style.display = 'none'; pm.classList.add('hidden'); }
-            await renderEmojiPicker();
-            picker.style.display = 'grid';
-            picker.scrollTop = 0;
-        } else {
-            picker.style.display = 'none';
-        }
-    };
-    reactionsBar.appendChild(expandBtn);
-    wrap.appendChild(reactionsBar);
-    
-    // Render quoted reply if exists
+    // Quoted reply
     if (msg.reply_to) {
         const quote = document.createElement('div');
         quote.className = 'reply-quote';
-        
+
         const displayReplyText = msg.reply_to.text.startsWith('data:image/') ? "Image" : msg.reply_to.text;
-        // Limit the reply preview to 35 characters for a more compact look
         const replyLimit = 35;
-        const truncatedText = displayReplyText.length > replyLimit 
-            ? displayReplyText.substring(0, replyLimit) + "..." 
+        const truncatedText = displayReplyText.length > replyLimit
+            ? displayReplyText.substring(0, replyLimit) + "..."
             : displayReplyText;
 
         quote.innerHTML = `
@@ -8029,9 +8143,8 @@ function renderMessage(msg, isConsecutive = false, messageId) {
             <div>${escapeHTML(truncatedText)}</div>
         `;
 
-        // Add click listener to scroll to and highlight the original message
         quote.onclick = (e) => {
-            e.stopPropagation(); // Prevent triggering any bubble click events
+            e.stopPropagation();
             const targetId = `msg-${msg.reply_to.id}`;
             const targetElem = document.getElementById(targetId);
             if (targetElem) {
@@ -8044,80 +8157,25 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         };
         bubble.appendChild(quote);
     }
-    
-    // Create a main content container to overlap the quote
+
     const msgContent = document.createElement('div');
     msgContent.className = 'msg-content';
     bubble.appendChild(msgContent);
 
-    // Reactions Display Container
-    if (msg.reactions) {
-        const reactionsCont = document.createElement('div');
-        reactionsCont.className = 'msg-reactions-container';
-        
-        for (const [rawEmoji, users] of Object.entries(msg.reactions)) {
-            const emoji = sanitizeMojibakeEmoji(rawEmoji);
-            const uids = Object.keys(users);
-            if (uids.length === 0) continue;
-
-            const tag = document.createElement('div');
-            tag.className = 'reaction-tag';
-            
-            // Set a temporary "..." or check cache immediately
-            tag.title = uids.map(uid => uid === auth.currentUser.uid ? "You" : (currentChatMemberNames.get(uid) || "...")).join(", ");
-            
-            // Asynchronously resolve all names to ensure the tooltip is accurate
-            Promise.all(uids.map(async (uid) => {
-                if (uid === auth.currentUser.uid) return "You";
-                if (currentChatMemberNames.has(uid)) return currentChatMemberNames.get(uid);
-                
-                const uSnap = await get(ref(db, `users/${uid}`));
-                const uData = uSnap.val();
-                const name = uData?.displayName || (uData?.email ? uData.email.split('@')[0] : "User");
-                currentChatMemberNames.set(uid, name); // Cache it for other messages
-                return name;
-            })).then(resolvedNames => {
-                tag.title = resolvedNames.join(", ");
-            });
-            
-            tag.innerHTML = `<span>${emoji}</span> <small>${uids.length}</small>`;
-            tag.onclick = (e) => {
-                e.stopPropagation();
-                toggleReaction(messageId, rawEmoji);
-            };
-            reactionsCont.appendChild(tag);
-        }
+    const reactionsCont = buildReactionsContainer(messageId, msg.reactions);
+    if (reactionsCont) {
         msgContent.appendChild(reactionsCont);
     }
 
-    const formatted = linkifyAndEmbed(msg.text);
-    let htmlContent = formatted.html;
+    const { htmlContent, formatted } = buildFormattedMessageHtml(msg);
 
-    // Handle direct imageUrl / videoUrl fields
-    if (msg.imageUrl && !formatted.imageUrls.includes(msg.imageUrl)) {
-        formatted.imageUrls.push(msg.imageUrl);
-    }
-    if ((msg.imageUrl || msg.videoUrl) && (msg.text === msg.imageUrl || msg.text === msg.videoUrl || !msg.text)) {
-        htmlContent = "";
-    }
-
-    // Bold and style mentions within the message
-    if (currentChatMemberNames) {
-        currentChatMemberNames.forEach((name) => {
-            const mentionRegex = new RegExp(`@${name}\\b`, 'g');
-            htmlContent = htmlContent.replace(mentionRegex, `<span class="mention-pill">@${name}</span>`);
-        });
-    }
-    htmlContent = htmlContent.replace(/@everyone\b/gi, `<span class="mention-pill">@everyone</span>`);
-
-    // Only show text node if there's actual text remaining or if there are no other embeds to show
     if (htmlContent || (formatted.imageUrls.length === 0 && !formatted.youtubeId && !formatted.tiktokId && !formatted.tiktokShort && !formatted.instagramId && formatted.joinChatIds.length === 0)) {
         const textNode = document.createElement('div');
+        textNode.className = 'msg-text-body';
         textNode.innerHTML = htmlContent;
         msgContent.appendChild(textNode);
     }
 
-    // Inline OTA update install card inside message (if not already parsed in-text via [UPDATE_VERSION:...])
     if (msg.metadata && msg.metadata.type === 'app_update' && !msg.text?.includes('[UPDATE_VERSION:')) {
         const updateVersion = msg.metadata.version || '1.0.2';
         const updateCard = document.createElement('div');
@@ -8158,9 +8216,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
                 modalImg.referrerPolicy = 'no-referrer';
                 modalImg.setAttribute('referrerpolicy', 'no-referrer');
                 modalImg.src = img.src;
-                // Extract sender name from the message data
                 senderNameEl.textContent = msg.sender_name || msg.senderName || (isMe ? 'You' : 'Photo');
-                // Store current image URL globally for download button
                 window.currentViewingImage = img.src;
                 modal.classList.remove('hidden');
             } else {
@@ -8170,8 +8226,9 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         img.onload = () => {
             imgWrap.style.minHeight = '';
             imgWrap.style.background = '';
-            const isNearBottom = cont.scrollHeight - cont.scrollTop - cont.clientHeight < 120;
-            if (isNearBottom) cont.scrollTop = cont.scrollHeight;
+            if (cont && (userPinnedToBottom || window.isUserNearBottom())) {
+                cont.scrollTop = cont.scrollHeight;
+            }
         };
         imgWrap.appendChild(img);
         msgContent.appendChild(imgWrap);
@@ -8206,7 +8263,7 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     if (formatted.tiktokId) {
         const ttWrap = document.createElement('div');
         ttWrap.className = 'tt-embed-wrapper';
-        ttWrap.innerHTML = `<iframe src="https://www.tiktok.com/embed/v2/${formatted.tiktokId}?lang=en-US"  style="border:0; width:100%; height:580px; border-radius:12px; background:#000;"  allow="encrypted-media;" allowfullscreen> </iframe>`;
+        ttWrap.innerHTML = `<iframe src="https://www.tiktok.com/embed/v2/${formatted.tiktokId}?lang=en-US" style="border:0; width:100%; height:580px; border-radius:12px; background:#000;" allow="encrypted-media;" allowfullscreen></iframe>`;
         msgContent.appendChild(ttWrap);
     } else if (formatted.tiktokShort) {
         const ttWrap = document.createElement('div');
@@ -8227,22 +8284,22 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         `;
         msgContent.appendChild(igWrap);
     }
-    
+
     formatted.joinChatIds.forEach(id => {
         renderJoinCard(id, msgContent);
     });
-    
+
     const actionsContainer = document.createElement('div');
     actionsContainer.className = 'msg-actions';
-    
+
     const actionButton = document.createElement('button');
     actionButton.className = 'msg-action-btn';
-    actionButton.innerHTML = '&#x25BC;'; 
-    
+    actionButton.innerHTML = '&#x25BC;';
+
     const actionMenu = document.createElement('div');
     actionMenu.className = 'msg-action-menu';
     actionMenu.style.display = 'none';
-    
+
     const closeActionMenu = () => {
         actionMenu.style.display = 'none';
         actionMenu.style.transform = '';
@@ -8259,21 +8316,21 @@ function renderMessage(msg, isConsecutive = false, messageId) {
     replyBtn.className = 'glass-btn-secondary';
     replyBtn.onclick = (e) => {
         e.stopPropagation();
-        replyToMessage(messageId, msg.text, msg.sender_name);
+        replyToMessage(messageId, bubble._replyData?.text || msg.text, msg.sender_name);
         closeActionMenu();
     };
     actionMenu.appendChild(replyBtn);
 
     const pinBtn = createPinActionMenuButton(messageId, closeActionMenu);
     if (pinBtn) actionMenu.appendChild(pinBtn);
-    
+
     if (isMe) {
         const editBtn = document.createElement('button');
         editBtn.innerText = 'Edit';
         editBtn.className = 'glass-btn-secondary';
         editBtn.onclick = (e) => {
             e.stopPropagation();
-            editMessage(messageId, msg.text);
+            editMessage(messageId, bubble._replyData?.text || msg.text);
             closeActionMenu();
         };
         actionMenu.appendChild(editBtn);
@@ -8288,10 +8345,10 @@ function renderMessage(msg, isConsecutive = false, messageId) {
         };
         actionMenu.appendChild(deleteBtn);
     }
-    
+
     actionsContainer.appendChild(actionButton);
     actionsContainer.appendChild(actionMenu);
-    
+
     const toggleMenu = (e) => {
         if (e) e.stopPropagation();
         const isOpening = actionMenu.style.display === 'none' || !actionMenu.style.display;
@@ -8305,7 +8362,6 @@ function renderMessage(msg, isConsecutive = false, messageId) {
 
     actionButton.onclick = toggleMenu;
 
-    // Mobile-Only Tap Trigger: hide dropdown triangle and bind menu toggle to message bubble
     const isMobile = window.Capacitor?.isNative || /Mobi|Android/i.test(navigator.userAgent);
     if (isMobile) {
         actionButton.style.display = 'none';
@@ -8314,42 +8370,27 @@ function renderMessage(msg, isConsecutive = false, messageId) {
             toggleMenu(e);
         };
     }
-    
+
     bubble.appendChild(actionsContainer);
     attachMessageContextMenu(bubble, messageId, msg, isMe);
-    
+
     let avatarHtml;
     if (isSystem) {
         avatarHtml = `<div class="msg-avatar-fallback system-avatar" style="background: rgba(56, 189, 248, 0.2); color: #38bdf8; display: flex; align-items: center; justify-content: center; border-radius: 50%; width: 28px; height: 28px; font-size: 15px;">🛡️</div>`;
     } else {
-        const senderUid = msg.sender_id || msg.sender;
         const pfp = currentChatMemberPics.get(senderUid);
-        avatarHtml = pfp 
+        avatarHtml = pfp
             ? `<img src="${pfp}" loading="lazy" decoding="async" class="msg-avatar-img" onclick="event.stopPropagation(); showUserProfile('${senderUid}', currentChatId, currentChatCreatorId)">`
             : `<div class="msg-avatar-fallback">\u{1F464}</div>`;
     }
 
-    const author = createAuthorElement(msg, () => showUserProfile(msg.sender_id || msg.sender, currentChatId, currentChatCreatorId));
-    
+    const author = createAuthorElement(msg, () => showUserProfile(senderUid, currentChatId, currentChatCreatorId));
+
     const timestampElem = document.createElement('span');
     timestampElem.className = 'msg-timestamp';
-    const timeStr = formatSmartTimestamp(msg.timestamp);
-    
-    let viewCounterHtml = "";
-    const isDM = !(currentChatData?.isGroup || currentChatData?.isChannel || currentChatId === 'channel_orion_updates');
-    const viewCount = msg.viewedBy ? Object.keys(msg.viewedBy).length : (msg.views || 0);
+    timestampElem.innerHTML = buildMessageTimestampHtml(msg);
 
-    if (viewCount > 0) {
-        if (isDM) {
-            viewCounterHtml = `<span class="msg-views" title="Seen">\u{1F441}\u{FE0F}</span>`;
-        } else {
-            viewCounterHtml = `<span class="msg-views" title="${viewCount} views">\u{1F441}\u{FE0F} ${viewCount}</span>`;
-        }
-    }
-    
-    timestampElem.innerHTML = `${msg.edited_at ? "Edited \u{2022} " : ""}${viewCounterHtml} ${timeStr}`;
-    
-    if (!isConsecutive || !isMe) { 
+    if (!isConsecutive || !isMe) {
         const header = document.createElement('div');
         header.className = 'msg-header';
         header.innerHTML = avatarHtml;
@@ -8359,23 +8400,145 @@ function renderMessage(msg, isConsecutive = false, messageId) {
 
     wrap.appendChild(bubble);
     wrap.appendChild(timestampElem);
-    twemoji.parse(wrap);
-    if (isNew) insertMessageIntoDOM(wrap, msg.timestamp);
+    if (window.twemoji) twemoji.parse(wrap);
+    return wrap;
 }
 
-async function renderPollMessage(msg, isConsecutive, messageId, isMe, isUserMentioned) {
-    const cont = document.getElementById('messages-container');
-    let wrap = document.getElementById(`msg-${messageId}`);
-    const isNew = !wrap;
-    if (isNew) {
-        wrap = document.createElement('div');
-        wrap.id = `msg-${messageId}`;
-        wrap.dataset.senderId = msg.sender_id;
-        wrap.dataset.timestamp = msg.timestamp; // Store timestamp for sorting
-    } else {
-        wrap.innerHTML = '';
+function patchMessageElementInPlace(wrap, messageId, msg) {
+    if (!wrap || !msg) return;
+
+    if (msg.timestamp) {
+        wrap.dataset.timestamp = msg.timestamp;
     }
 
+    // Update timestamp / edited / viewedBy counter cleanly
+    const tsEl = wrap.querySelector('.msg-timestamp');
+    if (tsEl) {
+        tsEl.innerHTML = buildMessageTimestampHtml(msg);
+        if (window.twemoji) twemoji.parse(tsEl);
+    }
+
+    // Update Poll in place without rebuilding wrapper
+    if (msg.poll && wrap.classList.contains('poll-msg')) {
+        const bubble = wrap.querySelector('.poll-bubble');
+        if (bubble) {
+            bubble._replyData = {
+                messageId,
+                text: msg.poll?.question ? `[Poll: ${msg.poll.question}]` : '[Poll]',
+                senderName: msg.sender_name || bubble.dataset.senderName || 'User'
+            };
+            const questionEl = bubble.querySelector('.poll-question');
+            if (questionEl) questionEl.innerText = msg.poll.question;
+
+            const totalVotes = Object.values(msg.poll.options || {}).reduce((sum, opt) => {
+                return sum + (opt.votes ? Object.keys(opt.votes).length : 0);
+            }, 0);
+
+            const optionDivs = bubble.querySelectorAll('.poll-option');
+            (msg.poll.options || []).forEach((opt, idx) => {
+                const optionDiv = optionDivs[idx];
+                if (!optionDiv) return;
+                const voteCount = opt.votes ? Object.keys(opt.votes).length : 0;
+                const percent = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
+                const hasVoted = Boolean(opt.votes && opt.votes[auth.currentUser?.uid]);
+
+                const prog = optionDiv.querySelector('.poll-option-progress');
+                if (prog) prog.style.width = `${percent}%`;
+                const textRow = optionDiv.querySelector('.poll-option-text');
+                if (textRow) {
+                    textRow.innerHTML = `<span>${hasVoted ? '\u{2713} ' : ''}${escapeHTML(opt.text)}</span><strong>${percent}%</strong>`;
+                    if (window.twemoji) twemoji.parse(textRow);
+                }
+            });
+
+            const viewResultsBtn = bubble.querySelector('.poll-results-btn');
+            if (viewResultsBtn) {
+                viewResultsBtn.onclick = (e) => {
+                    e.stopPropagation();
+                    openPollResultsModal(messageId, msg.poll);
+                };
+            }
+        }
+        return;
+    }
+
+    const bubble = wrap.querySelector('.msg-bubble');
+    if (bubble) {
+        bubble._replyData = {
+            messageId,
+            text: msg.stickerId ? '[Sticker]' : (msg.text || ''),
+            senderName: msg.sender_name || bubble.dataset.senderName || 'User'
+        };
+        attachMessageContextMenu(bubble, messageId, msg, (msg.sender_id || msg.sender) === auth.currentUser?.uid);
+    }
+
+    if (msg.stickerId) {
+        syncReactionsContainerInPlace(bubble, messageId, msg.reactions);
+        return;
+    }
+
+    const msgContent = wrap.querySelector('.msg-content');
+    syncReactionsContainerInPlace(msgContent, messageId, msg.reactions);
+
+    const prevText = wrap.dataset.textValue || '';
+    const newText = msg.text || '';
+    const prevMediaKey = wrap.dataset.mediaKey || '|';
+    const newMediaKey = `${msg.imageUrl || ''}|${msg.videoUrl || ''}`;
+
+    if (newMediaKey !== prevMediaKey) {
+        // Media URL itself changed: rebuild only this message cleanly
+        const isConsecutive = wrap.classList.contains('consecutive');
+        const rebuilt = buildMessageElement(messageId, msg, isConsecutive);
+        wrap.replaceWith(rebuilt);
+        return;
+    }
+
+    if (newText !== prevText && msgContent) {
+        const { htmlContent, formatted } = buildFormattedMessageHtml(msg);
+        let textNode = msgContent.querySelector('.msg-text-body');
+        const shouldShowText = Boolean(htmlContent || (formatted.imageUrls.length === 0 && !formatted.youtubeId && !formatted.tiktokId && !formatted.tiktokShort && !formatted.instagramId && formatted.joinChatIds.length === 0));
+
+        if (shouldShowText) {
+            if (!textNode) {
+                textNode = document.createElement('div');
+                textNode.className = 'msg-text-body';
+                const firstEmbed = msgContent.querySelector('.image-embed-wrapper, .drive-video-wrapper, .yt-embed-wrapper, .tt-embed-wrapper, .ig-embed-wrapper, .join-card-embed, .channel-update-card');
+                msgContent.insertBefore(textNode, firstEmbed || null);
+            }
+            textNode.innerHTML = htmlContent;
+            if (window.twemoji) twemoji.parse(textNode);
+        } else if (textNode) {
+            textNode.remove();
+        }
+        wrap.dataset.textValue = newText;
+    }
+
+    if (msg.expired && (msg.gameInvite || msg.isGameInvite)) {
+        const titleEl = wrap.querySelector('.lobby-invite-title');
+        if (titleEl) titleEl.innerText = "\u{1F6A9} GAME CLOSED";
+        const countBadge = wrap.querySelector('.lobby-player-count');
+        if (countBadge) countBadge.innerText = '\u{1F3C1} Finished';
+        const joinBtn = wrap.querySelector('button');
+        if (joinBtn) {
+            joinBtn.disabled = true;
+            joinBtn.innerText = 'Closed';
+            joinBtn.className = 'glass-btn-secondary';
+        }
+    }
+}
+
+function renderMessage(msg, isConsecutive = false, messageId) {
+    const existing = document.getElementById(`msg-${messageId}`);
+    if (existing) {
+        patchMessageElementInPlace(existing, messageId, msg);
+        return existing;
+    }
+    const el = buildMessageElement(messageId, msg, isConsecutive);
+    insertMessageIntoDOM(el, msg.timestamp);
+    return el;
+}
+
+function populatePollMessageElement(wrap, msg, isConsecutive, messageId, isMe, isUserMentioned) {
     wrap.className = (isMe ? 'msg-wrapper sent' : 'msg-wrapper rcv') + ' poll-msg';
     if (isConsecutive) wrap.classList.add('consecutive');
     if (isUserMentioned) wrap.classList.add('user-mentioned');
@@ -8395,17 +8558,17 @@ async function renderPollMessage(msg, isConsecutive, messageId, isMe, isUserMent
     question.innerText = msg.poll.question;
     bubble.appendChild(question);
 
-    const totalVotes = Object.values(msg.poll.options).reduce((sum, opt) => {
+    const totalVotes = Object.values(msg.poll.options || {}).reduce((sum, opt) => {
         return sum + (opt.votes ? Object.keys(opt.votes).length : 0);
     }, 0);
 
-    msg.poll.options.forEach((opt, idx) => {
+    (msg.poll.options || []).forEach((opt, idx) => {
         const optionDiv = document.createElement('div');
         optionDiv.className = 'poll-option';
-        
+
         const voteCount = opt.votes ? Object.keys(opt.votes).length : 0;
         const percent = totalVotes > 0 ? Math.round((voteCount / totalVotes) * 100) : 0;
-        const hasVoted = opt.votes && opt.votes[auth.currentUser.uid];
+        const hasVoted = opt.votes && opt.votes[auth.currentUser?.uid];
 
         optionDiv.innerHTML = `
             <div class="poll-option-progress" style="width: ${percent}%"></div>
@@ -8421,8 +8584,7 @@ async function renderPollMessage(msg, isConsecutive, messageId, isMe, isUserMent
         };
         bubble.appendChild(optionDiv);
     });
-    
-    // Add a "View Results" button
+
     const viewResultsBtn = document.createElement('button');
     viewResultsBtn.className = 'poll-results-btn';
     viewResultsBtn.innerText = 'View Results';
@@ -8434,17 +8596,17 @@ async function renderPollMessage(msg, isConsecutive, messageId, isMe, isUserMent
     attachMessageContextMenu(bubble, messageId, msg, isMe);
 
     const author = createAuthorElement(msg, () => showUserProfile(msg.sender_id, currentChatId, currentChatCreatorId));
-    
+
     const timestampElem = document.createElement('span');
     timestampElem.className = 'msg-timestamp';
-    timestampElem.innerText = formatSmartTimestamp(msg.timestamp);
+    timestampElem.innerHTML = buildMessageTimestampHtml(msg);
 
     if (!isConsecutive || !isMe) wrap.appendChild(author);
     wrap.appendChild(bubble);
     wrap.appendChild(timestampElem);
-    
-    if (isNew) insertMessageIntoDOM(wrap, msg.timestamp);
-    twemoji.parse(wrap);
+
+    if (window.twemoji) twemoji.parse(wrap);
+    return wrap;
 }
 
 async function openPollResultsModal(messageId, pollData) {
@@ -8532,59 +8694,14 @@ async function togglePollVote(messageId, optionIndex) {
     await update(optionsRef, updates);
 }
 
-async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserMentioned) {
+function populateStickerMessageElement(wrap, msg, isConsecutive, messageId, isMe, isUserMentioned) {
     const cont = document.getElementById('messages-container');
-    let wrap = document.getElementById(`msg-${messageId}`);
-    const isNew = !wrap;
-
-    if (isNew) {
-        wrap = document.createElement('div');
-        wrap.id = `msg-${messageId}`;
-        wrap.dataset.senderId = msg.sender_id;
-        wrap.dataset.timestamp = msg.timestamp; // Store timestamp for sorting
-    } else {
-        wrap.innerHTML = ''; // Clear for update
-    }
 
     wrap.className = (isMe ? 'msg-wrapper sent' : 'msg-wrapper rcv') + ' sticker-msg';
     if (isConsecutive) wrap.classList.add('consecutive');
     if (isUserMentioned) wrap.classList.add('user-mentioned');
 
-    // Reactions Bar (Emoji hover menu)
-    const reactionsBar = document.createElement('div');
-    reactionsBar.className = 'msg-reactions-bar';
-    const defaultReactions = ["\u{1F44D}", "\u{2764}\u{FE0F}", "\u{1F602}", "\u{1F62E}", "\u{1F622}"];
-    
-    defaultReactions.forEach(emoji => {
-        const span = document.createElement('span');
-        span.className = 'reaction-emoji';
-        span.innerText = emoji;
-        span.onclick = (e) => {
-            e.stopPropagation();
-            toggleReaction(messageId, emoji);
-        };
-        reactionsBar.appendChild(span);
-    });
-
-    const expandBtn = document.createElement('button');
-    expandBtn.className = 'expand-reactions-btn';
-    expandBtn.innerHTML = '&#x203A;';
-    expandBtn.onclick = async (e) => {
-        e.stopPropagation();
-        const picker = document.getElementById('emoji-picker');
-        const isSameMessage = activeReactionMessageId === messageId;
-        activeReactionMessageId = isSameMessage && picker.style.display === 'grid' ? null : messageId;
-        if (picker.style.display === 'none' || !isSameMessage) {
-            const pm = document.getElementById('plus-menu');
-            if (pm) { pm.style.display = 'none'; pm.classList.add('hidden'); }
-            await renderEmojiPicker();
-            picker.style.display = 'grid';
-        } else {
-            picker.style.display = 'none';
-        }
-    };
-    reactionsBar.appendChild(expandBtn);
-    wrap.appendChild(reactionsBar);
+    wrap.appendChild(buildReactionsBar(messageId));
 
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble sticker-bubble';
@@ -8596,41 +8713,54 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
         senderName: msg.sender_name || (isMe ? (auth.currentUser?.displayName || 'You') : 'User')
     };
 
-    const stickerMetaSnap = await get(ref(db, `sticker_metadata/${msg.stickerId}`));
-    const stickerMeta = stickerMetaSnap.val();
+    const renderStickerContent = (stickerMeta) => {
+        if (stickerMeta) {
+            const stickerUrl = stickerMeta.storagePath;
+            const stickerImg = document.createElement('img');
+            stickerImg.src = stickerUrl;
+            stickerImg.alt = getStickerDisplayName(stickerMeta);
+            stickerImg.className = 'chat-sticker sticker-img';
+            stickerImg.loading = 'lazy';
+            stickerImg.decoding = 'async';
+            stickerImg.onload = () => {
+                if (cont && (userPinnedToBottom || window.isUserNearBottom())) {
+                    cont.scrollTop = cont.scrollHeight;
+                }
+            };
+            stickerImg.onclick = (e) => {
+                e.stopPropagation();
+                openStickerPackPreview(msg.stickerId);
+            };
+            bubble.insertBefore(stickerImg, bubble.firstChild);
+        } else {
+            const fallback = document.createElement('span');
+            fallback.innerText = "[Sticker not found]";
+            bubble.insertBefore(fallback, bubble.firstChild);
+        }
+    };
 
-    if (stickerMeta) {
-        const stickerUrl = stickerMeta.storagePath;
-        const stickerImg = document.createElement('img');
-        stickerImg.src = stickerUrl;
-        stickerImg.alt = getStickerDisplayName(stickerMeta);
-        stickerImg.className = 'chat-sticker sticker-img';
-        stickerImg.loading = 'lazy';
-        stickerImg.decoding = 'async';
-        stickerImg.onload = () => {
-            const isNearBottom = cont.scrollHeight - cont.scrollTop - cont.clientHeight < 120;
-            if (isNearBottom) cont.scrollTop = cont.scrollHeight;
-        };
-        stickerImg.onclick = (e) => {
-            e.stopPropagation();
-            openStickerPackPreview(msg.stickerId);
-        };
-        bubble.appendChild(stickerImg);
+    if (stickerMetadataCache.has(msg.stickerId)) {
+        renderStickerContent(stickerMetadataCache.get(msg.stickerId));
     } else {
-        bubble.innerText = "[Sticker not found]";
+        get(ref(db, `sticker_metadata/${msg.stickerId}`)).then(snap => {
+            const meta = snap.val() || null;
+            if (meta) stickerMetadataCache.set(msg.stickerId, meta);
+            if (wrap.isConnected) renderStickerContent(meta);
+        }).catch(() => {
+            if (wrap.isConnected) renderStickerContent(null);
+        });
     }
 
-    // Action Menu (Reply/Delete)
     const actionsContainer = document.createElement('div');
     actionsContainer.className = 'msg-actions';
     const actionButton = document.createElement('button');
     actionButton.className = 'msg-action-btn';
-    actionButton.innerHTML = '&#x25BC;'; 
-    
+    actionButton.innerHTML = '&#x25BC;';
+
     const actionMenu = document.createElement('div');
     actionMenu.className = 'msg-action-menu';
     actionMenu.style.display = 'none';
-    
+
     const closeStickerActionMenu = () => {
         actionMenu.style.display = 'none';
         actionMenu.style.transform = '';
@@ -8654,7 +8784,7 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
 
     const stickerPinBtn = createPinActionMenuButton(messageId, closeStickerActionMenu);
     if (stickerPinBtn) actionMenu.appendChild(stickerPinBtn);
-    
+
     if (isMe) {
         const deleteBtn = document.createElement('button');
         deleteBtn.innerText = 'Delete';
@@ -8666,7 +8796,7 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
         };
         actionMenu.appendChild(deleteBtn);
     }
-    
+
     actionsContainer.appendChild(actionButton);
     actionsContainer.appendChild(actionMenu);
 
@@ -8691,19 +8821,19 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
         };
     }
     bubble.appendChild(actionsContainer);
+    syncReactionsContainerInPlace(bubble, messageId, msg.reactions);
     attachMessageContextMenu(bubble, messageId, msg, isMe);
 
     const pfp = currentChatMemberPics.get(msg.sender_id);
-    const avatarHtml = pfp 
+    const avatarHtml = pfp
         ? `<img src="${pfp}" loading="lazy" decoding="async" class="msg-avatar-img" onclick="event.stopPropagation(); showUserProfile('${msg.sender_id}', currentChatId, currentChatCreatorId)">`
         : `<div class="msg-avatar-fallback">\u{1F464}</div>`;
 
     const author = createAuthorElement(msg, () => showUserProfile(msg.sender_id, currentChatId, currentChatCreatorId));
-    
+
     const timestampElem = document.createElement('span');
     timestampElem.className = 'msg-timestamp';
-    const timeStr = formatSmartTimestamp(msg.timestamp);
-    timestampElem.innerText = timeStr;
+    timestampElem.innerHTML = buildMessageTimestampHtml(msg);
 
     if (!isConsecutive || !isMe) {
         const header = document.createElement('div');
@@ -8715,8 +8845,8 @@ async function renderStickerMessage(msg, isConsecutive, messageId, isMe, isUserM
 
     wrap.appendChild(bubble);
     wrap.appendChild(timestampElem);
-    twemoji.parse(wrap);
-    if (isNew) insertMessageIntoDOM(wrap, msg.timestamp);
+    if (window.twemoji) twemoji.parse(wrap);
+    return wrap;
 }
 
 function createTypingIndicator() {
@@ -8740,6 +8870,7 @@ function updateGroupMuteUI(groupData, chatData = currentChatData) {
     }
 
     if (muteData && typeof muteData === 'object' && muteData.mutedUntil > Date.now()) {
+        window.currentGroupMuteData = muteData;
         // User is currently muted
         const dateStr = new Date(muteData.mutedUntil).toLocaleString();
         const timeStr = muteData.mutedUntil > 4000000000000 ? "Permanently" : `until ${dateStr}`;
@@ -8760,6 +8891,7 @@ function updateGroupMuteUI(groupData, chatData = currentChatData) {
         const typingInd = document.getElementById('typing-indicator');
         if (typingInd) typingInd.style.display = 'none';
     } else {
+        window.currentGroupMuteData = null;
         // User is not muted (or mute expired)
         if (inputWrapper) inputWrapper.style.display = 'flex';
         const banner = document.getElementById('mute-banner');
@@ -9385,44 +9517,32 @@ async function sendMessage() {
     if (typingTimeout) {
         clearTimeout(typingTimeout);
         typingTimeout = null;
-        updateTypingStatus(false); // Ensure typing status is cleared
+        updateTypingStatus(false);
     }
 
     const input = document.getElementById('message-input');
+    const myUid = auth.currentUser?.uid;
+    if (!myUid) return;
 
-    // Logic guard: Prevent sending if muted
-    // This check should ideally be done server-side as well for full security
-    const myUid = auth.currentUser.uid;
+    // Fast synchronous mute checks (member mute + cached group mute)
     const myData = currentChatMemberData?.[myUid];
-    if (myData && myData.mutedUntil && myData.mutedUntil > Date.now()) return;
-
-    // Server-level and group mod mute check
-    const isGroup = currentChatData?.isGroup === true || currentChatData?.type === 'group' || !!currentChatData?.groupId;
-    const groupId = currentChatData?.groupId || currentChatId;
-    if (isGroup && groupId) {
-        try {
-            const gSnap = await get(ref(db, `groups/${groupId}/mutedUsers/${myUid}`));
-            if (gSnap.exists()) {
-                const mVal = gSnap.val();
-                const isCurrentlyMuted = mVal === true || (mVal && typeof mVal === 'object' && mVal.mutedUntil > Date.now());
-                if (isCurrentlyMuted) {
-                    const reasonStr = (mVal && mVal.reason) ? ` Reason: ${mVal.reason}` : '';
-                    showNotification(`You are muted.${reasonStr}`, "error");
-                    return;
-                }
-            }
-        } catch (e) {
-            console.warn("Mute check error in sendMessage:", e);
-        }
+    if (myData && myData.mutedUntil && myData.mutedUntil > Date.now()) {
+        showNotification("You are currently muted.", "error");
+        return;
+    }
+    if (window.currentGroupMuteData && window.currentGroupMuteData.mutedUntil > Date.now()) {
+        const reasonStr = window.currentGroupMuteData.reason ? ` Reason: ${window.currentGroupMuteData.reason}` : '';
+        showNotification(`You are muted.${reasonStr}`, "error");
+        return;
     }
 
     let stickerToSend = null;
-    if (currentStickerPickerMessageId) { // If a sticker was selected from the picker
+    if (currentStickerPickerMessageId) {
         stickerToSend = currentStickerPickerMessageId;
-        currentStickerPickerMessageId = null; // Clear after sending
+        currentStickerPickerMessageId = null;
     }
 
-    const txt = input.value.trim();
+    const txt = input ? input.value.trim() : '';
 
     // --- Anti-spam detection ---
     let isSpamDetected = false;
@@ -9432,13 +9552,11 @@ async function sendMessage() {
     let userRecentMessages = recentUserMessages.get(myUid) || [];
     const currentTime = Date.now();
 
-    // Clean up old messages from history
     userRecentMessages = userRecentMessages.filter(msg => currentTime - msg.timestamp < SPAM_IDENTICAL_MESSAGE_TIME_WINDOW_MS);
 
     let spamMatchCount = 0;
     for (const prevMsg of userRecentMessages) {
         const prevIsLowEffort = prevMsg.text.length > 1 && repeatedCharRegex.test(prevMsg.text);
-        // Match if exact same text OR both are repeated character spams (like "pp" followed by "ppp")
         if (prevMsg.text === txt || (isLowEffort && prevIsLowEffort)) {
             spamMatchCount++;
         }
@@ -9452,14 +9570,15 @@ async function sendMessage() {
     if (isSpamDetected) {
         const success = await applyMute(currentChatId, myUid, SPAM_MUTE_DURATION_MINUTES, "Spamming", currentChatMemberData);
         if (success) showNotification("Spam detected! You have been muted for 30 minutes.", "error");
-        input.value = ''; // Clear input to prevent further spam attempts
-        return; // Prevent sending the spam message
+        if (input) input.value = '';
+        updateInputButtons();
+        return;
     }
 
     if (!currentChatId || (!txt && !stickerToSend)) return;
 
     if (currentChatId === 'channel_orion_updates') {
-        const isSystemOrAdmin = myData?.role === 'admin' || myData?.role === 'system' || auth.currentUser.uid === currentChatCreatorId;
+        const isSystemOrAdmin = myData?.role === 'admin' || myData?.role === 'system' || myUid === currentChatCreatorId;
         if (!isSystemOrAdmin) {
             showNotification("Only system and administrators can post here.", "info");
             return;
@@ -9471,10 +9590,12 @@ async function sendMessage() {
         try {
             await update(ref(db, `messages/${currentChatId}/${currentEditingMessage}`), {
                 text: txt,
-                edited_at: serverTimestamp() 
+                edited_at: serverTimestamp()
             });
             exitEditMode();
-            return; 
+            if (input) input.value = '';
+            updateInputButtons();
+            return;
         } catch (err) {
             console.error("Error updating message:", err);
             showNotification("Failed to update message.", "error");
@@ -9482,100 +9603,148 @@ async function sendMessage() {
         }
     }
 
-    const mKey = push(ref(db, `messages/${currentChatId}`)).key;
-    const chatSnap = await get(ref(db, `chats/${currentChatId}`));
-    const chatData = chatSnap.val();
-    const updates = {};
+    const destChatId = currentChatId;
+    const newMsgRef = push(ref(db, `messages/${destChatId}`));
+    const msgId = newMsgRef.key;
 
-    // Channel Identity: If channel, use chat title as sender name
-    const identityName = (chatData?.isChannel) ? chatData.title : document.getElementById('current-user-name').innerText;
+    const identityName = (currentChatData?.isChannel)
+        ? currentChatData.title
+        : (document.getElementById('current-user-name')?.innerText || auth.currentUser?.displayName || 'User');
 
-    const messageData = {
-        sender_id: auth.currentUser.uid,
+    const payload = {
+        sender_id: myUid,
         sender_name: identityName,
         text: txt,
         createdAt: serverTimestamp(),
         timestamp: serverTimestamp()
     };
-    const isDM = !currentChatId || !(chatData?.isGroup || chatData?.isChannel || currentChatData?.isGroup || currentChatData?.isChannel);
+
+    const isDM = !destChatId || !(currentChatData?.isGroup || currentChatData?.isChannel);
     if (!isDM) {
-        const myRole = currentChatMemberData?.[auth.currentUser.uid]?.role || 'member';
+        const myRole = currentChatMemberData?.[myUid]?.role || 'member';
         const roleInfo = getGroupRoleInfo(myRole);
         if (roleInfo && roleInfo.badge) {
-            messageData.sender_role = myRole;
-            messageData.sender_badge = roleInfo.badge;
+            payload.sender_role = myRole;
+            payload.sender_badge = roleInfo.badge;
         }
     }
 
     if (currentReplyMessage) {
-        messageData.reply_to = currentReplyMessage;
+        payload.reply_to = currentReplyMessage;
     }
     if (stickerToSend) {
-        messageData.stickerId = stickerToSend;
-        messageData.text = "[Sticker]"; // Clear text if sending a sticker
+        payload.stickerId = stickerToSend;
+        payload.text = "[Sticker]";
     }
 
-    updates[`/messages/${currentChatId}/${mKey}`] = messageData;
+    // 1. Optimistically build & append bubble in 0ms
+    const localTimestamp = typeof window.getServerTime === 'function' ? window.getServerTime() : Date.now();
+    const optimisticPayload = { ...payload, timestamp: localTimestamp };
+    const feed = document.getElementById('messages-container');
+    let optimisticEl = null;
 
-    const formatted = linkifyAndEmbed(txt); // Still process text for last_message if no sticker
-    let lastMsg = stickerToSend ? "[Sticker]" : txt;
-    if (formatted.imageUrls.length > 0 && !formatted.html) {
-        lastMsg = "[Image]";
-    } else {
-        // Truncate last_message for sidebar to avoid validation issues with long messages
-        lastMsg = txt.length > 100 ? txt.substring(0, 97) + "..." : txt;
-    }
-    updates[`/chats/${currentChatId}/last_message`] = lastMsg;
-    updates[`/chats/${currentChatId}/timestamp`] = serverTimestamp();
-
-    const membersSnap = await get(ref(db, `members/${currentChatId}`));
-    const members = membersSnap.val();
-    if (members) {
-        const isEveryoneMentioned = /@everyone\b/i.test(txt);
-        Object.keys(members).forEach(uid => { 
-            if (uid !== auth.currentUser.uid) {
-                updates[`/unread/${uid}/${currentChatId}`] = true;
-                const targetName = currentChatMemberNames.get(uid);
-                const mentionRegex = targetName ? new RegExp(`@${targetName}\\b`, 'i') : null;
-                if (isEveryoneMentioned || (mentionRegex && mentionRegex.test(txt))) {
-                    updates[`/mentions/${uid}/${currentChatId}`] = increment(1);
-                }
-            }
-        });
-    }
-    exitReplyMode();
-    document.getElementById('emoji-picker').style.display = 'none';
-    closeAnimatedModal(document.getElementById('sticker-picker-modal')); // Close picker after sending
-
-    // Add current message to history AFTER successful send (to avoid adding failed messages)
-    userRecentMessages.push({ text: txt, timestamp: currentTime });
-    // Keep history length limited
-    if (userRecentMessages.length > SPAM_MESSAGE_HISTORY_LENGTH) {
-        userRecentMessages.shift(); // Remove the oldest message
-        // No need to set recentUserMessages.set(myUid, userRecentMessages) here, as it's already a reference.
-    }
-    recentUserMessages.set(myUid, userRecentMessages);
-    await update(ref(db), updates);
-
-    // Lookup recipient's fcmToken from RTDB and trigger Cloudflare Worker notification
-    if (members) {
-        const recipientUids = Object.keys(members).filter(uid => uid !== auth.currentUser.uid);
-        recipientUids.forEach(async (rUid) => {
-            try {
-                let recipientFcmToken = null;
-                const userSnap = await get(ref(db, `users/${rUid}/fcmToken`));
-                recipientFcmToken = userSnap.val();
-                if (recipientFcmToken) {
-                    sendPushNotification(recipientFcmToken, identityName, lastMsg, { chatId: currentChatId });
-                }
-            } catch (notifyErr) {
-                console.error("[FCM Worker] Error notifying recipient:", rUid, notifyErr);
-            }
-        });
+    if (feed) {
+        const lastMsgEl = Array.from(feed.children).reverse().find(el => el.dataset?.msgId);
+        const isConsecutive = Boolean(lastMsgEl && lastMsgEl.dataset.senderId === myUid);
+        optimisticEl = buildMessageElement(msgId, optimisticPayload, isConsecutive);
+        optimisticEl.classList.add('msg-pending');
+        insertMessageIntoDOM(optimisticEl, localTimestamp);
     }
 
-    input.value = '';
+    // 2. Immediately clear input, reply bar, pickers, and scroll to bottom
+    if (input) input.value = '';
     updateInputButtons();
+    exitReplyMode();
+    const emojiPickerEl = document.getElementById('emoji-picker');
+    if (emojiPickerEl) emojiPickerEl.style.display = 'none';
+    closeAnimatedModal(document.getElementById('sticker-picker-modal'));
+
+    if (feed) {
+        userPinnedToBottom = true;
+        unreadBelowCount = 0;
+        feed.scrollTop = feed.scrollHeight;
+        updateJumpToBottomButton(true);
+    }
+
+    // 3. Persist to Firebase
+    try {
+        await set(newMsgRef, payload);
+
+        // Record anti-spam history only after successful send
+        userRecentMessages.push({ text: txt, timestamp: currentTime });
+        if (userRecentMessages.length > SPAM_MESSAGE_HISTORY_LENGTH) {
+            userRecentMessages.shift();
+        }
+        recentUserMessages.set(myUid, userRecentMessages);
+
+        // Update chat summary, unread/mention counts, and push notifications in background
+        const formatted = linkifyAndEmbed(txt);
+        let lastMsg = stickerToSend ? "[Sticker]" : txt;
+        if (formatted.imageUrls.length > 0 && !formatted.html) {
+            lastMsg = "[Image]";
+        } else if (!stickerToSend) {
+            lastMsg = txt.length > 100 ? txt.substring(0, 97) + "..." : txt;
+        }
+
+        const metaUpdates = {};
+        metaUpdates[`/chats/${destChatId}/last_message`] = lastMsg;
+        metaUpdates[`/chats/${destChatId}/timestamp`] = serverTimestamp();
+
+        let members = currentChatMemberData;
+        if (!members || Object.keys(members).length === 0) {
+            const membersSnap = await get(ref(db, `members/${destChatId}`));
+            members = membersSnap.val();
+        }
+
+        if (members) {
+            const isEveryoneMentioned = /@everyone\b/i.test(txt);
+            Object.keys(members).forEach(uid => {
+                if (uid !== myUid) {
+                    metaUpdates[`/unread/${uid}/${destChatId}`] = true;
+                    const targetName = currentChatMemberNames.get(uid);
+                    const mentionRegex = targetName ? new RegExp(`@${targetName}\\b`, 'i') : null;
+                    if (isEveryoneMentioned || (mentionRegex && mentionRegex.test(txt))) {
+                        metaUpdates[`/mentions/${uid}/${destChatId}`] = increment(1);
+                    }
+                }
+            });
+        }
+
+        update(ref(db), metaUpdates).catch(err => console.warn('[Chat] Metadata update error:', err));
+
+        if (members) {
+            const recipientUids = Object.keys(members).filter(uid => uid !== myUid);
+            recipientUids.forEach(async (rUid) => {
+                try {
+                    const userSnap = await get(ref(db, `users/${rUid}/fcmToken`));
+                    const recipientFcmToken = userSnap.val();
+                    if (recipientFcmToken) {
+                        sendPushNotification(recipientFcmToken, identityName, lastMsg, { chatId: destChatId });
+                    }
+                } catch (notifyErr) {
+                    console.error("[FCM Worker] Error notifying recipient:", rUid, notifyErr);
+                }
+            });
+        }
+    } catch (err) {
+        console.error("[Chat] Failed to send message:", err);
+        const failedEl = document.querySelector(`[data-msg-id="${msgId}"]`) || optimisticEl;
+        if (failedEl) {
+            failedEl.classList.remove('msg-pending');
+            failedEl.classList.add('msg-failed');
+            const targetBubble = failedEl.querySelector('.msg-bubble') || failedEl;
+            if (!targetBubble.querySelector('.msg-failed-indicator')) {
+                const ind = document.createElement('span');
+                ind.className = 'msg-failed-indicator';
+                ind.textContent = 'Failed to send';
+                targetBubble.appendChild(ind);
+            }
+        }
+        const errMsg = err?.message?.includes('permission_denied')
+            ? 'Permission denied: Failed to send message.'
+            : 'Failed to send message.';
+        showNotification(errMsg, 'error');
+    }
 }
 
 /* ---------------- SEND BUTTON ---------------- */
@@ -12605,6 +12774,10 @@ document.addEventListener('click', (e) => {
 function exitChat() {
     window.clearChatCleanups();
     ++currentChatOpenToken;
+    unreadBelowCount = 0;
+    userPinnedToBottom = true;
+    window.currentGroupMuteData = null;
+    updateJumpToBottomButton(true);
     dismissKeyboard();
     document.body.classList.remove('chat-open');
     if (window.innerWidth <= 768) {

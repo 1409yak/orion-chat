@@ -19,6 +19,8 @@
 
 ## Recent Fixes & Feature Enhancements
 
+- *Chat Engine & Scroll Polish (Patch 2):* Migrated chat feed rendering from full-container `onValue` wipes to incremental `onChildAdded`/`onChildChanged`/`onChildRemoved` (`limitToLast(60)`) registered in `activeChatCleanups` to eliminate image/media flicker. Added 0ms optimistic message sending via pre-generated `push().key` IDs and smart auto-scroll with a floating 'Jump to latest' / unread count pill.
+
 - *UI Polish & Stability (Patch 1):* Added smooth CSS pop-in transitions for modals/popups, tactile button feedback, custom thin scrollbars, a debounced `.info/connected` Reconnecting banner, centralized `activeChatCleanups` to prevent listener leaks on chat switching, and Discord-style Escape + auto-focus keyboard ergonomics.
 
 - *New Game (Spy):* Built the multiplayer 'Spy' social deduction game integrated with multi-lobby support (`games/${chatId}/${gameId}`), a 100+ categorized word library, server-synced phase timers via `getServerTime()`, `runTransaction`-protected phase transitions (reveal -> 2 clue rounds -> voting -> spy last-chance guess -> finished), HTML-escaped clues, and clean close/unsubscribe handling.
